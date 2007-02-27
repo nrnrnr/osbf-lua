@@ -2,21 +2,10 @@
 LIB_VERSION= 2.0.4
 
 # Installation directories: Adjust these for your distro and Lua version
-# Prefix for installation
-PREFIX= /usr/local
-# Spamfilter install dir
-SPAMFILTER_DIR= $(PREFIX)/osbf-lua
-
-# Lua's library dir:
-LUA_LIBDIR= /usr/local/lib/lua/5.1
-# Lua's include dir
-LUA_INCDIR= /usr/local/include
-
-# System's include dir (where include files are installed)
-INC_DIR= /usr/local/include
-# System's library dir (where binary libraries are installed)
-LIB_DIR= /usr/local/lib
-
+# Where Lua modules are installed
+LUAMODULE_DIR=/usr/local/lib/lua/5.1
+LUA_CFLAGS=$(shell pkg-config --cflags lua5.1)
+LUA_LIBS=$(shell pkg-config --libs lua5.1)
 # OS dependent
 LIB_EXT= .so
 
@@ -43,8 +32,7 @@ PIC=-fPIC
 
 # Compilation directives
 OPTIONS= -O3 -Wall ${PIC} -fomit-frame-pointer -pedantic-errors -W -Waggregate-return -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings
-INCS= -I$(INC_DIR) -I$(LUA_INCDIR)
-LIBS= -L$(LIB_DIR) -L$(LUA_LIBDIR) -lm
-CFLAGS= $(OPTIONS) `pkg-config --cflags lua5.1` -DLIB_VERSION=\"$(LIB_VERSION)\"
+CFLAGS= $(OPTIONS) $(LUA_CFLAGS) -DLIB_VERSION=\"$(LIB_VERSION)\"
+LIBS= $(LUA_LIBS) -lm
 CC= gcc
 

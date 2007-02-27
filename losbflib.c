@@ -31,7 +31,7 @@
 
 #include "osbflib.h"
 
-extern int luaopen_osbf (lua_State * L);
+extern int luaopen_osbf_core (lua_State * L);
 
 /* configurable constants */
 extern uint32_t microgroom_chain_length;
@@ -628,20 +628,20 @@ lua_osbf_stats (lua_State * L)
 ** Assumes the table is on top of the stack.
 */
 static void
-set_info (lua_State * L)
+set_info (lua_State * L, int index)
 {
   lua_pushliteral (L, "_COPYRIGHT");
   lua_pushliteral (L, "Copyright (C) 2005, 2006 Fidelis Assis");
-  lua_settable (L, -3);
+  lua_settable (L, index);
   lua_pushliteral (L, "_DESCRIPTION");
   lua_pushliteral (L, "OSBF-Lua is a Lua library for text classification.");
-  lua_settable (L, -3);
+  lua_settable (L, index);
   lua_pushliteral (L, "_NAME");
   lua_pushliteral (L, "OSBF-Lua");
-  lua_settable (L, -3);
+  lua_settable (L, index);
   lua_pushliteral (L, "_VERSION");
   lua_pushliteral (L, LIB_VERSION);
-  lua_settable (L, -3);
+  lua_settable (L, index);
 }
 
 /**********************************************************/
@@ -741,19 +741,6 @@ dir_gc (lua_State * L)
   return 0;
 }
 
-static int
-l_strstr (lua_State * L)
-{
-  const char *haystack = luaL_checkstring(L, 1);
-  const char *needle = luaL_checkstring(L, 2);
-  const char *pos = strstr(haystack, needle);
-  if (pos)
-    lua_pushnumber(L, pos - haystack + 1);
-  else
-    lua_pushnil(L);
-  return 1;
-}
-
 /**********************************************************/
 
 static const struct luaL_reg osbf[] = {
@@ -770,7 +757,6 @@ static const struct luaL_reg osbf[] = {
   {"getdir", lua_osbf_getdir},
   {"chdir", lua_osbf_changedir},
   {"dir", l_dir},
-  {"strstr", l_strstr},
   {NULL, NULL}
 };
 
@@ -779,8 +765,9 @@ static const struct luaL_reg osbf[] = {
 ** Open OSBF library
 */
 int
-luaopen_osbf (lua_State * L)
+luaopen_osbf_core (lua_State * L)
 {
+  const char *libname = luaL_checkstring(L, 1);
   /* Open dir function */
   luaL_newmetatable (L, "LuaBook.dir");
   /* set its __gc field */
@@ -788,7 +775,7 @@ luaopen_osbf (lua_State * L)
   lua_pushcfunction (L, dir_gc);
   lua_settable (L, -3);
 
-  luaL_register (L, "osbf", osbf);
-  set_info (L);
+  set_info (L, -3);
+  luaL_register (L, libname, osbf);
   return 1;
 }

@@ -970,7 +970,9 @@ osbf_restore (const char *cfcfile, const char *csvfile, char *errmsg)
 {
   FILE *fp_cfc, *fp_csv;
   OSBF_BUCKET_STRUCT buckets[BUCKET_BUFFER_SIZE];
-  OSBF_HEADER_STRUCT *header = (OSBF_HEADER_STRUCT *) buckets;
+  OSBF_HEADER_STRUCT *header = (OSBF_HEADER_STRUCT *) (void *) buckets;
+    /* assignment is wildly unsafe, but we're careful, and (void *)
+       keeps gcc from complaining */
   int32_t size_in_buckets;
   int error = 0;
 

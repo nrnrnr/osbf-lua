@@ -19,10 +19,12 @@ $(LIBNAME): $(OBJS)
 	$(CC) $(CFLAGS) $(LIB_OPTION) -o $(LIBNAME) $(OBJS) $(LIBS)
 
 install: $(LIBNAME)
-	mkdir -p $(LUA_LIBDIR)
+	mkdir -p $(LUAMODULE_DIR)/osbf
 	strip $(LIBNAME)
-	cp $(LIBNAME) $(LUA_LIBDIR)
-	(cd $(LUA_LIBDIR) ; rm -f $T$(LIB_EXT) ; ln -fs $(LIBNAME) $T$(LIB_EXT))
+	cp $(LIBNAME) $(LUAMODULE_DIR)/osbf/core$(LIB_EXT)
+	cp lua/osbf.lua $(LUAMODULE_DIR)
+	cp lua/*.lua $(LUAMODULE_DIR)/osbf
+	rm -f $(LUAMODULE_DIR)/osbf/osbf.lua # ugly, but so what
 
 install_spamfilter:
 	mkdir -p $(SPAMFILTER_DIR)
