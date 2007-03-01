@@ -26,6 +26,9 @@ install: $(LIBNAME)
 	cp lua/*.lua $(LUAMODULE_DIR)/osbf
 	rm -f $(LUAMODULE_DIR)/osbf/osbf.lua # ugly, but so what
 
+test: install
+	lua5.1 -losbf ./print-contents
+
 install_spamfilter:
 	mkdir -p $(SPAMFILTER_DIR)
 	cp spamfilter/* $(SPAMFILTER_DIR)

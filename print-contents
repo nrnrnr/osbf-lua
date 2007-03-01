@@ -1,0 +1,16 @@
+-- -*- mode: lua; -*-
+local function boring(k)
+  return (string.find(k, '^_%u+$'))
+end
+
+for k, v in pairs(osbf) do
+  if not boring(k) then
+    k = 'osbf.' .. k
+    if type(v) == 'table' then
+      for f, w in pairs(v) do if not boring(f) then print(k .. '.' .. f, w) end end
+    else
+      print(k, v)
+    end
+  end
+end
+
