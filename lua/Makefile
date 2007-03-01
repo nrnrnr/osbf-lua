@@ -1,11 +1,11 @@
 
-all: osbf.html
+all: doc
 
 test: 
 	(cd ..; make test)
 
+doc: 
+	luadoc -d . *.lua
 
-.SUFFIXES: .lua .html
-
-.lua.html:
-	luadoc -d . $*.lua > $*.html
+clean: 
+	rm -f *.html
