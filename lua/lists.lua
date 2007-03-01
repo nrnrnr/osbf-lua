@@ -100,6 +100,6 @@ function del(listname, part, tag, string)
   return already_there
 end
 
---- still missing: function 'print'
+--- still missing: function print(file, listname)
 
-    
+--- still missing: function match(listname, msg)
