@@ -4,4 +4,8 @@
 
 require 'osbf'
 
-osbf.command_line.run(unpack(arg))
+local options, args = osbf.util.getopt(arg, osbf.std_opts)
+
+osbf.init(options)
+
+osbf.command_line.run(unpack(args))
