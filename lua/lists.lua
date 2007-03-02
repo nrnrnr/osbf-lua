@@ -100,6 +100,73 @@ function del(listname, part, tag, string)
   return already_there
 end
 
+----------------------------------------------------------------
+
+function show(file, listname)
+  local l = load(listname)
+  local ss = table.sorted_keys(l.strings, util.case_lt)
+  local ps = table.sorted_keys(l.pats, util.case_lt)
+  if #ss == 0 and #ps == 0 then
+    file:write('======= ', listname, ' is empty ==========\n')
+  else
+    if #ss > 0 then
+      file:write('Strings:\n')
+      for _, s in ipairs(ss) do file:write('  ', s, '\n') end
+      if #ps > 0 then file:write '\n' end
+    end
+    if #ps > 0 then
+      file:write('Patterns:\n')
+      for _, s in ipairs(ps) do file:write('  ', s, '\n') end
+    end
+  end
+end
+
 --- still missing: function print(file, listname)
+
+
+
+----------------------------------------------------------------
+
+--- Evaluating a command from a string.
+
+--- Table that shows what arguments should be passed to list commands
+local list_cmd  = { add = add, ['add-pat'] = add,
+                    del = del, ['del-pat'] = del }
+local list_part = { add = 'strings', ['add-pat'] = 'pats',
+                    del = 'strings', ['del-pat'] = 'pats' }
+
+
+--- Function to implement list commands.
+-- @param listname Name of the list.
+-- @param cmd Command.
+-- @param tag Tag, if needed by command.
+-- @param arg Argument, if needed by command.
+-- @return Non-nil on success; nil, errmsg on failure.
+function run(listname, cmd, tag, arg)
+  if cmd == 'show' then
+    return show(io.stdout, listname)
+  elseif not list_cmd[cmd] then
+    return nil, "Unrecognized command " .. cmd
+  elseif not tag or not arg or arg == "" then
+    return nil, "Command '" .. cmd .. "' expects a tag and an argument"
+  else
+    return list_cmd[cmd](listname, list_part[cmd], string.lower(tag), arg)
+  end
+end
+
+
+--- Function to implement list commands as strings.
+-- @param listname Name of the list.
+-- @param s Command string: add[-pat] <tag> <string>.
+-- @return Non-nil on success; nil, errmsg on failure.
+function runstring(listname, s)
+  local cmd, tag, arg = string.match(s, '^(%S+)%s+(%S+)%s+(.*)$')
+  if not cmd then
+    cmd, tag, arg = unpack(util.split(s))
+  end
+  return run(listname, cmd, tag, arg)
+end
+
+
 
 --- still missing: function match(listname, msg)

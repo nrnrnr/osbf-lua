@@ -5,7 +5,10 @@ local modname = ...
 
 module(modname)
 
-for _, submodule in ipairs { 'core', 'util', 'lists', 'commands', 'cfg' } do
+local submodules =
+  { 'core', 'util', 'lists', 'commands', 'mail_commands', 'cfg', 'command_line' }
+
+for _, submodule in ipairs(submodules) do
   require (modname .. '.' .. submodule)
 end
 

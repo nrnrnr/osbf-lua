@@ -1,0 +1,7 @@
+#!/usr/bin/lua5.1
+
+-- simple command-line client
+
+require 'osbf'
+
+osbf.command_line.run(unpack(arg))
