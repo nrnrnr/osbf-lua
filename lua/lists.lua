@@ -1,5 +1,5 @@
-local io, string, print
-    = io, string, print
+local io, string, table, print, assert, pairs, ipairs, type
+    = io, string, table, print, assert, pairs, ipairs, type
 
 require 'osbf.util'
 
@@ -26,10 +26,13 @@ local cache = { }
 -- @param name Basename of the file in the lists dir holding this list.
 -- @return The internal representation of the list (to be kept private).
 local function load(name)
-  if not cache[name] then
+  if cache[name] then
+    return cache[name]
+  else
     local list = util.protected_dofile(util.dirfilename('lists', name)) or
-      { strings = table_tab { }, pats = table_tab { } }
+      { strings = util.table_tab { }, pats = util.table_tab { } }
     cache[name] = list
+    return list
   end
 end
 
@@ -40,15 +43,16 @@ end
 -- @param l List to be saved.
 -- @return true on success; nil, msg on failure.
 local function save(name, l)
-  cache[name] = l
+  cache[name] = assert(l, 'Tried to save nil as a list?!')
   local f, err = io.open(util.dirfilename('lists', name), 'w')
   if not f then return f, err end
   local function writeval(v, indent)
     if type(v) == 'table' then
+      local nextindent = indent .. '    '
       f:write(indent, '{ ')
       for k, w in pairs(v) do
-        f:write(string.format('%s[%q] = ', indent, k))
-        writeval(w)
+        f:write(string.format('%s  [%q] = ', indent, k))
+        writeval(w, nextindent)
         f:write(',\n')
       end
       f:write(' }')
@@ -63,7 +67,7 @@ local function save(name, l)
     end
   end
   f:write('return ')
-  f:writeval(l)
+  writeval(l, '')
   return true
 end
 
@@ -74,11 +78,12 @@ end
 -- @param string String or pattern to be added.
 -- @return boolean saying if it was already there.
 function add(listname, part, tag, string)
-  local t = assert(load(listname)[part], "Table is not a list")
+  local l = load(listname)
+  local t = assert(l[part], "Table is not a list")
   local already_there = t[tag][string]
   t[tag][string] = true
   if not already_there then
-    save(listname)
+    save(listname, l)
   end
   return already_there
 end
@@ -91,11 +96,12 @@ end
 -- @return boolean saying if it was already there.
 
 function del(listname, part, tag, string)
-  local t = assert(load(listname)[part], "Table is not a list")
+  local l = load(listname)
+  local t = assert(l[part], "Table is not a list")
   local already_there = t[tag][string]
   t[tag][string] = nil
   if already_there then
-    save(listname)
+    save(listname, l)
   end
   return already_there
 end
@@ -104,19 +110,28 @@ end
 
 function show(file, listname)
   local l = load(listname)
-  local ss = table.sorted_keys(l.strings, util.case_lt)
-  local ps = table.sorted_keys(l.pats, util.case_lt)
-  if #ss == 0 and #ps == 0 then
+  local stags = table.sorted_keys(l.strings, util.case_lt)
+  local ptags = table.sorted_keys(l.pats, util.case_lt)
+  if #stags == 0 and #ptags == 0 then
     file:write('======= ', listname, ' is empty ==========\n')
   else
-    if #ss > 0 then
+    file:write('======= ', listname, ' ==========\n')
+    if #stags > 0 then
       file:write('Strings:\n')
-      for _, s in ipairs(ss) do file:write('  ', s, '\n') end
-      if #ps > 0 then file:write '\n' end
+      for _, tag in ipairs(stags) do
+        for s in pairs(l.strings[tag]) do
+          file:write('  ', util.capitalize(tag), ': ', s, '\n')
+        end
+      end        
+      if #ptags > 0 then file:write '\n' end
     end
-    if #ps > 0 then
+    if #ptags > 0 then
       file:write('Patterns:\n')
-      for _, s in ipairs(ps) do file:write('  ', s, '\n') end
+      for _, tag in ipairs(ptags) do
+        for s in pairs(l.pats[tag]) do
+          file:write('  ', util.capitalize(tag), ': ', s, '\n')
+        end
+      end        
     end
   end
 end

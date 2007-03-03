@@ -23,6 +23,8 @@
 #include <errno.h>
 #include <dirent.h>
 #include <inttypes.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "lua.h"
 
@@ -628,20 +630,20 @@ lua_osbf_stats (lua_State * L)
 ** Assumes the table is on top of the stack.
 */
 static void
-set_info (lua_State * L, int index)
+set_info (lua_State * L, int idx)
 {
   lua_pushliteral (L, "_COPYRIGHT");
   lua_pushliteral (L, "Copyright (C) 2005, 2006 Fidelis Assis");
-  lua_settable (L, index);
+  lua_settable (L, idx);
   lua_pushliteral (L, "_DESCRIPTION");
   lua_pushliteral (L, "OSBF-Lua is a Lua library for text classification.");
-  lua_settable (L, index);
+  lua_settable (L, idx);
   lua_pushliteral (L, "_NAME");
   lua_pushliteral (L, "OSBF-Lua");
-  lua_settable (L, index);
+  lua_settable (L, idx);
   lua_pushliteral (L, "_VERSION");
   lua_pushliteral (L, LIB_VERSION);
-  lua_settable (L, index);
+  lua_settable (L, idx);
 }
 
 /**********************************************************/
@@ -667,6 +669,21 @@ lua_osbf_changedir (lua_State * L)
       return 2;
     }
 }
+
+/**********************************************************/
+/* Test to see if path is a directory */
+static int
+l_is_dir(lua_State *L)
+{
+	struct stat s;
+	const char *path=luaL_checkstring(L, 1);
+	if (stat(path,&s)==-1)
+          lua_pushboolean(L, 0);
+        else
+          lua_pushboolean(L, S_ISDIR(s.st_mode));
+        return 1;
+}
+
 
 /**********************************************************/
 
@@ -757,6 +774,7 @@ static const struct luaL_reg osbf[] = {
   {"getdir", lua_osbf_getdir},
   {"chdir", lua_osbf_changedir},
   {"dir", l_dir},
+  {"is_dir", l_is_dir},
   {NULL, NULL}
 };
 

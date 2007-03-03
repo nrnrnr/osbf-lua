@@ -2,9 +2,10 @@ require 'osbf'
 require 'osbf.lists'
 
 local util, lists = osbf.util, osbf.lists
+local function eprintf(...) return io.stderr:write(string.format(...)) end
 
-local ipairs, io, table, string, _G
-    = ipairs, io, table, string, _G
+local ipairs, tostring, io, os, table, string, _G
+    = ipairs, tostring, io, os, table, string, _G
       
 
 module(...)
@@ -12,10 +13,8 @@ module(...)
 local usage_lines = { }
 
 local list_responses =
-  { add_true = '%s was already in %s\n',
-    add_false = '%s added to %s\n',
-    del_true = '%s deleted from %s\n',
-    del_false = '%s was not in %s\n',
+  { add = { [true] = '%s was already in %s\n', [false] = '%s added to %s\n' },
+    del = { [true] = '%s deleted from %s\n', [false] = '%s was not in %s\n' },
   }
 
 local what = { add = 'String', ['add-pat'] = 'Pattern',
@@ -25,9 +24,14 @@ local function listfun(listname)
   return function(cmd, tag, arg)
            local result = lists.run(listname, cmd, tag, arg)
            if cmd ~= 'show' then
-             local thing = string.format('%s %q for header %s', what[cmd], arg, tag)
+             if not (cmd and tag and arg) then
+               eprintf('Bad %s commmand\n', listname)
+               usage()
+             end
+             tag = util.capitalize(tag)
+             local thing = string.format('%s %q for header %s:', what[cmd], arg, tag)
              local response =
-               list_responses[string.gsub(cmd, '%-.*', '') .. '_' .. to_string(result)]
+               list_responses[string.gsub(cmd, '%-.*', '')][result == true]
              io.stdout:write(string.format(response, thing, listname))
            end
          end
@@ -48,7 +52,7 @@ function run(cmd, ...)
   elseif _M[cmd] then
     _M[cmd](...)
   else
-    io.stderr:write('Unknown command %s\n', cmd)
+    eprintf('Unknown command %s\n', cmd)
     usage()
   end
 end
@@ -61,4 +65,5 @@ function usage()
     io.stderr:write(prefix, prog, ' ', u, '\n')
     prefix = string.gsub(prefix, '.', ' ')
   end
+  os.exit(1)
 end

@@ -14,20 +14,20 @@ end
 
 dirs = { }
 
-local val, bool, opt =
-  util.options.val, util.options.bool, util.options.opt
+local val, bool, opt, dir =
+  util.options.val, util.options.bool, util.options.opt, util.options.dir
 
 std_opts = 
-	{ udir = val, gdir = val, learn = val, unlearn = val, classify = bool,
-	  score = bool, cfgdir = val, dbdir = val, listsdir = val, source = val,
+	{ udir = dir, learn = val, unlearn = val, classify = bool,
+	  score = bool, cfdir = dir, dbdir = dir, listdir = dir, source = val,
 	  output = val, help = bool}
 
 
 function set_dirs(options)
   local HOME = os.getenv 'HOME'
+  local default_dir = HOME and HOME .. '/.osbf-lua' 
   options = options or { }
-  dirs.user   = options.udir or HOME and HOME .. '/.osbf-lua' or '.'
-  dirs.global = options.gdir or string.match(_G.arg[0], "^(.*/)") or "."
+  dirs.user     = options.udir or core.is_dir(default_dir) and default_dir or '.'
   dirs.config   = options.cfgdir   or dirs.user
   dirs.database = options.dbdir    or dirs.user
   dirs.lists    = options.listsdir or dirs.user

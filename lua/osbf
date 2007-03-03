@@ -6,6 +6,11 @@ require 'osbf'
 
 local options, args = osbf.util.getopt(arg, osbf.std_opts)
 
+if not options then
+  io.stderr:write(args, '\n')
+  os.exit(1)
+end
+
 osbf.init(options)
 
 osbf.command_line.run(unpack(args))
