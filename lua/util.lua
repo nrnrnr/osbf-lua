@@ -8,6 +8,7 @@ module(...)
 
 local osbf = require(string.gsub(_PACKAGE, '%.$', ''))
 
+
 --- Special tables.
 -- Metafunction used to create a table on demand.
 local function table__index(t, k) local u = { }; t[k] = u; return u end
@@ -99,6 +100,33 @@ function dirfilename(dir, basename, suffix)
   local d = assert(osbf.dirs[dir], dir .. ' is not a valid directory indicator')
   return d .. basename .. suffix
 end
+
+----------------------------------------------------------------
+-- Utilities for managing the cache
+
+--- A status is 'spam', 'ham', 'unlearned', or 'missing' (not in the cache).
+
+local suffixes = { spam = '-s', ham = '-h', unlearned = '' }
+
+function cachefilename(sfid, status)
+  -- status must by 'spam', 'ham', or 'unlearned'    
+  return  dirfilename('cache', osbf.cfg.sfid_subdir .. sfid,
+                      '.lua' .. assert(suffixes[status]))
+end
+    
+function file_and_status(sfid)
+  -- returns file, status where
+  --   file is either nil or a descriptor open for read
+  --   status is either 'unlearned', 'spam', 'ham', or 'missing'
+  --   file == nil if and only if status == 'missing'
+  for status in pairs(suffixes) do
+    local f = io.open(cachefilename(sfid, status), 'r')
+    if f then return f, status end
+  end
+  return nil, 'missing'
+end
+
+
 
 ----------------------------------------------------------------
 

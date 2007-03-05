@@ -1,3 +1,9 @@
+local threshold = 20 -- low score range, or reinforcement zone,  
+                     -- around min_pR_success. Use 20            
+                     -- during the pre-training phase for better 
+                     -- accuracy and reduce to 10 or less later, 
+                     -- for less burden with daily trainings.    
+
 return {
 
 -- command password
@@ -8,11 +14,7 @@ nonspam_file = "nonspam.cfc",
 spam_file    = "spam.cfc",
 
 min_pR_success    = 0,  -- min pR to be considered as nonspam
-threshold         = 10, -- low score range, or reinforcement zone,
-			-- around min_pR_success. Use 20
-			-- during the pre-training phase for better
-			-- accuracy and reduce to 10 or less later,
-			-- for less burden with daily trainings.
+threshold         = threshold, -- half the width of the reinforcement range
 
 -- tags for the subject line
 tag_subject     = true,
@@ -61,7 +63,7 @@ output       = "message",
 -- Set remove_body_threshold to the score below which you want the
 -- message body removed. Use this option after you have well trained
 -- databases:
---remove_body_threshold = -20
+--remove_body_threshold = -2 * threshold
 
 -- Command to send pre-formatted command messages.
 -- The command must accept one arg, the file containing the pre-formatted

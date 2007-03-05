@@ -28,6 +28,7 @@ install: $(LIBNAME)
 
 test: install
 	lua5.1 -losbf ./print-contents
+	lua5.1 -losbf -e "m = osbf.msg.of_file '/home/nr/Mail/fidelis-assis/44'" -i
 
 install_spamfilter:
 	mkdir -p $(SPAMFILTER_DIR)

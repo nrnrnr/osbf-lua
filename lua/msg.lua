@@ -1,0 +1,191 @@
+local require, print, pairs, type, assert, loadfile, setmetatable =
+      require, print, pairs, type, assert, loadfile, setmetatable
+
+local io, string, table =
+      io, string, table
+
+module(...)
+
+local cfg = require(_PACKAGE .. 'cfg')
+local util = require(_PACKAGE .. 'util')
+
+
+--[[
+
+The system understands four different representations of an RFC 822
+email message, the last of which is canonical.
+
+  1. The string representation specified by the RFC
+  2. The SFID of that message
+  3. The name of a file containing the message
+  4. A table with the following elements:
+        { headers   = list of header strings,
+          body      = string containing body, 
+          lim = { header = string.sub(table.concat(headers), 1, cfg.text_limit),
+                  msg = string.sub(full message in string format, 1, cfg.text_limit)
+                },
+          orig = true or false, -- is this as originally received? (nil for unknown)
+          header_index = a table giving index in list of every
+                         occurrence of each header, indexed by all
+                         lower case
+        }
+
+An example of the header_index table (abbreviated) might be
+
+ { ['return-path'] = { 1, 4 },
+   ['delivery-date'] = { 2, 3 },
+   ['delivered-to'] = { 5 },
+   ['received'] = { 6, 7, 8, 9, 10, 11 },
+   ['to'] = { 12 },
+   ['subject'] = { 13 },
+ }
+
+Some fields might be generated on demand by a metatable.
+]]
+
+local demand_fields = { }
+function demand_fields.lim(t, k)
+  return { header = string.sub(table.concat(headers, '\n'), 1, cfg.text_limit),
+           msg = string.sub(to_string(t), 1, cfg.text_limit)
+         }
+end
+
+function demand_fields.header_index(t, k)
+  local index = util.table_tab { }
+  local hs = t.headers
+  for i = 1, #hs do
+    io.stderr:write(string.format('Header is %q\n', hs[i]))
+    local h = string.lower(assert(string.match(hs[i], '^(.-):'), 'bad RFC 822 header'))
+    table.insert(index[h], i)
+  end
+  return index
+end
+
+local msg_meta = {
+  __index = function(t, k)
+              if demand_fields[k] then
+                local v = demand_fields[k](t, k)
+                t[k] = v
+                return v
+              end
+            end
+}
+
+function of_string(s, orig)
+  local headers = { }
+  local i = 1
+  repeat
+    local start, fin, hdr = string.find(s, '(.-)\n[^ \t]', i)
+    if start then
+      assert(start == i)
+      table.insert(headers, hdr)
+      assert(fin > i)
+      i = fin
+    end
+  until not start or string.sub(s, i, i) == '\n'
+  assert(string.find(s, '\n\n', i-1) == i-1)
+  local body = string.sub(s, i+1)
+  local msg = { headers = headers, body = body, orig = orig }
+  setmetatable(msg, msg_meta)
+  return msg
+end
+    
+local function is_sfid(v)
+  return type(v) == 'string' and string.find(v, 'sfid...')
+end
+
+local function of_openfile(f)
+  local msg = of_string(f:read '*a')
+  f:close()
+  return msg
+end
+
+function of_file(filename)
+  return of_openfile(assert(io.open(filename, 'r')))
+end
+
+function of_sfid(sfid)
+  local openfile, status = util.file_and_status(sfid)
+  if openfile then
+    return of_openfile(openfile), status
+  else
+    assert(status == 'missing')
+    return nil, status
+  end
+end
+
+function of_any(v)
+  if type(v) == 'table' then
+    return v
+  elseif is_sfid(v) then
+    return of_sfid(v)
+  else
+    assert(type(v) == 'string')
+    local f = io.open(v, 'r')
+    if f then
+      return of_openfile(f)
+    else
+      return of_string(v)
+    end
+  end
+end
+
+
+function to_string(v)
+  if type(v) == 'table' then
+    return table.concat(v.headers, '\n') .. '\n' .. v.body
+  elseif is_sfid(v) then
+    local openfile, status = util.file_and_status(sfid)
+    if openfile then
+      local s = openfile:read '*a'
+      openfile:close()
+      return s, status
+    else
+      assert(status == 'missing')
+      return nil, status
+    end
+  else
+    assert(type(v) == 'string')
+    local f = io.open(v, 'r')
+    if f then
+      v = f:read '*a'
+      f:close()
+    end
+    return v
+  end
+end
+
+
+
+--[[
+
+Things to come:
+
+
+  function util.header_indices(msg, tag)
+    msg = util.table_of_msg(v)
+    local i = 0
+    local t = msg.header_index[tag] or { }
+    return function()
+             i = i + 1
+             return t[i]
+           end
+  end
+
+  function util.headers_tagged(msg, tag)
+    msg = util.table_of_msg(v)
+    local f = util.header_indices(msg, tag)
+    return function()
+      local hi = f()
+      if hi then
+        local h = msg.headers[hi]
+        return string.gsub(h, '^.-:', '')
+      end
+    end
+  end
+
+You can then write, e.g.,
+
+  for subj in util.headers_tagged(msg, 'subject') do ... end
+
+]]

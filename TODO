@@ -1,0 +1,318 @@
+Here are some additional operations that would be useful to expose
+directly:
+
+  -- add a message to the cache and return its sfid
+  -- (does it need additional arguments to generate an sfid?)
+  function util.add_to_cache(msg, status)
+    assert(not(is_sfid(msg)))
+    local sfid = generate_sfid(msg) -- not sure how this works
+    local fn = cachefilename(sfid, status or 'unlearned')
+    local f, msg = io.open(fn, 'w')
+    if f then
+      f:write(util.string_of_msg(msg))
+      f:close()
+      return sfid
+    else
+      return nil, fn .. ': ' .. msg
+    end
+  end
+
+
+  function util.extract_sfid_from_header(msg)
+    -- gets sfid out of a reply, if any
+  end
+
+  function util.parse_command(string)
+    -- string must contain a good (non-default) password
+    returns nil if no command, or otherwise returns cmd, { arg1, arg2, ... }
+  end    
+
+----------------------------------------------------------------
+
+Here are some higher-level commands
+
+  function commands.classify(msg)
+    ...
+    return sfid_tag, pR
+  end
+
+  function commands.learn(sfid, classification)
+    ...
+    return user_comment, classification, orig_pR, new_pR
+  end
+
+
+  function commands.unlearn(sfid, classification)
+    -- classification should be optional here
+    ...
+    return user_comment, classification, orig_pR, new_pR
+  end
+
+  function commands.insert_sfid(msg, sfid)
+    -- inserts sfid into references, reply-to, message-id headers
+    -- and so on, using util.header_indices
+  end
+
+
+----------------------------------------------------------------
+
+
+With this kind of structure in place, the spamfilter can look
+something like this:
+
+  require 'osbf'
+
+  local util, dirs, commands, cfg = osbf.util, osbf.dirs, osbf.commands,
+  osbf.cfg
+
+  ------ deal with options and initialize the system
+
+  local options
+  do
+    local val, bool = util.options.val, util.options.bool
+    local opts = {
+      udir = val, gdir = val, learn = val, unlearn = val, classify = bool,
+      score = bool, cfgdir = val, dbdir = val, listsdir = val, source = val,
+      output = val, help = bool
+    }
+    options = osbf.getopt(arg, opts)
+  end
+
+  util.set_dirs(options) -- should work sensibly with an empty options table
+  local config_loaded = osbf.load_config()
+  cfg.output = options.output or cfg.output
+  util.validate_output(cfg.output)
+
+  local command_line = options.learn or options.unlearn 
+
+  ------- functions to read message and copy to stdout
+
+  local text, emit_text_on_failure -- text of message, wheter to pass through
+  local function fail(...)
+    if emit_text_on_failure then
+      io.write(text)
+      io.flush()
+    else
+      io.stderr:write(...)
+      io.stderr:write('\n')
+    end
+    os.exit(1)
+  end
+
+
+  -- read entire message into var "text"
+  if arg[1] then -- check if a filename is given in the command line
+    local h, msg = io.open(arg[1], "r")
+    if h then 
+      text = h:read("*all")
+      h:close()
+    else
+      fail("Error: ", msg, ' (arg[1], ")")
+    end
+  else
+    text = io.read("*all")
+    emit_text_on_failure = true
+  end
+
+  --- extract command and args from command line or message
+
+  local msg = table_of_msg(text)
+  local cmd, cmd_args
+
+  if command_line then -- must be learn or unlearn
+    -- fill in the command structure with the command line args and -- flag
+    that the message for training comes from stdin assert(options.learn or
+    options.unlearn) cmd = options.learn and "learn" or "unlearn" local arg1 =
+    { options.learn or options.unlearn } local arg2 = options.source or
+    'stdin' if arg2 == 'sfid' then arg2 = nil end --- not sure why this is in
+    the original code cmd_args = { arg1, arg2 }
+  else
+    local subject = util.headers_tagged 'subject' () or ''
+    cmd, cmd_args = util.parse_command(subject)
+    if not cmd then
+      cmd, cmd_args = util.parse_command(string.sub(msg.body, 1, 100))
+    end
+  end
+
+  cmd = cmd or 'classify' --- default action when no command
+  cmd_args = cmd_args or { }
+
+  local reply 
+
+
+  if commands[cmd] then
+    local result, header, body = util.msg_wrap(msg, cmd, cmd_args)
+      ... not sure what's happening next, but something is constructed
+          and either sent as reply or to stdout ...
+      reply = ...
+  else
+      reply = ... error message about unknown command ...
+  end
+
+  ... send reply via sendmail or to stdout or to stderr ...
+
+
+----------------------------------------------------------------
+
+Some reuse and simplification in the learning commands:
+
+  local errmsgs = {
+    learn = {
+      spam = [[This message has already been learned as spam.  To unlearn it,
+      ...]], ham = [[This message has already been learned as ham.  To unlearn
+      it, ...]], missing = [[
+  You asked to train on a message that OSBF-Lua does not recognize.  
+  In a normal installation, OSBF-Lua keeps a copy of each message, but
+  only for a few days.  The message you are trying to train with has
+  probably been deleted.]],
+    },
+    unlearn = {
+      ham = [[the message was learned as ham, not spam]],
+      spam = [[the message was learned as spam, not ham]],
+      missing [[OSBF-Lua cannot find the message---messages are kept
+  for only a few days, and the one you are trying to unlearn has
+  probably been deleted]],
+      unlearned = [[the message was never learned to begin with]],
+    },
+  }
+
+  errmsgs.unlearn.missing = errmsgs.learn.missing
+
+
+  local learn_parms 
+    -- function given classification, returns table so that
+    -- learning and unlearning code can be reused for spam and ham
+  do
+    local cache
+      -- cache results, but don't compute initially because
+      -- at this point cfg table may not be fully initialized
+    function learn_parms(classification)
+      cache = cache or {
+        spam = {
+          index      = cfg.spam_index, threshold  = threshold_offset -
+          cfg.threshold, bigger     = function(x, y) return x < y end, --
+          spamlike == more negative trained_as = cfg.trained_as_spam,
+          reinforcement_limit  = spam_reinforcement_limit,
+          offset_max_threshold = threshold_offset - max_learn_threshold,
+        },
+        ham  = {
+          index      = cfg.nonspam_index, threshold  = threshold_offset +
+          cfg.threshold bigger     = function(x, y) return x > y end, --
+          hamlike == more positive trained_as = cfg.trained_as_nonspam,
+          reinforcement_limit = ham_reinforcement_limit, offset_max_threshold
+          = threshold_offset + max_learn_threshold,
+        },
+      }
+     cache.nonspam = cache.ham
+     return cache[classification]
+    end
+  end
+
+  --- You'll notice this is now completely divorced from mail stuff
+  --- It's up to util.mail_wrap to figure out how to call this
+  --- function and what to do with the results.
+  function commands.learn(sfid, classification)
+    local msg, status = util.table_of_msg(sfid)
+    if status ~= 'unlearned' then
+      return nil, errmsgs.learn[status]
+    end -- set up tables so we can use one training procedure for either ham
+    or spam
+
+    local orig_msg, lim_orig_header, lim_orig_msg =
+      util.string_of_msg(msg), msg.lim.header, msg.lim.msg
+
+    local function train()
+      local parms = learn_parms(classification)
+      if not parms then return
+        nil, "Unknown classification " .. classification -- error
+      end
+      local r, new_pR, orig_pR = osbf_train(orig_msg, parms.index)
+      if not r then
+        return r, new_pR --- error
+      elseif parms.bigger(parms.threshold, new_pR) and
+        math.abs(new_pR - orig_pR) < header_learn_threshold
+      then -- train
+        local i = 0, pR
+        local trd = threshold_reinforcement_degree * parms.offset_max_threshold
+        local rd = reinforcement_degree * header_learn_threshold
+        repeat
+          pR = new_pR
+          osbf.learn(lim_orig_header, cfg.dbset, parms.index,
+                     cfg.learn_flags+reinforcement_flag)
+          new_pR, p_array = osbf.classify(lim_orig_msg, cfg.dbset,
+                            cfg.classify_flags)
+          i = i + 1
+        until i >= parms.reinforcement_limit or
+          parms.bigger(new_pR, trd) or math.abs (pR - new_pR) >= rd
+        return orig_pR, new_pR
+      else -- no training needed
+        return new_pR, new_pR
+      end
+    end
+
+    local orig, new = train()
+    if not orig then return orig, new end -- error case
+    util.change_file_status(sfid, status, classification)
+    local comment = 
+      orig == new and string.format(cfg.training_not_necessary,
+                                    new, max_learn_threshold,
+                                    max_learn_threshold),
+      or string.format('%s: %.2f -> %2.f', parms.trained_as, orig_pR, new_pR)
+    return comment, classification, orig, new
+  end  
+
+  functions commands.unlearn(sfid, classification)
+    local msg, status = util.table_of_msg(sfid)
+    classification = classification or status -- unlearn parm now optional
+    if status ~= classification then
+      return nil, string.format([[
+  You asked to unlearn a message that you thought had been learned as %s,
+  but %s.]], classification, errmsgs.unlearn[status])
+    end -- set up tables so we can use one training procedure for either ham
+    or spam
+
+    local orig_msg, lim_orig_header, lim_orig_msg =
+      util.string_of_msg(msg), msg.lim.header, msg.lim.msg
+
+    local parms = learn_parms(classification) local old_pR, _ =
+    osbf.classify(lim_orig_msg, cfg.dbset, cfg.classify_flags)
+    osbf.unlearn(orig_msg, cfg.dbset, parms.index,
+    cfg.learn_flags+mistake_flag) local pR, _ = osbf.classify(lim_orig_msg,
+    cfg.dbset, cfg.classify_flags) local i = 0 while i <
+    parms.reinforcement_limit and parms.bigger(pR, threshold_offset) do
+      osbf.unlearn(lim_orig_header, cfg.dbset, parms.index, cfg.learn_flags)
+      pR, _ = osbf.classify(lim_orig_msg, cfg.dbset, cfg.classify_flags)
+      i = i + 1
+    end
+    change_file_status(sfid, classification, 'unlearned')
+    local comment =
+      string.format('Message unlearned as %s: %.2f -> %.2f', classfication,
+                    old_pR, pR)
+    return comment, 'unlearned', old_pR, pR
+  end
+
+
+
+
+  function whitelisted(msg) 
+    for tag, set in pairs(whitelist.strings) do
+      for header in get_header(msg, tag) do
+        if set[header] then
+          return true
+        end
+      end
+    end
+    for tag, set in pairs(whitelist.pats) do
+      for header in get_header(msg, tag) do
+        for pat in pairs(set) do
+          if string.find(header, pat) then
+            return true
+          end
+        end
+      end
+    end
+  end    
+
+
+Probably the get_header function should strip initial whitespace from
+the header...

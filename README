@@ -1,0 +1,31 @@
+This is a new version of the Lua code supporting OSBF-Lua.
+
+It is designed to be used in three ways:
+
+  1. Direct from other Lua programs, through the osbf.commands interface.
+     This interface interacts only via Lua parameters and results, and
+     it never uses standard input, standard output, or standard error
+     (except internal errors in the code might manifest as assertion
+     failures).
+
+  2. From the command line via the osbf script.  This script calls
+     functions in the osbf.command_line interface, which in turn call
+     functions in osbf.  When called from the command line, the script
+     will respond on standard output.
+
+  3. As part of an email filtering chain, using the 'osbf filter' command.
+     This script validates the password as needed and calls commands
+     from the osbf.mail_commands interface.  It takes a message from
+     stdin.  By default, when there is no command, 'osbf filter' puts
+     the message in the cache, classifies it, inserts suitable header
+     lines and SFIDs, and writes the altered message to standard output.
+     When other commands are given, 'osbf filter' instead executes
+     those commands and sends a response by return mail.
+
+The goal is that the exact same set of commands be available through
+all three interfaces.
+
+Regardless of whether or how standard input and output are used, and
+independently of how they are invoked, any command may affect the
+state of the cache, the databases, whitelists, blacklists, and so
+on---after all, that's the point.
