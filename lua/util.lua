@@ -7,7 +7,7 @@ local io, string, table =
 module(...)
 
 local osbf = require(string.gsub(_PACKAGE, '%.$', ''))
-
+local cfg = require(_PACKAGE .. 'cfg')
 
 --- Special tables.
 -- Metafunction used to create a table on demand.
@@ -109,9 +109,12 @@ end
 local suffixes = { spam = '-s', ham = '-h', unlearned = '' }
 
 function cachefilename(sfid, status)
-  -- status must by 'spam', 'ham', or 'unlearned'    
-  return  dirfilename('cache', osbf.cfg.sfid_subdir .. sfid,
-                      '.lua' .. assert(suffixes[status]))
+  -- status must be 'spam', 'ham', or 'unlearned'    
+  local sfid_subdir = "" -- empty unless specified in the config file
+  if cfg.use_sfid_subdir then
+    sfid_subdir = string.sub(sfid, 13, 14) .. "/" .. string.sub(sfid, 16, 17) .. "/"
+  end
+  return dirfilename('cache', sfid_subdir .. sfid, '.lua' .. assert(suffixes[status]))
 end
     
 function file_and_status(sfid)
