@@ -7,7 +7,7 @@ module(modname)
 
 local submodules =
   { 'core', 'util', 'lists', 'commands', 'mail_commands', 'cfg', 'command_line',
-    'msg' }
+    'msg', 'learn' }
 
 for _, submodule in ipairs(submodules) do
   require (modname .. '.' .. submodule)
