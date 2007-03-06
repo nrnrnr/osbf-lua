@@ -1,3 +1,13 @@
+The parsing in the msg module needs to be fixed.
+When the string is not in the correct format:
+
+  msg.of_string should cause an assertion failure
+
+  msg.of_any should return nil, error_message
+
+
+
+
 Here are some additional operations that would be useful to expose
 directly:
 
