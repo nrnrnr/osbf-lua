@@ -94,20 +94,20 @@ local function is_sfid(v)
   return type(v) == 'string' and string.find(v, 'sfid...')
 end
 
-local function of_openfile(f)
-  local msg = of_string(f:read '*a')
+local function of_openfile(f, orig)
+  local msg = of_string(f:read '*a', orig)
   f:close()
   return msg
 end
 
-function of_file(filename)
-  return of_openfile(assert(io.open(filename, 'r')))
+function of_file(filename, orig)
+  return of_openfile(assert(io.open(filename, 'r')), org)
 end
 
 function of_sfid(sfid)
   local openfile, status = util.file_and_status(sfid)
   if openfile then
-    return of_openfile(openfile), status
+    return of_openfile(openfile, true), status
   else
     assert(status == 'missing')
     return nil, status
