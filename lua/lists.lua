@@ -30,7 +30,12 @@ local function load(name)
     return cache[name]
   else
     local list = util.protected_dofile(util.dirfilename('lists', name)) or
-      { strings = util.table_tab { }, pats = util.table_tab { } }
+                 { strings = { }, pats = { } }
+    for k, v in pairs(list) do
+      if type(v) == 'table' then
+        list[k] = util.table_tab(v) -- create new sets dynamically
+      end
+    end
     cache[name] = list
     return list
   end
