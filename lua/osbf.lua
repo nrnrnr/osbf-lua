@@ -1,3 +1,9 @@
+-- exports:
+-- osbf.init
+-- osbf.std_opts
+-- submodules
+
+
 local require, print, pairs, ipairs, type, io, string, table, os, _G =
       require, print, pairs, ipairs, type, io, string, table, os, _G
 
@@ -24,6 +30,8 @@ std_opts =
 	  output = val, help = bool}
 
 
+--- Set osbf.dirs.  
+-- @param The first result of util.getopt (an options table).
 function set_dirs(options)
   local HOME = os.getenv 'HOME'
   local default_dir = HOME and HOME .. '/.osbf-lua' 

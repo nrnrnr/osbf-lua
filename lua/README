@@ -1,0 +1,30 @@
+Things that are here, and the order in which to read them:
+
+  osbf.lua          - At present, loads all submodules, and exposes an 'init' function 
+                      and 'std_opts' table.
+  cfg.lua           - Configuration parameters for the entire package,
+                      but only those that can't be changed by the user.
+  default_cfg.lua   - Configuration parameters that can be changed by
+                      the user.  Each user will be encouraged to clone
+                      and modify the file, then place it in $HOME/.osbf-lua.
+  util.lua          - Module osbf.util.  A random collection of utility
+                      functions, most unrelated to the specifics of OSBF-Lua
+  lists.lua         - Code for managing whitelists and blacklists on disk.
+                      Mostly self-contained.
+  msg.lua           - The most important module: tabular representation of
+                      a mail message, together with many reading and
+                      conversion functions.
+  commands.lua      - A collection of all the commands OSBF-Lua knows how
+                      to do, as intended to be called by other Lua code
+                      (or C code for that matter).
+  learn.lua         - Extends the commands module with commands
+                      specifically related to learning and unlearning (and
+                      maybe classification should go here as well; not
+                      sure yet).
+  command_line.lua  - Ways of invoking OSBF-Lua commands from the
+                      command-line script.
+  osbf              - The command-line script itself.
+  mail_commands.lua - Ways of invoking OSBF-Lua by sending oneself an
+                      email message, which in turn should pass through
+                      'osbf filter'.
+  Makefile          - Not yet useful.

@@ -1,3 +1,6 @@
+--- returns table of user-editable configuration parameters
+
+
 local threshold = 20 -- low score range, or reinforcement zone,  
                      -- around min_pR_success. Use 20            
                      -- during the pre-training phase for better 
