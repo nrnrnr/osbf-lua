@@ -155,6 +155,61 @@ function to_string(v)
   end
 end
 
+----------------------------------------------------------------
+
+function header_indices(msg, tag)
+  msg = of_any(msg)
+  local i = 0
+  local t = msg.header_index[string.lower(tag)] 
+  return function()
+           i = i + 1
+           return t[i]
+         end
+end
+
+function headers_tagged(msg, tag)
+  msg = of_any(v)
+  local hs = msg.headers
+  local f = header_indices(msg, tag)
+  return function()
+           local hi = f()
+           if hi then
+             local h = msg.headers[hi]
+             return string.gsub(h, '^.-:%s*', '')
+           end
+         end
+end
+
+function header_tagged(msg, tag)
+  return headers_tagged(msg, tag)()
+end
+
+
+function sfid(msgspec)
+  if is_sfid(msgspec) then
+    return msgspec
+  else
+    return extract_sfid(of_any(msgspec))
+  end
+end
+
+function extract_sfid(msg)
+  -- if the sfid was not given in the command, extract it
+  -- from the references or in-reply-to field
+  local sfid
+  msg = of_any(msg)
+
+  for refs in headers_tagged(msg, 'references') do
+    -- match the last sfid in the field (hence the initial .*)
+    sfid = string.match(references, ".*<(sfid%-.-)>")
+  end
+
+  -- if not found as a reference, try as a comment in In-Reply-To
+  local last_sfid_pat = ".*%((sfid%-.-)%)"
+  sfid = sfid or string.match(header_tagged(msg, 'in-reply-to'), last_sfid_pat)
+                 string.match(header_tagged(msg, 'references'), last_refs_sfid)
+  return sfid
+end
 
 
 --[[
@@ -162,27 +217,6 @@ end
 Things to come:
 
 
-  function util.header_indices(msg, tag)
-    msg = util.table_of_msg(v)
-    local i = 0
-    local t = msg.header_index[tag] or { }
-    return function()
-             i = i + 1
-             return t[i]
-           end
-  end
-
-  function util.headers_tagged(msg, tag)
-    msg = util.table_of_msg(v)
-    local f = util.header_indices(msg, tag)
-    return function()
-      local hi = f()
-      if hi then
-        local h = msg.headers[hi]
-        return string.gsub(h, '^.-:', '')
-      end
-    end
-  end
 
 You can then write, e.g.,
 
