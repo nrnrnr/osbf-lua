@@ -1,6 +1,15 @@
 #!/usr/bin/lua5.1
 
-require 'osutil'
+local quote_me = '[^%w%+%-%=%@%_%/]' -- easier to complement what doesn't need quotes
+local strfind = string.find
+
+function os.quote(s)
+  if strfind(s, quote_me) or s == '' then
+    return "'" .. string.gsub(s, "'", [['"'"']]) .. "'"
+  else
+    return s
+  end
+end
 
 local match = string.match
 
