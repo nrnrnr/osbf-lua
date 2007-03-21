@@ -2,5 +2,5 @@
 
 case `hostname` in
   labrador*)  echo /home/nr/Mail/fidelis-assis/44 ;;
-  *) echo trec06p ;;
+  *) echo sample.msg ;;
 esac

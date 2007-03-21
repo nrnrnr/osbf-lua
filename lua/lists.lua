@@ -1,11 +1,11 @@
-local io, string, table, print, assert, pairs, ipairs, type
-    = io, string, table, print, assert, pairs, ipairs, type
-
-require 'osbf.util'
-
-local util = osbf.util
+local io, string, table, print, assert, pairs, ipairs, type, require
+    = io, string, table, print, assert, pairs, ipairs, type, require
 
 module (...)
+
+local util = require(_PACKAGE .. 'util')
+local msg  = require(_PACKAGE .. 'msg')
+
 
 --------------------------------------------
 --- Lists.
@@ -189,4 +189,25 @@ end
 
 
 
---- still missing: function match(listname, msg)
+--- Tells whether a message matches the list.
+-- @param listname Name of the list.
+-- @param m Message in table format.
+-- @return true if the message matches the list.
+function match(listname, m)
+  assert(type(m) == 'table')
+  local l = load(listname)
+  for tag, set in pairs(l.strings) do
+    for h in msg.headers_tagged(m, tag) do
+      if set[h] then return true end
+    end
+  end
+  local find = string.find
+  for tag, set in pairs(l.pats) do
+    for h in msg.headers_tagged(m, tag) do
+      for pat in pairs(set) do
+        if find(h, pat) then return true end
+      end
+    end
+  end
+  return false
+end

@@ -168,7 +168,7 @@ function header_indices(msg, tag)
 end
 
 function headers_tagged(msg, tag)
-  msg = of_any(v)
+  msg = of_any(msg)
   local hs = msg.headers
   local f = header_indices(msg, tag)
   return function()
