@@ -1,4 +1,4 @@
-T= osbf
+MODNAME=osbf3
 
 include ./config
 
@@ -6,11 +6,15 @@ DIST_DIR= osbf-$LIB_VERSION
 TAR_FILE= $(DIST_DIR).tar.gz
 ZIP_FILE= $(DIST_DIR).zip
 LIBNAME= lib$T$(LIB_EXT).$(LIB_VERSION)
+
+
+
 MAILFILE = $(shell ./mailfile)
 
 SRCS= losbflib.c osbf_bayes.c osbf_aux.c
 OBJS= losbflib.o osbf_bayes.o osbf_aux.o
 
+CFLAGS += -DOPENFUN=luaopen_$(MODNAME)_core
 
 lib: $(LIBNAME)
 
@@ -20,16 +24,19 @@ $(LIBNAME): $(OBJS)
 	$(CC) $(CFLAGS) $(LIB_OPTION) -o $(LIBNAME) $(OBJS) $(LIBS)
 
 install: $(LIBNAME)
-	mkdir -p $(LUAMODULE_DIR)/osbf
+	mkdir -p $(LUAMODULE_DIR)/$(MODNAME)
 	strip $(LIBNAME)
-	cp $(LIBNAME) $(LUAMODULE_DIR)/osbf/core$(LIB_EXT)
-	cp lua/osbf.lua $(LUAMODULE_DIR)
-	cp lua/*.lua $(LUAMODULE_DIR)/osbf
-	rm -f $(LUAMODULE_DIR)/osbf/osbf.lua # ugly, but so what
+	cp $(LIBNAME) $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT)
+	cp lua/osbf.lua $(LUAMODULE_DIR)/$(MODNAME).lua
+	cp lua/*.lua $(LUAMODULE_DIR)/$(MODNAME)
+	rm -f $(LUAMODULE_DIR)/$(MODNAME)/osbf.lua # ugly, but so what
+
+uninstall: 
+	rm -rf $(LUAMODULE_DIR)/osbf $(LUAMODULE_DIR)/osbf.lua
 
 test: install
-	lua5.1 -losbf ./print-contents
-	lua5.1 -losbf -e "m = osbf.msg.of_file '$(MAILFILE)'" -i
+	lua5.1 -l$(MODNAME) ./print-contents $(MODNAME)
+	lua5.1 -l$(MODNAME) -e "m = $(MODNAME).msg.of_file '$(MAILFILE)'" -i
 
 install_spamfilter:
 	mkdir -p $(SPAMFILTER_DIR)

@@ -3,10 +3,14 @@ local function boring(k)
   return (string.find(k, '^_%u+$'))
 end
 
+modname = arg[1] or 'osbf'
+
+local osbf = _G[modname]
+
 for _, k in ipairs(table.sorted_keys(osbf)) do
   if not boring(k) then
     v = osbf[k]
-    k = 'osbf.' .. k
+    k = modname .. '.' .. k
     if type(v) == 'table' then
       for _, f in ipairs(table.sorted_keys(v)) do
         if not boring(f) then print(k .. '.' .. f, v[f]) end

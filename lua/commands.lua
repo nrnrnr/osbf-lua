@@ -1,16 +1,12 @@
-require 'osbf'
-require 'osbf.lists'
-
-local util, lists = osbf.util, osbf.lists
-
-local string = string
-      
+local string, require = string, require
 
 module(...)
 
+local lists = require(_PACKAGE .. 'lists')
+
 local function mk_list_command(cmd, part)
   return function(listname, tag, arg)
-           return list[cmd](listname, part, string.lower(tag), arg)
+           return lists[cmd](listname, part, string.lower(tag), arg)
          end
 end
 

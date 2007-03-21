@@ -783,7 +783,7 @@ static const struct luaL_reg osbf[] = {
 ** Open OSBF library
 */
 int
-luaopen_osbf_core (lua_State * L)
+OPENFUN (lua_State * L)
 {
   const char *libname = luaL_checkstring(L, 1);
   /* Open dir function */
