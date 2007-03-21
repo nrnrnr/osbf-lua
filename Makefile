@@ -6,6 +6,7 @@ DIST_DIR= osbf-$LIB_VERSION
 TAR_FILE= $(DIST_DIR).tar.gz
 ZIP_FILE= $(DIST_DIR).zip
 LIBNAME= lib$T$(LIB_EXT).$(LIB_VERSION)
+MAILFILE = $(shell ./mailfile)
 
 SRCS= losbflib.c osbf_bayes.c osbf_aux.c
 OBJS= losbflib.o osbf_bayes.o osbf_aux.o
@@ -28,7 +29,7 @@ install: $(LIBNAME)
 
 test: install
 	lua5.1 -losbf ./print-contents
-	lua5.1 -losbf -e "m = osbf.msg.of_file '/home/nr/Mail/fidelis-assis/44'" -i
+	lua5.1 -losbf -e "m = osbf.msg.of_file '$(MAILFILE)'" -i
 
 install_spamfilter:
 	mkdir -p $(SPAMFILTER_DIR)
