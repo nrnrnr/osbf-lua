@@ -1,0 +1,17 @@
+#!/usr/bin/lua5.1
+
+require 'osutil'
+
+local match = string.match
+
+local dups = { }
+
+for l in io.stdin:lines() do
+  local from = match(l, '^[Ff][Rr][Oo][Mm]:%s*(.-)$')
+  if from and not dups[from] then
+    dups[from] = true
+    io.stdout:write('osbf whitelist add from ', os.quote(from), '\n')
+  end
+end
+
+    
