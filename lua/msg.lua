@@ -54,7 +54,7 @@ function demand_fields.header_index(t, k)
   local index = util.table_tab { }
   local hs = t.headers
   for i = 1, #hs do
-    io.stderr:write(string.format('Header is %q\n', hs[i]))
+    -- io.stderr:write(string.format('Header is %q\n', hs[i]))
     local h = string.lower(assert(string.match(hs[i], '^(.-):'), 'bad RFC 822 header'))
     table.insert(index[h], i)
   end

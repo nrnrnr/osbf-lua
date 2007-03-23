@@ -33,7 +33,7 @@
 
 #include "osbflib.h"
 
-extern int luaopen_osbf_core (lua_State * L);
+extern int OPENFUN (lua_State * L);  /* exported to the outside world */
 
 /* configurable constants */
 extern uint32_t microgroom_chain_length;
