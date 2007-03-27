@@ -93,6 +93,10 @@ function append_slash(path)
   end
 end
 
+function append_to_path(path, file)
+  return append_slash(path) .. file
+end
+
 -- give a filename in particular directory
 
 function dirfilename(dir, basename, suffix)

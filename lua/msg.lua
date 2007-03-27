@@ -1,6 +1,8 @@
 local require, print, pairs, type, assert, loadfile, setmetatable =
       require, print, pairs, type, assert, loadfile, setmetatable
 
+local function eprintf(...) return io.stderr:write(string.format(...)) end
+
 local io, string, table =
       io, string, table
 
@@ -45,7 +47,7 @@ Some fields might be generated on demand by a metatable.
 
 local demand_fields = { }
 function demand_fields.lim(t, k)
-  return { header = string.sub(table.concat(headers, '\n'), 1, cfg.text_limit),
+  return { header = string.sub(table.concat(t.headers, '\n'), 1, cfg.text_limit),
            msg = string.sub(to_string(t), 1, cfg.text_limit)
          }
 end
@@ -55,8 +57,12 @@ function demand_fields.header_index(t, k)
   local hs = t.headers
   for i = 1, #hs do
     -- io.stderr:write(string.format('Header is %q\n', hs[i]))
-    local h = string.lower(assert(string.match(hs[i], '^(.-):'), 'bad RFC 822 header'))
-    table.insert(index[h], i)
+    local h = string.match(hs[i], '^(.-):')
+    if h then
+      table.insert(index[string.lower(h)], i)
+    else
+      if cfg.verbose then eprintf('Bad line in RFC 822 header: %q\n', hs[i]) end
+    end
   end
   return index
 end
@@ -75,16 +81,22 @@ function of_string(s, orig)
   local headers = { }
   local i = 1
   repeat
-    local start, fin, hdr = string.find(s, '(.-)\n[^ \t]', i)
+    local start, fin, hdr, eol = string.find(s, '(.-)(\r?\n)[^ \t]', i)
     if start then
       assert(start == i)
       table.insert(headers, hdr)
       assert(fin > i)
       i = fin
     end
-  until not start or string.sub(s, i, i) == '\n'
-  assert(string.find(s, '\n\n', i-1) == i-1)
-  local body = string.sub(s, i+1)
+  until not start or string.find(s, '^\r?\n', i)
+  local j, _, bstart = string.find(s, '\n\r?\n()', i-1)
+  local body 
+  if not j then
+    body = ''     -- empty message
+  else
+    assert(j == i-1, 'Trouble at ' .. string.format('%q', string.sub(s, i-1, i+100)))
+    body = string.sub(s, bstart)
+  end
   local msg = { headers = headers, body = body, orig = orig }
   setmetatable(msg, msg_meta)
   return msg
@@ -133,7 +145,7 @@ end
 
 function to_string(v)
   if type(v) == 'table' then
-    return table.concat(v.headers, '\n') .. '\n' .. v.body
+    return table.concat(v.headers, '\n') .. '\n\n' .. v.body
   elseif is_sfid(v) then
     local openfile, status = util.file_and_status(sfid)
     if openfile then
