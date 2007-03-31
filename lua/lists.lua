@@ -1,5 +1,5 @@
-local io, string, table, print, assert, pairs, ipairs, type, require
-    = io, string, table, print, assert, pairs, ipairs, type, require
+local io, string, table, print, assert, pairs, ipairs, type, require, _G
+    = io, string, table, print, assert, pairs, ipairs, type, require, _G
 
 module (...)
 
@@ -141,6 +141,30 @@ function show(file, listname)
   end
 end
 
+local progname = _G.arg and string.gsub(_G.arg[0], '.*/', '') or 'osbf'
+
+function show_op(op)
+  return function (file, listname)
+           local l = load(listname)
+           local stags = table.sorted_keys(l.strings, util.case_lt)
+           local ptags = table.sorted_keys(l.pats, util.case_lt)
+           for _, tag in ipairs(stags) do
+             for s in pairs(l.strings[tag]) do
+               local cmd = { progname, listname, op, tag, util.os_quote(s) }
+               file:write(table.concat(cmd, ' '), '\n')
+             end
+           end
+           for _, tag in ipairs(ptags) do
+             for s in pairs(l.pats[tag]) do
+               local cmd = { progname, listname, op..'-pat', tag, util.os_quote(s) }
+               file:write(table.concat(cmd, ' '), '\n')
+             end
+           end
+         end
+end
+show_add = show_op 'add'
+show_del = show_op 'del'
+
 --- still missing: function print(file, listname)
 
 
@@ -150,11 +174,15 @@ end
 --- Evaluating a command from a string.
 
 --- Table that shows what arguments should be passed to list commands
+local show_cmd = { show = show, ['show-add'] = show_add, ['show-del'] = show_del }
+
 local list_cmd  = { add = add, ['add-pat'] = add,
                     del = del, ['del-pat'] = del }
 local list_part = { add = 'strings', ['add-pat'] = 'pats',
                     del = 'strings', ['del-pat'] = 'pats' }
 
+--- Used to check to see if number of command-line args is appropriate.
+function is_show(cmd) return show_cmd[cmd] ~= nil end
 
 --- Function to implement list commands.
 -- @param listname Name of the list.
@@ -163,8 +191,8 @@ local list_part = { add = 'strings', ['add-pat'] = 'pats',
 -- @param arg Argument, if needed by command.
 -- @return Non-nil on success; nil, errmsg on failure.
 function run(listname, cmd, tag, arg)
-  if cmd == 'show' then
-    return show(io.stdout, listname)
+  if show_cmd[cmd] then
+    return show_cmd[cmd](io.stdout, listname)
   elseif not list_cmd[cmd] then
     return nil, "Unrecognized command " .. cmd
   elseif not tag or not arg or arg == "" then

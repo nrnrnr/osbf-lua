@@ -6,7 +6,7 @@ DIST_DIR= osbf-$LIB_VERSION
 TAR_FILE= $(DIST_DIR).tar.gz
 ZIP_FILE= $(DIST_DIR).zip
 LIBNAME= lib$T$(LIB_EXT).$(LIB_VERSION)
-
+BINNAME=osbf3
 
 
 MAILFILE = $(shell ./mailfile)
@@ -30,9 +30,12 @@ install: $(LIBNAME)
 	cp lua/osbf.lua $(LUAMODULE_DIR)/$(MODNAME).lua
 	cp lua/*.lua $(LUAMODULE_DIR)/$(MODNAME)
 	rm -f $(LUAMODULE_DIR)/$(MODNAME)/osbf.lua # ugly, but so what
+	sed "s/osbf/$(MODNAME)/g" lua/osbf > $(BINDIR)/$(BINNAME)
+	chmod +x $(BINDIR)/$(BINNAME)
 
 uninstall: 
 	rm -rf $(LUAMODULE_DIR)/osbf $(LUAMODULE_DIR)/osbf.lua
+	rm -rf $(BINDIR)/$(BINNAME)
 
 test: install
 	lua5.1 -l$(MODNAME) ./print-contents $(MODNAME)

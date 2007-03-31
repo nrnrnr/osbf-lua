@@ -29,6 +29,33 @@ function protected_dofile(file)
 end
 
 ----------------------------------------------------------------
+--- Quote a string for use in a Unix shell command.
+do
+  local quote_me = '[^%w%+%-%=%@%_%/]' -- easier to complement what doesn't need quotes
+  local strfind = string.find
+
+  function os_quote(s)
+    if strfind(s, quote_me) or s == '' then
+      return "'" .. string.gsub(s, "'", [['"'"']]) .. "'"
+    else
+      return s
+    end
+  end
+end
+
+----------------------------------------------------------------
+
+function contents_of_file(path)  --- returns contents as string or nil, error
+  local f, err = io.open(path, 'r')
+  if f then
+    local s = f:read '*a'
+    return s
+  else
+    return nil, err
+  end
+end
+
+----------------------------------------------------------------
 
 
 options = { }

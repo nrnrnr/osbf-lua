@@ -48,7 +48,7 @@ local what = { add = 'String', ['add-pat'] = 'Pattern',
 local function listfun(listname)
   return function(cmd, tag, arg)
            local result = lists.run(listname, cmd, tag, arg)
-           if cmd ~= 'show' then
+           if not lists.is_show(cmd) then
              if not (cmd and tag and arg) then
                eprintf('Bad %s commmand\n', listname)
                usage()
@@ -69,6 +69,8 @@ for _, l in ipairs { 'whitelist', 'blacklist' } do
   table.insert(usage_lines, l .. ' add[-pat] <tag> <string>')
   table.insert(usage_lines, l .. ' del[-pat] <tag> <string>')
   table.insert(usage_lines, l .. ' show')
+  table.insert(usage_lines, l .. ' show-add')
+  table.insert(usage_lines, l .. ' show-del')
 end
 
 ----------------------------------------------------------------
