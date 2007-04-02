@@ -9,6 +9,8 @@ module(...)
 local util = require (_PACKAGE .. 'util')
 local lists = require (_PACKAGE .. 'lists')
 local commands = require (_PACKAGE .. 'commands')
+local msg = require (_PACKAGE .. 'msg')
+local commands_learn = require(_PACKAGE .. 'learn') -- loaded into 'commands'
 
 local usage_lines = { }
 
@@ -98,7 +100,7 @@ function learner(cmd)
            local comment, class, orig, new = cmd(sfid, classification)
            if not comment then
              io.stderr:write(class, '\n')
-             io.exit(1)
+             os.exit(1)
            else
              io.stdout:write(comment, '\n')
            end
@@ -107,6 +109,10 @@ end
 
 learn = learner(commands.learn)
 unlearn = learner(commands.unlearn)
+
+for _, l in ipairs { 'learn', 'unlearn' } do
+  table.insert(usage_lines, l .. ' [<msgspec>] <class>')
+end
 
 function sfid(msgspec)
   local sfid = msg.sfid(msgspec)

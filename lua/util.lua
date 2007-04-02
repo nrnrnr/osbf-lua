@@ -1,8 +1,8 @@
 local require, print, pairs, type, assert, loadfile, setmetatable =
       require, print, pairs, type, assert, loadfile, setmetatable
 
-local io, string, table =
-      io, string, table
+local io, string, table, os =
+      io, string, table, os
 
 module(...)
 
@@ -17,6 +17,16 @@ function table_tab(t)
   return t
 end
 
+-- Function to make a table read-only
+function table_read_only(t)
+  local proxy = {}
+  setmetatable(proxy, { __index = t,
+		    __newindex = function(t, k, v)
+		      assert(false, "attempt to change a constant value")
+		    end
+		  })
+  return proxy
+end
 ----------------------------------------------------------------
 -- check if file exists before "doing" it
 function protected_dofile(file)
@@ -127,7 +137,7 @@ end
 -- give a filename in particular directory
 
 function dirfilename(dir, basename, suffix)
-  suffix = suffix or '.lua'
+  suffix = suffix or ''
   local d = assert(osbf.dirs[dir], dir .. ' is not a valid directory indicator')
   return d .. basename .. suffix
 end
@@ -145,7 +155,7 @@ function cachefilename(sfid, status)
   if cfg.use_sfid_subdir then
     sfid_subdir = string.sub(sfid, 13, 14) .. "/" .. string.sub(sfid, 16, 17) .. "/"
   end
-  return dirfilename('cache', sfid_subdir .. sfid, '.lua' .. assert(suffixes[status]))
+  return dirfilename('cache', sfid_subdir .. sfid, assert(suffixes[status]))
 end
     
 function file_and_status(sfid)
@@ -160,6 +170,9 @@ function file_and_status(sfid)
   return nil, 'missing'
 end
 
+function change_file_status(sfid, status, classification)
+  os.rename(cachefilename(sfid, status), cachefilename(sfid, classification))
+end
 
 
 ----------------------------------------------------------------

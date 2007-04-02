@@ -11,8 +11,8 @@ local threshold_reinforcement_degree    = 1.5
 local require, print, pairs, type, assert, loadfile, setmetatable =
       require, print, pairs, type, assert, loadfile, setmetatable
 
-local io, string, table =
-      io, string, table
+local io, string, table, math =
+      io, string, table, math
 
 
 local modname = ...
@@ -58,7 +58,7 @@ do
   function learn_parms(classification)
     cache = cache or {
       spam = {
-        index      = cfg.spam_index,
+        index      = cfg.dbset.spam_index,
         threshold  = threshold_offset - cfg.threshold,
         bigger     = function(x, y) return x < y end, -- spamlike == more negative
         trained_as = cfg.trained_as_spam,
@@ -66,7 +66,7 @@ do
         offset_max_threshold = threshold_offset - max_learn_threshold,
       },
       ham  = {
-        index      = cfg.nonspam_index,
+        index      = cfg.dbset.nonspam_index,
         threshold  = threshold_offset + cfg.threshold,
         bigger     = function(x, y) return x > y end, -- hamlike == more positive
         trained_as = cfg.trained_as_nonspam,
@@ -81,6 +81,47 @@ end
 
 local msgmod = msg
 
+-- train "msg" as belonging to class "class_index"
+-- return result (true or false), new_pR, old_pR or
+--        nil, error_msg
+-- true means there was a training, false indicates that the
+-- training was not necessary
+local function osbf_train(msg, class_index)
+
+  local pR, msg_error = core.classify(msg, cfg.dbset, 0)
+
+  if (pR) then
+    if ( ( (pR < 0)  and (class_index == cfg.dbset.nonspam_index) ) or
+         ( (pR >= 0) and (class_index == cfg.dbset.spam_index))   ) then
+
+      -- approximate count. there could be cases where there was no mistake
+      -- in the first classification, but just a change in classification
+      -- because ot other trainings - and vice versa.
+      core.learn(msg, cfg.dbset, class_index, cfg.mistake_flag)
+      local new_pR, msg_error = core.classify(msg, cfg.dbset, 0)
+      if new_pR then
+        return true, new_pR, pR
+      else
+        return nil, msg_error
+      end
+    elseif math.abs(pR) < max_learn_threshold then
+      core.learn(msg, cfg.dbset, class_index, 0)
+      local new_pR, msg_error = core.classify(msg, cfg.dbset, 0)
+      if new_pR then
+        return true, new_pR, pR
+      else
+        return nil, msg_error
+     end
+    else
+      return false, pR, pR
+    end
+  else
+    return nil, msg_error
+  end
+end
+
+
+
 --- the learn command returns 
 ---      comment, classification, old pR, new pR
 function learn(sfid, classification)
@@ -92,8 +133,9 @@ function learn(sfid, classification)
   local orig_msg, lim_orig_header, lim_orig_msg =
     msgmod.to_string(msg), msg.lim.header, msg.lim.msg
 
+  local parms
   local function train()
-    local parms = learn_parms(classification)
+    parms = learn_parms(classification)
     if not parms then return
       nil, "Unknown classification " .. classification -- error
     end
@@ -106,12 +148,12 @@ function learn(sfid, classification)
       local i = 0, pR
       local trd = threshold_reinforcement_degree * parms.offset_max_threshold
       local rd = reinforcement_degree * header_learn_threshold
+      local k = cfg.constants
       repeat
         pR = new_pR
         core.learn(lim_orig_header, cfg.dbset, parms.index,
-                   cfg.learn_flags+reinforcement_flag)
-        new_pR, p_array = core.classify(lim_orig_msg, cfg.dbset,
-                          cfg.classify_flags)
+                   k.learn_flags+k.reinforcement_flag)
+        new_pR, p_array = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
         i = i + 1
       until i >= parms.reinforcement_limit or
         parms.bigger(new_pR, trd) or math.abs (pR - new_pR) >= rd
@@ -128,7 +170,7 @@ function learn(sfid, classification)
     orig == new and string.format(cfg.training_not_necessary,
                                   new, max_learn_threshold,
                                   max_learn_threshold)
-    or string.format('%s: %.2f -> %2.f', parms.trained_as, orig_pR, new_pR)
+    or string.format('%s: %.2f -> %.2f', parms.trained_as, orig, new)
   return comment, classification, orig, new
 end  
 
@@ -145,18 +187,19 @@ but %s.]], classification, errmsgs.unlearn[status])
     msgmod.to_string(msg), msg.lim.header, msg.lim.msg
 
   local parms = learn_parms(classification)
-  local old_pR, _ = core.classify(lim_orig_msg, cfg.dbset, cfg.classify_flags)
-  core.unlearn(orig_msg, cfg.dbset, parms.index, cfg.learn_flags+mistake_flag)
-  local pR, _ = core.classify(lim_orig_msg, cfg.dbset, cfg.classify_flags)
+  local k = cfg.constants
+  local old_pR, _ = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
+  core.unlearn(orig_msg, cfg.dbset, parms.index, k.learn_flags+k.mistake_flag)
+  local pR, _ = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
   local i = 0
   while i < parms.reinforcement_limit and parms.bigger(pR, threshold_offset) do
-    core.unlearn(lim_orig_header, cfg.dbset, parms.index, cfg.learn_flags)
-    pR, _ = core.classify(lim_orig_msg, cfg.dbset, cfg.classify_flags)
+    core.unlearn(lim_orig_header, cfg.dbset, parms.index, k.learn_flags)
+    pR, _ = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
     i = i + 1
   end
-  change_file_status(sfid, classification, 'unlearned')
+  util.change_file_status(sfid, classification, 'unlearned')
   local comment =
-    string.format('Message unlearned (was %s): %.2f -> %.2f', classfication,
+    string.format('Message unlearned (was %s): %.2f -> %.2f', classification,
                   old_pR, pR)
   return comment, 'unlearned', old_pR, pR
 end

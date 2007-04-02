@@ -48,8 +48,27 @@ function set_dirs(options)
   return dirs
 end
 
-init = set_dirs
+function init(options)
+  set_dirs(options)
+  cfg.dbset = {
+    classes = {dirs.database .. cfg.nonspam_file,
+               dirs.database .. cfg.spam_file},
+    ncfs    = 1, -- split "classes" in 2 sublists. "ncfs" is
+                 -- the number of classes in the first sublist.
+    delimiters = cfg.extra_delimiters or '',
+    nonspam_index = 1,
+    spam_index    = 2,
+  }
+  cfg.constants = util.table_read_only{
+    classify_flags            = 0,
+    count_classification_flag = 2,
+    learn_flags               = 0,
+    mistake_flag              = 2,
+    reinforcement_flag        = 4
+  }
 
+  return dirs
+end
 
 ----------------------------------------------------------------
 -- Layout of the package:

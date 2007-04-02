@@ -213,13 +213,23 @@ function extract_sfid(msg)
 
   for refs in headers_tagged(msg, 'references') do
     -- match the last sfid in the field (hence the initial .*)
-    sfid = string.match(references, ".*<(sfid%-.-)>")
+    sfid = string.match(refs, ".*<(sfid%-.-)>")
   end
 
-  -- if not found as a reference, try as a comment in In-Reply-To
-  local last_sfid_pat = ".*%((sfid%-.-)%)"
-  sfid = sfid or string.match(header_tagged(msg, 'in-reply-to'), last_sfid_pat)
-                 string.match(header_tagged(msg, 'references'), last_refs_sfid)
+  -- if not found as a reference, try as a comment in In-Reply-To or in References
+  if not sfid then
+    local last_sfid_pat = ".*%((sfid%-.-)%)"
+    local field = headers_tagged(msg, 'in-reply-to')
+    if field then
+      sfid = string.match(field, last_sfid_pat)
+    end
+    if not sfid then
+      field = headers_tagged(msg, 'references')
+      if field then
+        sfid = string.match(field, last_sfid_pat)
+      end
+    end
+  end
   return sfid
 end
 
