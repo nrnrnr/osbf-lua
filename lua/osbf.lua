@@ -59,6 +59,9 @@ function init(options)
     nonspam_index = 1,
     spam_index    = 2,
   }
+
+  --- Fidelis: the table below doesn't depend on dirs or options.
+  --- why isn't it in cfg.lua? ---NR
   cfg.constants = util.table_read_only{
     classify_flags            = 0,
     count_classification_flag = 2,
