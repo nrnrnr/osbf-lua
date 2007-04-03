@@ -55,6 +55,15 @@ end
 
 ----------------------------------------------------------------
 
+--- Die with a fatal error message
+function die(...)
+  io.stderr:write(...)
+  io.stderr:write('\n')
+  os.exit(2)
+end
+
+----------------------------------------------------------------
+
 function contents_of_file(path)  --- returns contents as string or nil, error
   local f, err = io.open(path, 'r')
   if f then
