@@ -3,8 +3,8 @@ local require, print, pairs, type, assert, loadfile, setmetatable =
 
 local function eprintf(...) return io.stderr:write(string.format(...)) end
 
-local io, string, table =
-      io, string, table
+local io, string, table, coroutine =
+      io, string, table, coroutine
 
 module(...)
 
@@ -169,20 +169,28 @@ end
 
 ----------------------------------------------------------------
 
-function header_indices(msg, tag)
+--- return indices of headers with each tag in turn
+local yield = coroutine.yield
+function header_indices(msg, ...)
   msg = of_any(msg)
-  local i = 0
-  local t = msg.header_index[string.lower(tag)] 
-  return function()
-           i = i + 1
-           return t[i]
-         end
+  local tags = { ... }
+  return coroutine.wrap(function()
+                          for _, tag in ipairs(tags) do
+                            local t = msg.header_index[string.lower(tag)]
+                            for i = 1, #t do
+                              yield(t[i])
+                            end
+                          end
+                        end)
 end
 
-function headers_tagged(msg, tag)
+
+--- pass in list of tags and return iterator that will pass through 
+--- ever header with any of the tags
+function headers_tagged(msg, ...)
   msg = of_any(msg)
   local hs = msg.headers
-  local f = header_indices(msg, tag)
+  local f = header_indices(msg, ...)
   return function()
            local hi = f()
            if hi then
@@ -192,8 +200,8 @@ function headers_tagged(msg, tag)
          end
 end
 
-function header_tagged(msg, tag)
-  return headers_tagged(msg, tag)()
+function header_tagged(msg, ...)
+  return headers_tagged(msg, ...)()
 end
 
 
@@ -214,23 +222,16 @@ function extract_sfid(msg)
   for refs in headers_tagged(msg, 'references') do
     -- match the last sfid in the field (hence the initial .*)
     sfid = string.match(refs, ".*<(sfid%-.-)>")
+    if sfid then return sfid end
   end
 
   -- if not found as a reference, try as a comment in In-Reply-To or in References
-  if not sfid then
-    local last_sfid_pat = ".*%((sfid%-.-)%)"
-    local field = headers_tagged(msg, 'in-reply-to')
-    if field then
-      sfid = string.match(field, last_sfid_pat)
-    end
-    if not sfid then
-      field = headers_tagged(msg, 'references')
-      if field then
-        sfid = string.match(field, last_sfid_pat)
-      end
-    end
+  for field in headers_tagged(msg, 'in-reply-to', 'references') do
+    sfid = string.match(field, ".*%((sfid%-.-)%)")
+    if sfid then return sfid end
   end
-  return sfid
+  
+  return nil, "Could not extract sfid from message"
 end
 
 
