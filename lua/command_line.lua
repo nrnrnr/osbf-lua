@@ -10,7 +10,7 @@ local util = require (_PACKAGE .. 'util')
 local lists = require (_PACKAGE .. 'lists')
 local commands = require (_PACKAGE .. 'commands')
 local msg = require (_PACKAGE .. 'msg')
-local commands_learn = require(_PACKAGE .. 'learn') -- loaded into 'commands'
+require(_PACKAGE .. 'learn') -- loaded into 'commands'
 
 local usage_lines = { }
 
@@ -89,37 +89,34 @@ local cltx = { nonspam = 'ham' }
 function learner(cmd)
   return function(msgspec, classification)
            if not classification then
-             classification = msgspec
-             msgspec = nil
+             classification, msgspec = msgspec, io.stdin:read '*a'
            end
            classification = cltx[classfication] or classification
-           if msgspec == nil then
-             msgspec = io.stdin:read '*a'
-           end
            local sfid = msg.sfid(msgspec)
            local comment, class, orig, new = cmd(sfid, classification)
-           if not comment then
-             io.stderr:write(class, '\n')
-             os.exit(1)
-           else
+           --- this is a common pattern and might eventually be abstracted:
+           if comment then
              io.stdout:write(comment, '\n')
+           else
+             util.die(class)
            end
          end
 end
 
-learn = learner(commands.learn)
+learn   = learner(commands.learn)
 unlearn = learner(commands.unlearn)
 
 for _, l in ipairs { 'learn', 'unlearn' } do
-  table.insert(usage_lines, l .. ' [<msgspec>] <class>')
+  table.insert(usage_lines, l .. ' [<sfid|filename>] <class>')
 end
 
 function sfid(msgspec)
-  local sfid = msg.sfid(msgspec)
+  local sfid, err = msg.sfid(msgspec or io.stdin:read '*a')
   if sfid then
     io.stdout:write('SFID of message ', msgspec, ' is ', sfid, '\n')
   else
-    io.stderr:write("Can't find a SFID\n")
-    os.exit(1)
+    util.die(err)
   end
 end
+
+table.insert(usage_lines, 'sfid [<sfid|filename>]')
