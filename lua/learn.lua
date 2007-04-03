@@ -86,13 +86,14 @@ local msgmod = msg
 --        nil, error_msg
 -- true means there was a training, false indicates that the
 -- training was not necessary
-local function osbf_train(msg, class_index)
+local function train(msg, class_index)
 
   local pR, msg_error = core.classify(msg, cfg.dbset, 0)
 
-  if (pR) then
-    if ( ( (pR < 0)  and (class_index == cfg.dbset.nonspam_index) ) or
-         ( (pR >= 0) and (class_index == cfg.dbset.spam_index))   ) then
+  if pR then
+    if ( pR <  0 and class_index == cfg.dbset.nonspam_index ) 
+    or ( pR >= 0 and class_index == cfg.dbset.spam_index)
+    then
 
       -- approximate count. there could be cases where there was no mistake
       -- in the first classification, but just a change in classification
@@ -104,6 +105,7 @@ local function osbf_train(msg, class_index)
       else
         return nil, msg_error
       end
+
     elseif math.abs(pR) < max_learn_threshold then
       core.learn(msg, cfg.dbset, class_index, 0)
       local new_pR, msg_error = core.classify(msg, cfg.dbset, 0)
@@ -111,7 +113,7 @@ local function osbf_train(msg, class_index)
         return true, new_pR, pR
       else
         return nil, msg_error
-     end
+      end
     else
       return false, pR, pR
     end
@@ -133,37 +135,39 @@ function learn(sfid, classification)
   local orig_msg, lim_orig_header, lim_orig_msg =
     msgmod.to_string(msg), msg.lim.header, msg.lim.msg
 
-  local parms
-  local function train()
-    parms = learn_parms(classification)
-    if not parms then return
-      nil, "Unknown classification " .. classification -- error
-    end
-    local r, new_pR, orig_pR = osbf_train(orig_msg, parms.index)
-    if not r then
+  local parms = learn_parms(classification)
+  if not parms then return
+    nil, "Unknown classification " .. classification -- error
+  end
+
+  local function iterate_training()
+    local r, new_pR, orig_pR = train(orig_msg, parms.index)
+    if r == nil then -- r could be false here: what is the right thing to do?
       return r, new_pR --- error
     elseif parms.bigger(parms.threshold, new_pR) and
       math.abs(new_pR - orig_pR) < header_learn_threshold
     then -- train
-      local i = 0, pR
       local trd = threshold_reinforcement_degree * parms.offset_max_threshold
-      local rd = reinforcement_degree * header_learn_threshold
-      local k = cfg.constants
-      repeat
+      local rd  = reinforcement_degree * header_learn_threshold
+      local k   = cfg.constants
+      local pR
+      for i = 1, parms.reinforcement_limit do
+        -- (may exit early if the change in new_pR is big enough)
         pR = new_pR
         core.learn(lim_orig_header, cfg.dbset, parms.index,
                    k.learn_flags+k.reinforcement_flag)
         new_pR, p_array = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
-        i = i + 1
-      until i >= parms.reinforcement_limit or
-        parms.bigger(new_pR, trd) or math.abs (pR - new_pR) >= rd
+        if parms.bigger(new_pR, trd) or math.abs (pR - new_pR) >= rd then
+          break
+        end
+      end
       return orig_pR, new_pR
     else -- no training needed
       return new_pR, new_pR
     end
   end
 
-  local orig, new = train()
+  local orig, new = iterate_training()
   if not orig then return orig, new end -- error case
   util.change_file_status(sfid, status, classification)
   local comment = 
