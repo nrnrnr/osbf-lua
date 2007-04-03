@@ -1,0 +1,10 @@
+-- -*- mode: lua; -*-
+
+local modname, mailfile = assert(arg[1]), assert(arg[2])
+
+local osbf = require(modname)
+
+local m = osbf.msg.of_file(mailfile)
+
+for h in osbf.msg.headers_tagged(m, 'from', 'to', 'subject') do print(h) end
+

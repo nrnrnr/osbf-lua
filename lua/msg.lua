@@ -1,5 +1,5 @@
-local require, print, pairs, type, assert, loadfile, setmetatable =
-      require, print, pairs, type, assert, loadfile, setmetatable
+local require, print, pairs, ipairs, type, assert, loadfile, setmetatable =
+      require, print, pairs, ipairs, type, assert, loadfile, setmetatable
 
 local function eprintf(...) return io.stderr:write(string.format(...)) end
 

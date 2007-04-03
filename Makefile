@@ -39,6 +39,7 @@ uninstall:
 
 test: install
 	lua5.1 -l$(MODNAME) ./print-contents $(MODNAME)
+	lua5.1 ./test-headers $(MODNAME) $(MAILFILE)
 	lua5.1 -l$(MODNAME) -e "m = $(MODNAME).msg.of_file '$(MAILFILE)'" -i
 
 install_spamfilter:
