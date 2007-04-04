@@ -23,6 +23,7 @@ local util = require(_PACKAGE .. 'util')
 local cfg  = require(_PACKAGE .. 'cfg')
 local msg  = require(_PACKAGE .. 'msg')
 local core  = require(_PACKAGE .. 'core')
+local lists = require(_PACKAGE .. 'lists')
 
 
 local errmsgs = {
@@ -206,4 +207,76 @@ but %s.]], classification, errmsgs.unlearn[status])
     string.format('Message unlearned (was %s): %.2f -> %.2f', classification,
                   old_pR, pR)
   return comment, 'unlearned', old_pR, pR
+end
+
+
+----------------------------------------------------------------
+-- classification seems to go with learning
+
+sfid_tags = {
+  W = 'whitelisted',
+  B = 'blacklisted',
+  E = 'an error in classification',
+  S = 'spam',
+  H = 'ham',
+  ['-'] = 'spam (in the reinforcement zone)',
+  ['+'] = 'ham (in the reinforcement zone)',
+}
+
+-- Return subject-line tag and sfid tag for a given pR, even nil
+local function tags(pR)
+  local zero = cfg.min_pR_success
+  if pR == nil then
+    return '', 'E'
+  elseif pR < zero - cfg.threshold then
+    return cfg.tag_spam, 'S'
+  elseif pR > zero + cfg.threshold then
+    return cfg.tag_ham, "H"
+  elseif pR >= zero then
+    return cfg.tag_unsure_ham, "+"
+  else
+    assert (pR < zero)
+    return cfg.tag_unsure_spam, sfid_tag
+  end
+end
+
+
+local msgmod = msg
+
+-- Classifies msg and returns information from most to least precise:
+-- pR, sfid tag, and subject tag.
+-- pR might be nil but the last two always have values
+function classify(msg)
+  local pR, sfid_tag, subj_tag
+
+  msg = msgmod.of_any(msg)
+  if msgmod.header_tagged(msg, 'x-spamfilter-lua-whitelist') -- is this right?
+  or lists.match('whitelist', msg)
+  then
+    sfid_tag, subj_tag = 'W', cfg.tag_ham
+  elseif lists.match('blacklist', msg) then
+    sfid_tag, subj_tag = 'B', cfg.tag_spam
+  end
+
+  -- continue with classification even if whitelisted or blacklisted
+
+  local k = cfg.constants
+  local count_classifications_flag =
+    cfg.count_classifications and k.count_classification_flag or 0
+
+  local pR, class_probs, _, gTrainings =
+    core.classify(msg.lim.msg, cfg.dbset,
+                  count_classifications_flag + k.classify_flags)
+
+  if pR == nil then
+     -- log error message
+     -- util.log(class_probs, true)
+  end
+
+  if not sfid_tag then
+    subj_tag, sfid_tag = tags(pR)
+  end
+
+  assert(sfid_tag and subj_tag)
+  return pR, sfid_tag, subj_tag
 end

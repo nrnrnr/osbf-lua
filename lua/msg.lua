@@ -103,7 +103,7 @@ function of_string(s, orig)
 end
     
 local function is_sfid(v)
-  return type(v) == 'string' and string.find(v, 'sfid...')
+  return type(v) == 'string' and string.find(v, '^sfid%-...')
 end
 
 local function of_openfile(f, orig)
@@ -113,7 +113,7 @@ local function of_openfile(f, orig)
 end
 
 function of_file(filename, orig)
-  return of_openfile(assert(io.open(filename, 'r')), org)
+  return of_openfile(assert(io.open(filename, 'r')), orig)
 end
 
 function of_sfid(sfid)

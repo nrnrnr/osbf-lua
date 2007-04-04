@@ -2,6 +2,9 @@ local function eprintf(...) return io.stderr:write(string.format(...)) end
 
 local pairs, ipairs, tostring, io, os, table, string, _G, require, select
     = pairs, ipairs, tostring, io, os, table, string, _G, require, select
+
+local unpack, type, print, assert
+    = unpack, type, print, assert
       
 
 module(...)
@@ -89,9 +92,19 @@ end
 --- or stdin if no specs are given.
 local function msgspecs(...) --- maybe should be in util?
   local msgs = { ... }
-  if #msgs == 0 then msgs[1] = io.stdin:read '*a' end
+  local stdin = false
+  if #msgs == 0 then
+    msgs[1] = io.stdin:read '*a'
+    stdin = true
+  end
   local i = 0
-  return function() i = i + 1; return msgs[i] end
+  return function()
+           i = i + 1;
+           if msgs[i] then
+             local what = stdin and 'standard input' or 'message ' .. msgs[i]
+             return msgs[i], what
+           end
+         end
 end
 
 local cltx = { nonspam = 'ham' }
@@ -113,12 +126,33 @@ for _, l in ipairs { 'learn', 'unlearn' } do
 end
 
 function sfid(...)
-  local stdin = select('#', ...) == 0 and 'standard input' or nil
-  for msgspec in msgspecs(...) do
+  for msgspec, what in msgspecs(...) do
     local sfid = util.validate(msg.sfid(msgspec))
-    io.stdout:write('SFID of ', stdin or ('message ' .. msgspec),
-                    ' is ', sfid, '\n')
+    io.stdout:write('SFID of ', what, ' is ', sfid, '\n')
   end
 end
 
 table.insert(usage_lines, 'sfid [<sfid|filename> ...]')
+
+function classify(...)
+  local argv = { ... }
+  local show = function(pR, tag)
+                 local what = assert(commands.sfid_tags[tag])
+                 if pR then
+                   what = what .. string.format(' with score %03.1f', pR)
+                 end
+                 return what
+               end
+  if argv[1] == '-tag' then
+    table.remove(argv, 1)
+    show = function(pR, tag) return tag end
+  end
+  
+  for msgspec, what in msgspecs(unpack(argv)) do
+    local m = util.validate(msg.of_any(msgspec))
+    io.stdout:write(what, ' is ', show(commands.classify(m)), '\n')
+  end
+end
+
+table.insert(usage_lines, 'classify [-tag] [<sfid|filename> ...]')
+
