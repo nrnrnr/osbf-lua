@@ -135,18 +135,20 @@ end
 table.insert(usage_lines, 'sfid [<sfid|filename> ...]')
 
 function classify(...)
-  local argv = { ... }
-  local show = function(pR, tag)
-                 local what = assert(commands.sfid_tags[tag])
-                 if pR then
-                   what = what .. string.format(' with score %03.1f', pR)
-                 end
-                 return what
-               end
-  if argv[1] == '-tag' then
-    table.remove(argv, 1)
-    show = function(pR, tag) return tag end
-  end
+  local options, argv =
+    util.validate(util.getopt({...}, {tag = util.options.bool}))
+  local show =
+    options.tag 
+      and
+    function(pR, tag) return tag end
+      or
+    function(pR, tag)
+      local what = assert(commands.sfid_tags[tag])
+      if pR then
+        what = what .. string.format(' with score %03.1f', pR)
+      end
+      return what
+    end 
   
   for msgspec, what in msgspecs(unpack(argv)) do
     local m = util.validate(msg.of_any(msgspec))

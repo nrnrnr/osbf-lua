@@ -124,7 +124,6 @@ end
 
 -- simple getopt to get command line options
 function getopt(args, opt_table)
-  local error = nil
   local options_found = {}
 
   while(args[1]) do
@@ -133,8 +132,12 @@ function getopt(args, opt_table)
       break -- no more options
     else
       table.remove(args, 1)
-      options_found, error = (opt_table[key] or no_such_option)(key, value, args)
-      if error then return nil, error end
+      local val, err = (opt_table[key] or no_such_option)(key, value, args)
+      if error then
+        return nil, error
+      else
+        options_found[key] = val
+      end
     end
   end
   return options_found, args

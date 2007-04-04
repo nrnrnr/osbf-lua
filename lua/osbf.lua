@@ -49,6 +49,9 @@ function set_dirs(options)
 end
 
 function init(options)
+  cfg.constants = util.table_read_only (cfg.constants)
+     --- can't make it read-only until both cfg and util are loaded
+
   set_dirs(options)
   cfg.dbset = {
     classes = {dirs.database .. cfg.nonspam_file,
@@ -62,14 +65,6 @@ function init(options)
 
   --- Fidelis: the table below doesn't depend on dirs or options.
   --- why isn't it in cfg.lua? ---NR
-  cfg.constants = util.table_read_only{
-    classify_flags            = 0,
-    count_classification_flag = 2,
-    learn_flags               = 0,
-    mistake_flag              = 2,
-    reinforcement_flag        = 4
-  }
-
   return dirs
 end
 
