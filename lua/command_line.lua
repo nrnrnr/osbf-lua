@@ -1,7 +1,7 @@
 local function eprintf(...) return io.stderr:write(string.format(...)) end
 
-local ipairs, tostring, io, os, table, string, _G, require
-    = ipairs, tostring, io, os, table, string, _G, require
+local pairs, ipairs, tostring, io, os, table, string, _G, require, select
+    = pairs, ipairs, tostring, io, os, table, string, _G, require, select
       
 
 module(...)
@@ -50,7 +50,7 @@ local what = { add = 'String', ['add-pat'] = 'Pattern',
 local function listfun(listname)
   return function(cmd, tag, arg)
            local result = lists.run(listname, cmd, tag, arg)
-           if not lists.is_show(cmd) then
+           if not lists.show_cmd[cmd] then
              if not (cmd and tag and arg) then
                eprintf('Bad %s commmand\n', listname)
                usage()
@@ -70,9 +70,9 @@ whitelist = listfun 'whitelist'
 for _, l in ipairs { 'whitelist', 'blacklist' } do
   table.insert(usage_lines, l .. ' add[-pat] <tag> <string>')
   table.insert(usage_lines, l .. ' del[-pat] <tag> <string>')
-  table.insert(usage_lines, l .. ' show')
-  table.insert(usage_lines, l .. ' show-add')
-  table.insert(usage_lines, l .. ' show-del')
+  for cmd in pairs(lists.show_cmd) do
+    table.insert(usage_lines, l .. ' ' .. cmd)
+  end
 end
 
 ----------------------------------------------------------------
@@ -85,20 +85,22 @@ end
 
 
 
+--- Iterator to generate multiple msg specs from command line,
+--- or stdin if no specs are given.
+local function msgspecs(...) --- maybe should be in util?
+  local msgs = { ... }
+  if #msgs == 0 then msgs[1] = io.stdin:read '*a' end
+  local i = 0
+  return function() i = i + 1; return msgs[i] end
+end
+
 local cltx = { nonspam = 'ham' }
 function learner(cmd)
-  return function(msgspec, classification)
-           if not classification then
-             classification, msgspec = msgspec, io.stdin:read '*a'
-           end
+  return function(classification, ...)
            classification = cltx[classfication] or classification
-           local sfid = msg.sfid(msgspec)
-           local comment, class, orig, new = cmd(sfid, classification)
-           --- this is a common pattern and might eventually be abstracted:
-           if comment then
-             io.stdout:write(comment, '\n')
-           else
-             util.die(class)
+           for msgspec in msgspecs(...) do
+             local sfid = util.validate(msg.sfid(msgspec))
+             io.stdout:write(util.validate(cmd(sfid, classification)), '\n')
            end
          end
 end
@@ -107,16 +109,16 @@ learn   = learner(commands.learn)
 unlearn = learner(commands.unlearn)
 
 for _, l in ipairs { 'learn', 'unlearn' } do
-  table.insert(usage_lines, l .. ' [<sfid|filename>] <class>')
+  table.insert(usage_lines, l .. ' <spam|nonspam> [<sfid|filename> ...]')
 end
 
-function sfid(msgspec)
-  local sfid, err = msg.sfid(msgspec or io.stdin:read '*a')
-  if sfid then
-    io.stdout:write('SFID of message ', msgspec, ' is ', sfid, '\n')
-  else
-    util.die(err)
+function sfid(...)
+  local stdin = select('#', ...) == 0 and 'standard input' or nil
+  for msgspec in msgspecs(...) do
+    local sfid = util.validate(msg.sfid(msgspec))
+    io.stdout:write('SFID of ', stdin or ('message ' .. msgspec),
+                    ' is ', sfid, '\n')
   end
 end
 
-table.insert(usage_lines, 'sfid [<sfid|filename>]')
+table.insert(usage_lines, 'sfid [<sfid|filename> ...]')

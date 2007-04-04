@@ -174,15 +174,14 @@ show_del = show_op 'del'
 --- Evaluating a command from a string.
 
 --- Table that shows what arguments should be passed to list commands
-local show_cmd = { show = show, ['show-add'] = show_add, ['show-del'] = show_del }
+--- Used to check and to enumerate show commands and their names.
+-- Commands should not be called directly but only through 'run'.
+show_cmd = { show = show, ['show-add'] = show_add, ['show-del'] = show_del }
 
 local list_cmd  = { add = add, ['add-pat'] = add,
                     del = del, ['del-pat'] = del }
 local list_part = { add = 'strings', ['add-pat'] = 'pats',
                     del = 'strings', ['del-pat'] = 'pats' }
-
---- Used to check to see if number of command-line args is appropriate.
-function is_show(cmd) return show_cmd[cmd] ~= nil end
 
 --- Function to implement list commands.
 -- @param listname Name of the list.

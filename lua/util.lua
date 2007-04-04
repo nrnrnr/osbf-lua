@@ -62,6 +62,20 @@ function die(...)
   os.exit(2)
 end
 
+--- Validate arguments.
+-- If the first argument is nil, the second is a fatal error message.
+-- Otherwise this function passes all its args through as results,
+-- so it can be used as an identity function.  (Provided it gets at
+-- list one arg.)
+function validate(first, ...)
+  if first == nil then
+    die((...)) -- only second arg goes to die()
+  else
+    return first, ...
+  end
+end
+
+
 ----------------------------------------------------------------
 
 function contents_of_file(path)  --- returns contents as string or nil, error
