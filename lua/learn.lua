@@ -250,7 +250,8 @@ function classify(msg)
   local pR, sfid_tag, subj_tag
 
   msg = msgmod.of_any(msg)
-  if msgmod.header_tagged(msg, 'x-spamfilter-lua-whitelist') -- is this right?
+  -- whitelist cache report
+  if msgmod.header_tagged(msg, 'x-spamfilter-lua-whitelist') == cfg.pwd
   or lists.match('whitelist', msg)
   then
     sfid_tag, subj_tag = 'W', cfg.tag_ham
@@ -264,7 +265,7 @@ function classify(msg)
   local count_classifications_flag =
     cfg.count_classifications and k.count_classification_flag or 0
 
-  local pR, class_probs, _, gTrainings =
+  local pR, class_probs =
     core.classify(msg.lim.msg, cfg.dbset,
                   count_classifications_flag + k.classify_flags)
 

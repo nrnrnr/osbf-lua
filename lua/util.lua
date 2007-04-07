@@ -121,23 +121,28 @@ function options.bool(key, value, args)
     return true
   end
 end
+local function no_such_option(key, value, args)
+    if key == '' and value then
+      return nil, 'Missing option name before "="'
+    end
+    return nil, 'Unknown option: ' .. key
+end
 
 -- simple getopt to get command line options
 function getopt(args, opt_table)
   local options_found = {}
 
   while(args[1]) do
-    local key, value = string.match(args[1], "^%-%-?([^=]+)=?(.*)")
-    if not key then
+    -- changed + to * to allow forced end of options with "--" or "-"
+    local key, eq, value = string.match(args[1], "^%-%-?([^=]*)(=?)(.*)")
+    if value == '' then value = eq end
+    if not key or key == '' and value == '' and table.remove(args, 1) then
       break -- no more options
     else
       table.remove(args, 1)
       local val, err = (opt_table[key] or no_such_option)(key, value, args)
-      if error then
-        return nil, error
-      else
-        options_found[key] = val
-      end
+      if err then return nil, err end
+      options_found[key] = val
     end
   end
   return options_found, args
