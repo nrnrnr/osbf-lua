@@ -250,7 +250,7 @@ function classify(msg)
   local pR, sfid_tag, subj_tag
 
   msg = msgmod.of_any(msg)
-  -- whitelist cache report
+  -- whitelist the cache report, which is authenticated by our password
   if msgmod.header_tagged(msg, 'x-spamfilter-lua-whitelist') == cfg.pwd
   or lists.match('whitelist', msg)
   then
