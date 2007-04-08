@@ -11,6 +11,8 @@ local modname = ...
 
 module(modname)
 
+dirs = { } -- must come before loading submodules
+
 local submodules =
   { 'core', 'util', 'lists', 'commands', 'mail_commands', 'cfg', 'command_line',
     'msg', 'learn' }
@@ -18,8 +20,6 @@ local submodules =
 for _, submodule in ipairs(submodules) do
   require (modname .. '.' .. submodule)
 end
-
-dirs = { }
 
 local val, bool, opt, dir =
   util.options.val, util.options.bool, util.options.opt, util.options.dir
@@ -32,11 +32,18 @@ std_opts =
 
 --- Set osbf.dirs.  
 -- @param The first result of util.getopt (an options table).
-function set_dirs(options)
+function set_dirs(options, no_dirs_ok)
   local HOME = os.getenv 'HOME'
   local default_dir = HOME and HOME .. '/.osbf-lua' 
   options = options or { }
-  dirs.user     = options.udir or core.is_dir(default_dir) and default_dir or '.'
+  dirs.user = options.udir or (no_dirs_ok or core.is_dir(default_dir)) and default_dir
+
+  if not dirs.user then
+    util.die('No --udir option given and ', default_dir, ' is not a directory.\n',
+             '<eventually provide a command-line "osbf init" to create the ',
+             'directory and fix the problem>')
+  end
+
   dirs.config   = options.cfgdir   or dirs.user
   dirs.database = options.dbdir    or dirs.user
   dirs.lists    = options.listsdir or dirs.user
@@ -45,14 +52,25 @@ function set_dirs(options)
 
   dirs.cache = dirs.user .. "cache/"
   dirs.log = dirs.user .. 'log/'
+
+  -- validate that everything is a directory
+
+  if not no_dirs_ok then
+    for _, dir in pairs(dirs) do
+      if not core.is_dir(dir) then
+        util.die(dirs.user, ' is not a directory')
+      end
+    end
+  end
+
   return dirs
 end
 
-function init(options)
+function init(options, no_dirs_ok)
   cfg.constants = util.table_read_only (cfg.constants)
      --- can't make it read-only until both cfg and util are loaded
 
-  set_dirs(options)
+  set_dirs(options, no_dirs_ok)
   cfg.dbset = {
     classes = {dirs.database .. cfg.nonspam_file,
                dirs.database .. cfg.spam_file},
@@ -63,8 +81,6 @@ function init(options)
     spam_index    = 2,
   }
 
-  --- Fidelis: the table below doesn't depend on dirs or options.
-  --- why isn't it in cfg.lua? ---NR
   return dirs
 end
 
