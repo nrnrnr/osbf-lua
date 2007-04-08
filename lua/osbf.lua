@@ -67,9 +67,6 @@ function set_dirs(options, no_dirs_ok)
 end
 
 function init(options, no_dirs_ok)
-  cfg.constants = util.table_read_only (cfg.constants)
-     --- can't make it read-only until both cfg and util are loaded
-
   set_dirs(options, no_dirs_ok)
   cfg.dbset = {
     classes = {dirs.database .. cfg.nonspam_file,

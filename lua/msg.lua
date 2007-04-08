@@ -10,6 +10,7 @@ module(...)
 
 local cfg = require(_PACKAGE .. 'cfg')
 local util = require(_PACKAGE .. 'util')
+local cache = require(_PACKAGE .. 'cache')
 
 
 --[[
@@ -102,10 +103,6 @@ function of_string(s, orig)
   return msg
 end
     
-local function is_sfid(v)
-  return type(v) == 'string' and string.find(v, '^sfid%-...')
-end
-
 local function of_openfile(f, orig)
   local msg = of_string(f:read '*a', orig)
   f:close()
@@ -117,7 +114,7 @@ function of_file(filename, orig)
 end
 
 function of_sfid(sfid)
-  local openfile, status = util.file_and_status(sfid)
+  local openfile, status = cache.file_and_status(sfid)
   if openfile then
     return of_openfile(openfile, true), status
   else
@@ -129,7 +126,7 @@ end
 function of_any(v)
   if type(v) == 'table' then
     return v
-  elseif is_sfid(v) then
+  elseif cache.is_sfid(v) then
     return of_sfid(v)
   else
     assert(type(v) == 'string')
@@ -146,8 +143,8 @@ end
 function to_string(v)
   if type(v) == 'table' then
     return table.concat(v.headers, '\n') .. '\n\n' .. v.body
-  elseif is_sfid(v) then
-    local openfile, status = util.file_and_status(sfid)
+  elseif cache.is_sfid(v) then
+    local openfile, status = cache.file_and_status(sfid)
     if openfile then
       local s = openfile:read '*a'
       openfile:close()
@@ -206,7 +203,7 @@ end
 
 
 function sfid(msgspec)
-  if is_sfid(msgspec) then
+  if cache.is_sfid(msgspec) then
     return msgspec
   else
     return extract_sfid(of_any(msgspec))
@@ -243,6 +240,6 @@ Things to come:
 
 You can then write, e.g.,
 
-  for subj in util.headers_tagged(msg, 'subject') do ... end
+  for subj in msg.headers_tagged(msg, 'subject') do ... end
 
 ]]

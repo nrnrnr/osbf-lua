@@ -3,12 +3,13 @@ local pairs, require = pairs, require
 module (...)
 
 local d = require (_PACKAGE .. 'default_cfg')
+local util = require (_PACKAGE .. 'util')
 
 for k, v in pairs(d) do
   _M[k] = v
 end
 
-constants =
+constants = util.table_read_only
   {
     classify_flags            = 0,
     count_classification_flag = 2,

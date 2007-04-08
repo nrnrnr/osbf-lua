@@ -13,6 +13,7 @@ local util = require (_PACKAGE .. 'util')
 local lists = require (_PACKAGE .. 'lists')
 local commands = require (_PACKAGE .. 'commands')
 local msg = require (_PACKAGE .. 'msg')
+local cache = require (_PACKAGE .. 'cache')
 require(_PACKAGE .. 'learn') -- loaded into 'commands'
 
 local usage_lines = { }
@@ -140,7 +141,8 @@ table.insert(usage_lines, 'sfid [<sfid|filename> ...]')
 
 function classify(...)
   local options, argv =
-    util.validate(util.getopt({...}, {tag = util.options.bool}))
+    util.validate(util.getopt({...},
+      {tag = util.options.bool, cache = util.options.bool}))
   local show =
     options.tag 
       and
@@ -156,7 +158,11 @@ function classify(...)
   
   for msgspec, what in msgspecs(unpack(argv)) do
     local m = util.validate(msg.of_any(msgspec))
-    io.stdout:write(what, ' is ', show(commands.classify(m)), '\n')
+    local pR, tag = commands.classify(m)
+    if options.cache then
+      cache.store(cache.generate_sfid(tag, pR), msg.to_string(m))
+    end
+    io.stdout:write(what, ' is ', show(pR, tag), '\n')
   end
 end
 

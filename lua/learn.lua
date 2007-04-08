@@ -24,6 +24,7 @@ local cfg  = require(_PACKAGE .. 'cfg')
 local msg  = require(_PACKAGE .. 'msg')
 local core  = require(_PACKAGE .. 'core')
 local lists = require(_PACKAGE .. 'lists')
+local cachemod = require(_PACKAGE .. 'cache')
 
 
 local errmsgs = {
@@ -170,7 +171,7 @@ function learn(sfid, classification)
 
   local orig, new = iterate_training()
   if not orig then return orig, new end -- error case
-  util.change_file_status(sfid, status, classification)
+  cachemod.change_file_status(sfid, status, classification)
   local comment = 
     orig == new and string.format(cfg.training_not_necessary,
                                   new, max_learn_threshold,
@@ -202,7 +203,7 @@ but %s.]], classification, errmsgs.unlearn[status])
     pR, _ = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
     i = i + 1
   end
-  util.change_file_status(sfid, classification, 'unlearned')
+  cachemod.change_file_status(sfid, classification, 'unlearned')
   local comment =
     string.format('Message unlearned (was %s): %.2f -> %.2f', classification,
                   old_pR, pR)
