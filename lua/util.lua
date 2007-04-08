@@ -7,7 +7,8 @@ local io, string, table, os =
 module(...)
 
 local osbf = require(string.gsub(_PACKAGE, '%.$', ''))
-local cfg = require(_PACKAGE .. 'cfg')
+local cfg  = require(_PACKAGE .. 'cfg')
+local core = require(_PACKAGE .. 'core')
 
 --- Special tables.
 -- Metafunction used to create a table on demand.
@@ -49,6 +50,17 @@ do
       return "'" .. string.gsub(s, "'", [['"'"']]) .. "'"
     else
       return s
+    end
+  end
+end
+
+----------------------------------------------------------------
+
+function mkdir(path)
+  if not core.is_dir(path) then
+    local rc = os.execute('mkdir ' .. path)
+    if rc ~= 0 then
+      die('Could not create directory ', path)
     end
   end
 end

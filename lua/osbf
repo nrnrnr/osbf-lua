@@ -11,6 +11,6 @@ if not options then
   os.exit(1)
 end
 
-osbf.init(options)
+osbf.init(options, args[1] == 'init')
 
 osbf.command_line.run(unpack(args))

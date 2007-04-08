@@ -3,8 +3,8 @@ local function eprintf(...) return io.stderr:write(string.format(...)) end
 local pairs, ipairs, tostring, io, os, table, string, _G, require, select
     = pairs, ipairs, tostring, io, os, table, string, _G, require, select
 
-local unpack, type, print, assert
-    = unpack, type, print, assert
+local unpack, type, print, assert, tonumber
+    = unpack, type, print, assert, tonumber
       
 
 module(...)
@@ -29,7 +29,11 @@ function run(cmd, ...)
 end
     
 
-function usage()
+function usage(...)
+  if select('#', ...) > 0 then
+    io.stderr:write(...)
+    io.stderr:write '\n'
+  end
   local prog = string.gsub(_G.arg[0], '.*/', '')
   local prefix = 'Usage: '
   for _, u in ipairs(usage_lines) do
@@ -83,7 +87,7 @@ end
 
 -- @param msgspec is either a sfid, or a filename, or missing, 
 -- which indicates a message on standard input.  If a filename or stdin,
--- the sfid is extracted from the message field in the usual fashion.
+-- the sfid is extracted from the message field in the l fashion.
 -- @param classification is 'spam' or 'ham' or the equivalent 'nonspam', 
 
 
@@ -158,3 +162,27 @@ end
 
 table.insert(usage_lines, 'classify [-tag] [<sfid|filename> ...]')
 
+
+--- Initialize OSBF-Lua's state in the filesystem.
+-- A truly nice touch here would be to offer a -procmail option
+-- that would add the recommended lines to the .procmailrc.
+-- Not sure if the service is worth the extra complexity at this time.
+
+function init(buckets, ...)
+  local nb = tonumber(buckets)
+  if buckets and not nb then
+    usage('Number of buckets ', buckets, ' is not a number')
+  elseif select('#', ...) > 0 then
+    usage()
+  else
+    io.stdout:write('Creating directories and databases')
+    if nb then io.stdout:write(' with ', nb, 'buckets') end
+    io.stdout:write('... ')
+    io.stdout:flush()
+    commands.init(nb)
+    io.stdout:write('done!\n')
+    io.stdout:flush()
+  end
+end
+
+table.insert(usage_lines, 'init [<number of buckets>]')
