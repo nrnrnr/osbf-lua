@@ -2,7 +2,7 @@
 
 local osbf = require 'osbf3'
 
-osbf.init{}
+osbf.init({ udir = '.' }, true) --- ignore missing log or cache dirs
 
 local util = require 'osbf3.util'
 
