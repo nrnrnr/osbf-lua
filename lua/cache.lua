@@ -16,7 +16,7 @@ local util = require(_PACKAGE .. 'util')
 
 local suffixes = { spam = '-s', ham = '-h', unlearned = '' }
 
-function generate_rightid()
+local function generate_rightid()
   -- returns cfg.right id if valid or 'spamfilter.osbf.lua'
   return type(cfg.rightid) == 'string'
 	   and
@@ -80,23 +80,23 @@ function change_file_status(sfid, status, classification)
   and (classification == 'unlearned' or status == 'unlearned') then
     return os.rename(filename(sfid, status), filename(sfid, classification))
   else
-    return nil, 'invalid change of file status'
+    return nil, 'invalid to change status from ' .. status .. ' to ' .. classification
   end
 end
 
 function generate_sfid(sfid_tag, pR)
   -- returns a new SFID
   -- if pR is not a number, 0 is used instead.
-  assert(type(sfid_tag, 'string'), 'sfid_tag type must be string')
+  assert(type(sfid_tag) == 'string', 'sfid_tag type must be string')
   local at_rightid = '@' .. generate_rightid()
   local leftid = string.format("sfid-%s%s-%+07.2f-", sfid_tag,
 				os.date("%Y%m%d-%H%M%S"),
 				type(pR) == 'number' and pR or 0)
   for i = 1, 10000 do 
-    local sfid = leftid .. tostring(i) .. at_rightid
-    local f = find_sfid_file(sfid)
-    if not f then
-       return sfid
+    local sfid = leftid .. i .. at_rightid
+    -- for safety this should be an atomic test-and-set (using file locking?)
+    if not find_sfid_file(sfid) then
+      return sfid
     end
   end
   return nil, "could not generate sfid"
@@ -107,7 +107,7 @@ function store(sfid, msg)
   -- msg is a string containing the message
   local fn = find_sfid_file(sfid)
   if fn then
-    return nil, 'sfid already in cache!'
+    return nil, 'sfid ' .. sfid .. ' is already in the cache!'
   end
   local f = assert(io.open(filename(sfid, 'unlearned'), 'w'))
   f:write(msg)
@@ -117,9 +117,7 @@ end
 
 function remove(sfid)
   local f = find_sfid_file(sfid)
-  if f then
-    return os.remove(f) end
-  return f
+  if f then return os.remove(f) end
 end
  
 ----------------------------------------------------------------
