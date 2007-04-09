@@ -25,7 +25,7 @@ list_del_pat    = mk_list_command('del', 'pats')
 -- Perhaps the optional argument should be denominated in bytes, not buckets?
 
 function init(num_buckets)
-  local create = require(_PACKAGE .. 'create') -- load only on demand
+  --local create = require(_PACKAGE .. 'create') -- load only on demand
   local ds =
     { dirs.user, dirs.config, dirs.database, dirs.lists, dirs.cache, dirs.log }
   for _, d in ipairs(ds) do

@@ -58,7 +58,7 @@ function set_dirs(options, no_dirs_ok)
   if not no_dirs_ok then
     for _, dir in pairs(dirs) do
       if not core.is_dir(dir) then
-        util.die(dirs.user, ' is not a directory')
+        util.die(dir, ' is not a directory')
       end
     end
   end
