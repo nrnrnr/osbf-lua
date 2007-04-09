@@ -56,9 +56,9 @@ function set_dirs(options, no_dirs_ok)
   -- validate that everything is a directory
 
   if not no_dirs_ok then
-    for _, dir in pairs(dirs) do
-      if not core.is_dir(dir) then
-        util.die(dir, ' is not a directory')
+    for name, dir in pairs(dirs) do
+      if not core.is_dir(string.gsub(dir, '/$', '')) then
+        util.die('The ', name, ' path ', dir, ' is not a directory')
       end
     end
   end
