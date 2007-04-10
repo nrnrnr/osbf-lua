@@ -182,7 +182,7 @@ function init(buckets, ...)
     usage()
   else
     io.stdout:write('Creating directories and databases')
-    if nb then io.stdout:write(' with ', nb, 'buckets') end
+    if nb then io.stdout:write(' with ', nb, ' buckets') end
     io.stdout:write('... ')
     io.stdout:flush()
     commands.init(nb)

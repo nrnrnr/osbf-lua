@@ -237,7 +237,7 @@ local function tags(pR)
     return cfg.tag_unsure_ham, "+"
   else
     assert (pR < zero)
-    return cfg.tag_unsure_spam, sfid_tag
+    return cfg.tag_unsure_spam, '-'
   end
 end
 
