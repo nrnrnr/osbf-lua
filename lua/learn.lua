@@ -135,7 +135,7 @@ function learn(sfid, classification)
   end -- set up tables so we can use one training procedure for either ham or spam
 
   local orig_msg, lim_orig_header, lim_orig_msg =
-    msgmod.to_string(msg), msg.lim.header, msg.lim.msg
+    msgmod.to_orig_string(msg), msg.lim.header, msg.lim.msg
 
   local parms = learn_parms(classification)
   if not parms then return
@@ -190,7 +190,7 @@ but %s.]], classification, errmsgs.unlearn[status])
   end
 
   local orig_msg, lim_orig_header, lim_orig_msg =
-    msgmod.to_string(msg), msg.lim.header, msg.lim.msg
+    msgmod.to_orig_string(msg), msg.lim.header, msg.lim.msg
 
   local parms = learn_parms(classification)
   local k = cfg.constants

@@ -23,8 +23,10 @@ email message, the last of which is canonical.
   3. The name of a file containing the message
   4. A table with the following elements:
         { headers   = list of header strings,
+          orig_headers_block = string containing original headers,
           body      = string containing body, 
-          lim = { header = string.sub(table.concat(headers), 1, cfg.text_limit),
+          eol       = detected eol
+          lim = { header = string.sub(orig_headers_block, 1, cfg.text_limit),
                   msg = string.sub(full message in string format, 1, cfg.text_limit)
                 },
           orig = true or false, -- is this as originally received? (nil for unknown)
@@ -48,8 +50,8 @@ Some fields might be generated on demand by a metatable.
 
 local demand_fields = { }
 function demand_fields.lim(t, k)
-  return { header = string.sub(table.concat(t.headers, '\n'), 1, cfg.text_limit),
-           msg = string.sub(to_string(t), 1, cfg.text_limit)
+  return { header = string.sub(t.orig_headers_block, 1, cfg.text_limit),
+           msg = string.sub(to_orig_string(t), 1, cfg.text_limit)
          }
 end
 
@@ -79,30 +81,44 @@ local msg_meta = {
 }
 
 function of_string(s, orig)
-  local headers = { }
-  local i = 1
-  repeat
-    local start, fin, hdr, eol = string.find(s, '(.-)(\r?\n)[^ \t]', i)
-    if start then
-      assert(start == i)
-      table.insert(headers, hdr)
-      assert(fin > i)
-      i = fin
-    end
-  until not start or string.find(s, '^\r?\n', i)
-  local j, _, bstart = string.find(s, '\n\r?\n()', i-1)
-  local body 
-  if not j then
-    body = ''     -- empty message
+  local headers = {}
+  local i, j, orig_headers_block, body, eol
+  i, j, eol = string.find(s, '\r?\n(\r?\n)')
+  if eol then
+    orig_headers_block = string.sub(s, 1, j)
+    body = string.sub(s, j+1)
   else
-    assert(j == i-1, 'Trouble at ' .. string.format('%q', string.sub(s, i-1, i+100)))
-    body = string.sub(s, bstart)
+    orig_headers_block = s
+    body = ''
+    i, j, eol = string.find(s, '(\r?\n)$')
+    if eol then
+      s = s .. '\n'
+    else
+      _, _, eol = string.find(s, '(\r?\n)')
+      eol = ''
+      s = s .. '\n' .. '\n'
+    end
   end
-  local msg = { headers = headers, body = body, orig = orig }
+
+  function insert_header_line()
+    local last_first_char = ''
+    return function (h, lfc)
+             table.insert(headers, last_first_char .. h)
+             last_first_char = lfc or ''
+             return nil
+           end
+  end
+  local ihl = insert_header_line()
+  if eol ~= '' then
+    string.gsub(s, '(.-)\r?\n([^ \t])', ihl)
+  end
+
+  local msg = { headers = headers, orig_headers_block = orig_headers_block,
+                body = body, eol = eol, orig = orig }
   setmetatable(msg, msg_meta)
   return msg
 end
-    
+ 
 local function of_openfile(f, orig)
   local msg = of_string(f:read '*a', orig)
   f:close()
@@ -141,8 +157,13 @@ end
 
 
 function to_string(v)
+  v = of_any(v)
+  return table.concat{table.concat(v.headers, v.eol), v.eol, v.eol, v.body}
+end
+--[[
+function to_string(v)
   if type(v) == 'table' then
-    return table.concat(v.headers, '\n') .. '\n\n' .. v.body
+    return table.concat(table.concat(v.headers, v.eol), v.eol, v.eol, v.body)
   elseif cache.is_sfid(v) then
     local openfile, status = cache.file_and_status(sfid)
     if openfile then
@@ -162,6 +183,12 @@ function to_string(v)
     end
     return v
   end
+end
+--]]
+
+function to_orig_string(v)
+  v = of_any(v)
+  return v.orig_headers_block .. v.body
 end
 
 ----------------------------------------------------------------

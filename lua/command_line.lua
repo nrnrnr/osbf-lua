@@ -160,7 +160,7 @@ function classify(...)
     local m = util.validate(msg.of_any(msgspec))
     local pR, tag = commands.classify(m)
     if options.cache then
-      cache.store(cache.generate_sfid(tag, pR), msg.to_string(m))
+      cache.store(cache.generate_sfid(tag, pR), msg.to_orig_string(m))
     end
     io.stdout:write(what, ' is ', show(pR, tag), '\n')
   end
