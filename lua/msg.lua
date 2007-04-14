@@ -24,10 +24,11 @@ email message, the last of which is canonical.
   4. A table with the following elements:
         { headers   = list of header strings,
           header_fields = string containing the original header of the
-                          message. If the EOL which separates the body
-                          from the header is present in the message,
-                          header_fileds will also contain it as its
-                          final part,
+                          message. It will also contain the EOL which
+                          separates the body from the header, if present
+                          in the message final part,
+          sep       = EOL which separates the header from body, or the empty
+                      string if there's no separator (and no body),
           body      = string containing the original body,
           eol       = string with the eol used by the message,
           lim = { header = string.sub(header_fields, 1, cfg.text_limit),
@@ -86,31 +87,33 @@ local msg_meta = {
 
 function of_string(s, orig)
   -- Detect header fields, body and eol
-  local header_fields, body
+  local header_fields, body, sep
   local i, j, eol = string.find(s, '\r?\n(\r?\n)')
+  sep = '' -- assume not EOL between headers and body
   if eol then
     -- last header field is empty - OK and necessary if body is not empty
     header_fields = string.sub(s, 1, j)
     body = string.sub(s, j+1)
-    s = header_fields .. '\n\n\n' -- for uniform header_fields extraction
+    s = header_fields
+    sep = eol
   else
-    header_fields = s
-    body = ''
     eol = string.match(s, '(\r?\n)$')  -- only header fileds?
     if eol then
-      s = s .. '\n\n\n' -- for uniform headers extraction
+      header_fields = s
+      body = ''
+      s = s .. '\n' -- for uniform headers extraction
     else
-      -- invalid message, but we accept it anyway
-      eol = string.match(s, '(\r?\n)') or ''
-      s = s .. '\n\n' -- for uniform header fields extraction
+      -- if a valid EOL is not detected we add a warning Subject:
+      header_fields = 'Subject: OSBF-Lua-Warning: No EOL found in this message!\n\n'
+      body = s
+      eol = '\n'
+      sep = eol
+      s = header_fields
     end
   end
 
-  -- build headers table
+  -- header fields extraction
   local headers = {}
-  -- if the EOL which sepatares the header from the body is
-  -- present in the original message, headers will contain
-  -- an empty entry, '', in the last position.
   do
     local lfc = ''
     for h, nfc in string.gmatch(s, "(.-)\r?\n([^ \t])") do
@@ -119,7 +122,7 @@ function of_string(s, orig)
     end
   end
   local msg = { headers = headers, header_fields = header_fields,
-                body = body, eol = eol, orig = orig }
+                body = body, sep = sep, orig = orig, eol = eol }
   setmetatable(msg, msg_meta)
   return msg
 end
@@ -162,7 +165,7 @@ end
 
 function to_string(v)
   v = of_any(v)
-  return table.concat(v.headers, v.eol) .. v.body
+  return table.concat{table.concat(v.headers, v.eol), v.eol, v.sep, v.body}
 end
 --[[
 function to_string(v)
