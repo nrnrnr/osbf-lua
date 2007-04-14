@@ -92,17 +92,17 @@ function of_string(s, orig)
     -- last header field is empty - OK and necessary if body is not empty
     header_fields = string.sub(s, 1, j)
     body = string.sub(s, j+1)
-    s = header_fields .. '\n' -- for uniform header fields extraction
+    s = header_fields .. '\n\n\n' -- for uniform header_fields extraction
   else
     header_fields = s
     body = ''
     eol = string.match(s, '(\r?\n)$')  -- only header fileds?
     if eol then
-      s = s .. '\n' -- for uniform headers extraction
+      s = s .. '\n\n\n' -- for uniform headers extraction
     else
       -- invalid message, but we accept it anyway
       eol = string.match(s, '(\r?\n)') or ''
-      s = s .. '\n\n' -- for uniform headers extraction
+      s = s .. '\n\n' -- for uniform header fields extraction
     end
   end
 
@@ -162,7 +162,7 @@ end
 
 function to_string(v)
   v = of_any(v)
-  return table.concat{table.concat(v.headers, v.eol), v.eol, v.body}
+  return table.concat(v.headers, v.eol) .. v.body
 end
 --[[
 function to_string(v)
