@@ -23,11 +23,15 @@ email message, the last of which is canonical.
   3. The name of a file containing the message
   4. A table with the following elements:
         { headers   = list of header strings,
-          orig_headers_block = string containing original headers,
-          body      = string containing body, 
-          eol       = detected eol
-          lim = { header = string.sub(orig_headers_block, 1, cfg.text_limit),
-                  msg = string.sub(full message in string format, 1, cfg.text_limit)
+          header_fields = string containing the original header of the
+                          message. If the EOL which separates the body
+                          from the header is present in the message,
+                          header_fileds will also contain it as its
+                          final part,
+          body      = string containing the original body,
+          eol       = string with the eol used by the message,
+          lim = { header = string.sub(header_fields, 1, cfg.text_limit),
+                  msg = string.sub(header_fields .. body, 1, cfg.text_limit)
                 },
           orig = true or false, -- is this as originally received? (nil for unknown)
           header_index = a table giving index in list of every
@@ -50,7 +54,7 @@ Some fields might be generated on demand by a metatable.
 
 local demand_fields = { }
 function demand_fields.lim(t, k)
-  return { header = string.sub(t.orig_headers_block, 1, cfg.text_limit),
+  return { header = string.sub(t.header_fields, 1, cfg.text_limit),
            msg = string.sub(to_orig_string(t), 1, cfg.text_limit)
          }
 end
@@ -81,39 +85,40 @@ local msg_meta = {
 }
 
 function of_string(s, orig)
-  local headers = {}
-  local i, j, orig_headers_block, body, eol
-  i, j, eol = string.find(s, '\r?\n(\r?\n)')
+  -- Detect header fields, body and eol
+  local header_fields, body
+  local i, j, eol = string.find(s, '\r?\n(\r?\n)')
   if eol then
-    orig_headers_block = string.sub(s, 1, j)
+    -- last header field is empty - OK and necessary if body is not empty
+    header_fields = string.sub(s, 1, j)
     body = string.sub(s, j+1)
+    s = header_fields .. '\n' -- for uniform header fields extraction
   else
-    orig_headers_block = s
+    header_fields = s
     body = ''
-    i, j, eol = string.find(s, '(\r?\n)$')
+    eol = string.match(s, '(\r?\n)$')  -- only header fileds?
     if eol then
-      s = s .. '\n'
+      s = s .. '\n' -- for uniform headers extraction
     else
-      _, _, eol = string.find(s, '(\r?\n)')
-      eol = ''
-      s = s .. '\n' .. '\n'
+      -- invalid message, but we accept it anyway
+      eol = string.match(s, '(\r?\n)') or ''
+      s = s .. '\n\n' -- for uniform headers extraction
     end
   end
 
-  function insert_header_line()
-    local last_first_char = ''
-    return function (h, lfc)
-             table.insert(headers, last_first_char .. h)
-             last_first_char = lfc or ''
-             return nil
-           end
+  -- build headers table
+  local headers = {}
+  -- if the EOL which sepatares the header from the body is
+  -- present in the original message, headers will contain
+  -- an empty entry, '', in the last position.
+  do
+    local lfc = ''
+    for h, nfc in string.gmatch(s, "(.-)\r?\n([^ \t])") do
+      table.insert(headers, lfc .. h)
+      lfc = nfc
+    end
   end
-  local ihl = insert_header_line()
-  if eol ~= '' then
-    string.gsub(s, '(.-)\r?\n([^ \t])', ihl)
-  end
-
-  local msg = { headers = headers, orig_headers_block = orig_headers_block,
+  local msg = { headers = headers, header_fields = header_fields,
                 body = body, eol = eol, orig = orig }
   setmetatable(msg, msg_meta)
   return msg
@@ -155,10 +160,9 @@ function of_any(v)
   end
 end
 
-
 function to_string(v)
   v = of_any(v)
-  return table.concat{table.concat(v.headers, v.eol), v.eol, v.eol, v.body}
+  return table.concat{table.concat(v.headers, v.eol), v.eol, v.body}
 end
 --[[
 function to_string(v)
@@ -188,7 +192,7 @@ end
 
 function to_orig_string(v)
   v = of_any(v)
-  return v.orig_headers_block .. v.body
+  return v.header_fields .. v.body
 end
 
 ----------------------------------------------------------------

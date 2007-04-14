@@ -134,8 +134,7 @@ function learn(sfid, classification)
     return nil, errmsgs.learn[status]
   end -- set up tables so we can use one training procedure for either ham or spam
 
-  local orig_msg, lim_orig_header, lim_orig_msg =
-    msgmod.to_orig_string(msg), msg.lim.header, msg.lim.msg
+  local lim_orig_header, lim_orig_msg = msg.lim.header, msg.lim.msg
 
   local parms = learn_parms(classification)
   if not parms then return
@@ -143,7 +142,7 @@ function learn(sfid, classification)
   end
 
   local function iterate_training()
-    local r, new_pR, orig_pR = train(orig_msg, parms.index)
+    local r, new_pR, orig_pR = train(lim_orig_msg, parms.index)
     if r == nil then -- r could be false here: what is the right thing to do?
       return r, new_pR --- error
     elseif parms.bigger(parms.threshold, new_pR) and
@@ -189,18 +188,17 @@ You asked to unlearn a message that you thought had been learned as %s,
 but %s.]], classification, errmsgs.unlearn[status])
   end
 
-  local orig_msg, lim_orig_header, lim_orig_msg =
-    msgmod.to_orig_string(msg), msg.lim.header, msg.lim.msg
+  local lim_orig_header, lim_orig_msg = msg.lim.header, msg.lim.msg
 
   local parms = learn_parms(classification)
   local k = cfg.constants
-  local old_pR, _ = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
+  local old_pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
   core.unlearn(orig_msg, cfg.dbset, parms.index, k.learn_flags+k.mistake_flag)
-  local pR, _ = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
+  local pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
   local i = 0
   while i < parms.reinforcement_limit and parms.bigger(pR, threshold_offset) do
     core.unlearn(lim_orig_header, cfg.dbset, parms.index, k.learn_flags)
-    pR, _ = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
+    pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
     i = i + 1
   end
   cachemod.change_file_status(sfid, classification, 'unlearned')
