@@ -94,13 +94,13 @@ local function train(msg, class_index)
 
   if pR then
     if ( pR <  0 and class_index == cfg.dbset.nonspam_index ) 
-    or ( pR >= 0 and class_index == cfg.dbset.spam_index)
+    or ( pR >= 0 and class_index == cfg.dbset.spam_index )
     then
 
       -- approximate count. there could be cases where there was no mistake
       -- in the first classification, but just a change in classification
       -- because ot other trainings - and vice versa.
-      core.learn(msg, cfg.dbset, class_index, cfg.mistake_flag)
+      core.learn(msg, cfg.dbset, class_index, cfg.constants.mistake_flag)
       local new_pR, msg_error = core.classify(msg, cfg.dbset, 0)
       if new_pR then
         return true, new_pR, pR
@@ -138,7 +138,7 @@ function learn(sfid, classification)
 
   local parms = learn_parms(classification)
   if not parms then return
-    nil, "Unknown classification " .. classification -- error
+    nil, 'Unknown classification ' .. classification -- error
   end
 
   local function iterate_training()
@@ -230,9 +230,9 @@ local function tags(pR)
   elseif pR < zero - cfg.threshold then
     return cfg.tag_spam, 'S'
   elseif pR > zero + cfg.threshold then
-    return cfg.tag_ham, "H"
+    return cfg.tag_ham, 'H'
   elseif pR >= zero then
-    return cfg.tag_unsure_ham, "+"
+    return cfg.tag_unsure_ham, '+'
   else
     assert (pR < zero)
     return cfg.tag_unsure_spam, '-'
@@ -279,4 +279,103 @@ function classify(msg)
 
   assert(sfid_tag and subj_tag)
   return pR, sfid_tag, subj_tag
+end
+
+-- returns a string with statistics of the databases
+function stats(verbose)
+  local nonspam_db = cfg.dbset.classes[cfg.dbset.nonspam_index]
+  local spam_db = cfg.dbset.classes[cfg.dbset.spam_index]
+  local error_rate1, error_rate2, global_error_rate, spam_rate
+  local stats1 = core.stats(nonspam_db)
+  local stats2 = core.stats(spam_db)
+
+  local report = string.format( '%s\n%-30s%12s%12s\n%s\n',
+     string.rep('-', 54), 'Database Statistics', 'ham', 'spam',
+     string.rep('-', 54))
+
+  report = report .. string.format(
+    table.concat{
+    '%-30s%12s%12s\n',
+    '%-30s%12d%12d\n',
+    '%-30s%11.1f%%%11.1f%%\n'},
+    'Database version', 'OSBF 1.0', 'OSBF 1.0',
+    'Total buckets in database', stats1.buckets, stats2.buckets,
+    'Buckets used', stats1.use * 100, stats2.use * 100)
+
+  if verbose then
+    report = report .. string.format(
+      table.concat{
+      '%-30s%12d%12d\n',
+      '%-30s%12d%12d\n',
+      '%-30s%12d%12d\n',
+      '%-30s%12d%12d\n',
+      '%-30s%12.1f%12.1f\n',
+      '%-30s%12d%12d\n',
+      '%-30s%12d%12d\n'},
+      'Bucket size (bytes)', stats1.bucket_size, stats2.bucket_size,
+      'Header size (bytes)', stats1.header_size, stats2.header_size,
+      'Number of chains', stats1.chains, stats2.chains,
+      'Max chain len (buckets)', stats1.max_chain, stats2.max_chain,
+      'Average chain len (buckets)', stats1.avg_chain, stats2.avg_chain,
+      'Max bucket displacement', stats1.max_displacement,stats2.max_displacement,
+      'Buckets unreachable', stats1.unreachable, stats2.unreachable)
+  end
+
+  if stats1.classifications and stats2.classifications then
+    if stats1.classifications + stats1.mistakes - stats2.mistakes > 0 then
+      error_rate1 = stats1.mistakes /
+       (stats1.classifications + stats1.mistakes - stats2.mistakes)
+    else
+      error_rate1 = 0
+    end
+  end
+  if stats1.classifications and stats2.classifications then
+    if stats2.classifications + stats2.mistakes - stats1.mistakes > 0 then
+       error_rate2 = stats2.mistakes /
+         (stats2.classifications + stats2.mistakes - stats1.mistakes)
+    else
+      error_rate2 = 0
+    end
+  end
+  if stats1.classifications + stats2.classifications > 0 then
+    spam_rate = (stats2.classifications + stats2.mistakes-stats1.mistakes) /
+      (stats1.classifications + stats2.classifications)
+  else
+    spam_rate = 0
+  end
+
+  if stats1.classifications + stats2.classifications > 0 then
+    global_error_rate = (stats1.mistakes + stats2.mistakes) /
+       (stats1.classifications + stats2.classifications)
+  else
+    global_error_rate = 0
+  end
+
+  report = report .. string.format(
+    table.concat{
+      '%-30s%12.0f%12.0f\n',
+      '%-30s%12d%12d\n',
+      '%-30s%12d%12d\n'},
+      'Classifications', stats1.classifications, stats2.classifications,
+      'Mistakes', stats1.mistakes, stats2.mistakes,
+      'Trainings', stats1.learnings, stats2.learnings)
+
+  if verbose then
+    report = report .. string.format('%-30s%12d%12d\n',
+      'Header reinforcements', stats1.extra_learnings, stats2.extra_learnings)
+  end
+
+  report = report .. string.format(
+    table.concat{
+      '%-30s%11.2f%%%11.2f%%\n',
+      '%s\n',
+      '%-15s%7.2f%%%22s%7.2f%%\n',
+      '%s\n'},
+      'Accuracy', (1-error_rate1)*100, (1-error_rate2)*100,
+      string.rep('-', 54),
+      'Global accuracy:', (1-global_error_rate)*100,
+        'Spam rate:', spam_rate * 100,
+      string.rep('-', 54))
+
+  return report
 end

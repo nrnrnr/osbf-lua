@@ -166,8 +166,17 @@ function classify(...)
   end
 end
 
-table.insert(usage_lines, 'classify [-tag] [<sfid|filename> ...]')
+table.insert(usage_lines, 'classify [-tag] [-cache] [<sfid|filename> ...]')
 
+
+function stats(...)
+  local options =
+    util.validate(util.getopt({...}, {verbose = util.options.bool}))
+  local report = commands.stats(options.verbose)
+  io.write(report)
+end
+ 
+table.insert(usage_lines, 'stats [-verbose]')
 
 --- Initialize OSBF-Lua's state in the filesystem.
 -- A truly nice touch here would be to offer a -procmail option
