@@ -103,7 +103,7 @@ function generate_sfid(sfid_tag, pR)
 end
 
 function store(sfid, msg)
-  -- stores a miessage in the cache, under the name sfid
+  -- stores a message in the cache, under the name sfid
   -- msg is a string containing the message
   local fn = find_sfid_file(sfid)
   if fn then
@@ -120,4 +120,17 @@ function remove(sfid)
   if f then return os.remove(f) end
 end
  
+function recover(sfid)
+  -- returns a string containing the message associated with sfid
+  -- or nil, err, if sfid is not in cache
+  local f, err = file_and_status(sfid)
+  if f then
+    local msg = f:read('*a')
+    f:close()
+    return msg
+  else
+    return f, err
+  end
+end
+
 ----------------------------------------------------------------
