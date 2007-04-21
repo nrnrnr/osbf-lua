@@ -25,12 +25,12 @@ $(LIBNAME): $(OBJS)
 
 install: $(LIBNAME)
 	mkdir -p $(LUAMODULE_DIR)/$(MODNAME)
-	strip $(LIBNAME)
+	# strip $(LIBNAME) # cannot be done by root, so leave it alone
 	cp $(LIBNAME) $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT)
 	cp lua/osbf.lua $(LUAMODULE_DIR)/$(MODNAME).lua
 	cp lua/*.lua $(LUAMODULE_DIR)/$(MODNAME)
 	rm -f $(LUAMODULE_DIR)/$(MODNAME)/osbf.lua # ugly, but so what
-	sed "s/osbf/$(MODNAME)/g" lua/osbf > $(BINDIR)/$(BINNAME)
+	sed "s/osbf/$(MODNAME)/g;s@/usr/bin/lua5.1@$(LUABIN)@" lua/osbf > $(BINDIR)/$(BINNAME)
 	chmod +x $(BINDIR)/$(BINNAME)
 
 uninstall: 

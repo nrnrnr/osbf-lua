@@ -27,7 +27,7 @@ local val, bool, opt, dir =
 std_opts = 
 	{ udir = dir, learn = val, unlearn = val, classify = bool,
 	  score = bool, cfdir = dir, dbdir = dir, listdir = dir, source = val,
-	  output = val, help = bool}
+	  output = val, help = bool, cachedir = dir }
 
 
 --- Set osbf.dirs.  
@@ -50,7 +50,7 @@ function set_dirs(options, no_dirs_ok)
 
   for k in pairs(dirs) do dirs[k] = util.append_slash(dirs[k]) end
 
-  dirs.cache = dirs.user .. "cache/"
+  dirs.cache = options.cachedir or dirs.user .. "cache/"
   dirs.log = dirs.user .. 'log/'
 
   -- validate that everything is a directory

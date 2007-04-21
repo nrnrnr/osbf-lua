@@ -54,13 +54,13 @@ Some fields might be generated on demand by a metatable.
 ]]
 
 local demand_fields = { }
-function demand_fields.lim(t, k)
+demand_fields.lim = function(t, k)
   return { header = string.sub(t.header_fields, 1, cfg.text_limit),
            msg = string.sub(to_orig_string(t), 1, cfg.text_limit)
          }
 end
 
-function demand_fields.header_index(t, k)
+demand_fields.header_index = function(t, k)
   local index = util.table_tab { }
   local hs = t.headers
   for i = 1, #hs do
@@ -232,7 +232,7 @@ function headers_tagged(msg, ...)
 end
 
 function header_tagged(msg, ...)
-  return headers_tagged(msg, ...)()
+  return (headers_tagged(msg, ...)())
 end
 
 

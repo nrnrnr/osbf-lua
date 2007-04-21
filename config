@@ -6,6 +6,7 @@ LIB_VERSION= 2.0.4
 LUAMODULE_DIR=/usr/local/lib/lua/5.1
 LUA_CFLAGS=$(shell pkg-config --cflags lua5.1)
 LUA_LIBS=$(shell pkg-config --libs lua5.1)
+LUABIN=$(shell which lua5.1)
 # Where to install the osbf binary
 BINDIR=/usr/local/bin
 # OS dependent
