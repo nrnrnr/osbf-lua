@@ -32,8 +32,8 @@ trained_as_nonspam     = "Trained as nonspam",
 training_not_necessary = "Training not necessary: score = %.2f; " ..
                          "out of learning region: [-%.1f, %.1f]",
 
--- Use SFID unless explicitely told otherwise. Uncomment to disable sfids.
---dont_use_sfid     = true,
+-- Use SFID unless explicitely told otherwise.  To disable sfids, make true.
+dont_use_sfid     = false,
 
 -- SFID rightid - change it to personalize for your site.
 rightid        = "spamfilter.osbf.lua",
@@ -53,7 +53,7 @@ log_dir           = "log", -- relative to the user osbf-lua dir
 -- are saved under a subdir under log_dir, formed by the day of
 -- the month and the time the message arrived (DD/HH), to avoid excessive
 -- files per dir. The subdirs must be created before you enable this option.
---use_sfid_subdir   = true,
+use_sfid_subdir = false,
 
 -- Count classifications? Comment or set to false to turn off
 count_classifications = true,
@@ -66,12 +66,14 @@ output       = "message",
 -- Set remove_body_threshold to the score below which you want the
 -- message body removed. Use this option after you have well trained
 -- databases:
---remove_body_threshold = -2 * threshold
+--remove_body_threshold = -2 * threshold,
+remove_body_threshold = false,
 
 -- Command to send pre-formatted command messages.
--- The command must accept one arg, the file containing the pre-formatted
+-- The %s in the command will be replaced with the name
+-- of a file containing the pre-formatted
 -- message to be sent.
-mail_cmd = "/usr/lib/sendmail -it < ",
+mail_cmd = "/usr/lib/sendmail -it < %s",
 
 }
 

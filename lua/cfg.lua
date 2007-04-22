@@ -19,3 +19,17 @@ constants = util.table_read_only
   }
 
 text_limit = 100000
+
+function load(filename)
+  local config, err = protected_dofile(filename)
+  if not config then return nil, err end
+  for k, v in pairs(config) do
+    if d[k] == nil then
+      util.die(tostring(k), ' is an unknown configuration parameter')
+    else
+      _M[k] = v
+    end
+  end
+end
+
+  

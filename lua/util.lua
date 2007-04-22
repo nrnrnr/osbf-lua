@@ -28,6 +28,16 @@ function table_read_only(t)
   return proxy
 end
 ----------------------------------------------------------------
+function file_is_readable(file)
+  local f = io.open(file, 'r')
+  if f then
+    f:close()
+    return true
+  else
+    return false
+  end
+end
+----------------------------------------------------------------
 -- check if file exists before "doing" it
 function protected_dofile(file)
   local f, err_msg = loadfile(file)
