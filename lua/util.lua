@@ -1,14 +1,16 @@
-local require, print, pairs, type, assert, loadfile, setmetatable =
-      require, print, pairs, type, assert, loadfile, setmetatable
+local require, print, pairs, type, assert, loadfile, setmetatable, package =
+      require, print, pairs, type, assert, loadfile, setmetatable, package
 
 local io, string, table, os =
       io, string, table, os
 
 module(...)
 
-local osbf = require(string.gsub(_PACKAGE, '%.$', ''))
+local packagename = string.gsub(_PACKAGE, '%.$', '')
+local osbf = require(packagename)
 local core = require(_PACKAGE .. 'core')
 
+----------------------------------------------------------------
 --- Special tables.
 -- Metafunction used to create a table on demand.
 local function table__index(t, k) local u = { }; t[k] = u; return u end
@@ -46,6 +48,17 @@ function protected_dofile(file)
   else
     return f, err_msg
   end
+end
+----------------------------------------------------------------
+function submodule_path(subname)
+  local basename = append_slash(packagename) .. subname
+  for p in string.gmatch (package.path, '[^;]+') do
+    local path = string.gsub(p, '%?', basename)
+    if file_is_readable(path) then
+      return path
+    end
+  end
+  return nil, "Submodule " .. subname .. " not found"
 end
 
 ----------------------------------------------------------------
@@ -194,6 +207,16 @@ function dirfilename(dir, basename, suffix)
   return d .. basename .. suffix
 end
 
+----------------------------------------------------------------
+function password_ok()
+  if osbf.cfg.pwd == osbf.cfg.default.pwd then
+    return nil, "Default password still used in " .. dirfilename('config', 'config.lua')
+  elseif string.find(osbf.cfg.pwd, '%s') then
+    return nil, "password in " .. dirfilename('config', 'config.lua') .. ' contains whitespace'
+  else
+    return true
+  end
+end
 ----------------------------------------------------------------
 
 --- Return sorted list of keys in a table.

@@ -1,5 +1,5 @@
-local string, require, os, assert, ipairs, type =
-      string, require, os, assert, ipairs, type
+local string, io, require, os, assert, ipairs, type =
+      string, io, require, os, assert, ipairs, type
 
 module(...)
 
@@ -21,7 +21,7 @@ list_add_pat    = mk_list_command('add', 'pats')
 list_del_string = mk_list_command('del', 'strings')
 list_del_pat    = mk_list_command('del', 'pats')
 
--- The init command creates directories and databases.
+-- The init command creates directories and databases and the default config.
 -- Perhaps the optional argument should be denominated in bytes, not buckets?
 
 function init(num_buckets)
@@ -35,5 +35,16 @@ function init(num_buckets)
   assert(type(num_buckets) == 'number') 
 
   -- create new, empty databases
-  return util.validate(core.create_db(cfg.dbset.classes, num_buckets))
+  util.validate(core.create_db(cfg.dbset.classes, num_buckets))
+  local config = util.dirfilename('config', 'config.lua')
+  if util.file_is_readable(config) then
+    io.stderr:write('Warning: not overwriting existing ', config, '\n')
+  else
+    local default = util.validate(util.submodule_path 'default_cfg')
+    local f = util.validate(io.open(default, 'r'))
+    local u = util.validate(io.open(config, 'w'))
+    u:write(f:read '*a')
+    f:close()
+    u:close()
+  end
 end
