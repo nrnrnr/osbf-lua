@@ -77,7 +77,7 @@ function init(options, no_dirs_ok)
     nonspam_index = 1,
     spam_index    = 2,
   }
-
+  util.validate(cfg.load_if_readable(util.dirfilename('config', 'config.lua')))
   return dirs
 end
 

@@ -12,6 +12,8 @@ for k, v in pairs(d) do
   _M[k] = v
 end
 
+default = d
+
 constants = util.table_read_only
   {
     classify_flags            = 0,
@@ -33,6 +35,15 @@ function load(filename)
     else
       _M[k] = v
     end
+  end
+  return true
+end
+
+function load_if_readable(filename)
+  if util.file_is_readable(filename) then
+    return load(filename)
+  else
+    return true
   end
 end
 
