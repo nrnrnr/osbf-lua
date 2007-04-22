@@ -200,7 +200,7 @@ function append_to_path(path, file)
 end
 
 -- give a filename in particular directory
-
+-- suffix is used primarily to deal with sfid suffixes
 function dirfilename(dir, basename, suffix)
   suffix = suffix or ''
   local d = assert(osbf.dirs[dir], dir .. ' is not a valid directory indicator')
