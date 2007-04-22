@@ -1,4 +1,7 @@
-local pairs, require = pairs, require
+local pairs, require, tostring
+    = pairs, require, tostring
+
+local prog = arg and arg[0] or 'OSBF'
 
 module (...)
 
@@ -21,11 +24,12 @@ constants = util.table_read_only
 text_limit = 100000
 
 function load(filename)
-  local config, err = protected_dofile(filename)
+  local config, err = util.protected_dofile(filename)
   if not config then return nil, err end
   for k, v in pairs(config) do
     if d[k] == nil then
-      util.die(tostring(k), ' is an unknown configuration parameter')
+      util.die(prog, ': fatal error - configuration "', tostring(k),
+               '" cannot be set by a user')
     else
       _M[k] = v
     end
