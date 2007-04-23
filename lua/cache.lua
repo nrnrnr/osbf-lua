@@ -7,6 +7,7 @@ local io, string, table, os =
 module(...)
 
 local cfg = require(_PACKAGE .. 'cfg')
+local slash = cfg.slash
 local util = require(_PACKAGE .. 'util')
 
 ----------------------------------------------------------------
@@ -40,7 +41,8 @@ function subdir(sfid)
   assert(is_sfid(sfid), 'invalid sfid!')
   local sfid_subdir = '' -- empty unless specified in the config file
   if cfg.use_sfid_subdir then
-    sfid_subdir = string.sub(sfid, 13, 14) .. '/' .. string.sub(sfid, 16, 17) .. '/'
+    sfid_subdir =
+      table.concat { string.sub(sfid, 13, 14), slash, string.sub(sfid, 16, 17), slash }
   end
   return sfid_subdir
 end

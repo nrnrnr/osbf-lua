@@ -4,6 +4,7 @@ local io, string, table, print, assert, pairs, ipairs, type, require, _G
 module (...)
 
 local util = require(_PACKAGE .. 'util')
+local cfg  = require(_PACKAGE .. 'cfg')
 local msg  = require(_PACKAGE .. 'msg')
 
 
@@ -141,7 +142,7 @@ function show(file, listname)
   end
 end
 
-local progname = _G.arg and string.gsub(_G.arg[0], '.*/', '') or 'osbf'
+local progname = _G.arg and string.gsub(_G.arg[0], '.*' .. cfg.slash, '') or 'osbf'
 
 function show_op(op)
   return function (file, listname)

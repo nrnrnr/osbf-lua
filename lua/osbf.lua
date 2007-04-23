@@ -34,7 +34,7 @@ std_opts =
 -- @param The first result of util.getopt (an options table).
 function set_dirs(options, no_dirs_ok)
   local HOME = os.getenv 'HOME'
-  local default_dir = HOME and HOME .. '/.osbf-lua' 
+  local default_dir = HOME and table.concat { HOME, cfg.slash, '.osbf-lua' }
   options = options or { }
   dirs.user = options.udir or (no_dirs_ok or core.is_dir(default_dir)) and default_dir
 
@@ -50,14 +50,14 @@ function set_dirs(options, no_dirs_ok)
 
   for k in pairs(dirs) do dirs[k] = util.append_slash(dirs[k]) end
 
-  dirs.cache = options.cachedir or dirs.user .. "cache/"
-  dirs.log = dirs.user .. 'log/'
+  dirs.cache = options.cachedir or util.append_slash(dirs.user .. "cache")
+  dirs.log   = util.append_slash(dirs.user .. 'log')
 
   -- validate that everything is a directory
 
   if not no_dirs_ok then
     for name, dir in pairs(dirs) do
-      if not core.is_dir(string.gsub(dir, '/$', '')) then
+      if not core.is_dir(dir) then
         util.die('The ', name, ' path ', dir, ' is not a directory')
       end
     end

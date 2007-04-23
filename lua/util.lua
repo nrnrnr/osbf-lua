@@ -182,11 +182,15 @@ function getopt(args, opt_table)
   return options_found, args
 end
 
+-- local definition requires because util must load before cfg
+
+local slash = assert(string.match(package.path, [=[[\/]]=]))
+
 -- append slash if missing
 function append_slash(path)
   if path then
-    if string.sub(path, -1) ~= "/" then
-      return path .. "/"
+    if string.sub(path, -1) ~= slash then
+      return path .. slash
     else
       return path
     end

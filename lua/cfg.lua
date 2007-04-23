@@ -1,7 +1,10 @@
-local pairs, require, tostring
-    = pairs, require, tostring
+local assert, pairs, require, tostring
+    = assert, pairs, require, tostring
 
-local prog = arg and arg[0] or 'OSBF'
+local package, string
+    = package, string
+
+local prog = _G.arg and _G.arg[0] or 'OSBF'
 
 module (...)
 
@@ -13,6 +16,8 @@ for k, v in pairs(d) do
 end
 
 default = d
+
+slash = assert(string.match(package.path, [=[[\/]]=]))
 
 constants = util.table_read_only
   {

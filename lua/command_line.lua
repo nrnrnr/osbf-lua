@@ -10,6 +10,7 @@ local unpack, type, print, assert, tonumber
 module(...)
 
 local util = require (_PACKAGE .. 'util')
+local cfg  = require (_PACKAGE .. 'cfg')
 local lists = require (_PACKAGE .. 'lists')
 local commands = require (_PACKAGE .. 'commands')
 local msg = require (_PACKAGE .. 'msg')
@@ -35,7 +36,7 @@ function usage(...)
     io.stderr:write(...)
     io.stderr:write '\n'
   end
-  local prog = string.gsub(_G.arg[0], '.*/', '')
+  local prog = string.gsub(_G.arg[0], '.*' .. cfg.slash, '')
   local prefix = 'Usage: '
   for _, u in ipairs(usage_lines) do
     io.stderr:write(prefix, prog, ' ', u, '\n')
