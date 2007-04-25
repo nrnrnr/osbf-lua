@@ -16,6 +16,7 @@ local util = require(_PACKAGE .. 'util')
 --- A status is 'spam', 'ham', 'unlearned', or 'missing' (not in the cache).
 
 local suffixes = { spam = '-s', ham = '-h', unlearned = '' }
+suffixes.nonspam = suffixes.ham -- could get 'nonspam' on command line
 
 local function generate_rightid()
   -- returns cfg.right id if valid or 'spamfilter.osbf.lua'
