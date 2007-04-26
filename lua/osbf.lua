@@ -8,7 +8,6 @@ local require, print, pairs, ipairs, type, io, string, table, os, _G =
       require, print, pairs, ipairs, type, io, string, table, os, _G
 
 local modname = ...
-
 module(modname)
 
 dirs = { } -- must come before loading submodules

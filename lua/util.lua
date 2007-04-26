@@ -1,8 +1,8 @@
 local require, print, pairs, type, assert, loadfile, setmetatable, package =
       require, print, pairs, type, assert, loadfile, setmetatable, package
 
-local io, string, table, os =
-      io, string, table, os
+local io, string, table, os, package =
+      io, string, table, os, package
 
 module(...)
 

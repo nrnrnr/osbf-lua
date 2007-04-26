@@ -235,6 +235,90 @@ function header_tagged(msg, ...)
   return (headers_tagged(msg, ...)())
 end
 
+function tag_subject(msg, tag)
+  msg = of_any(msg)
+  assert(type(tag) == string, 'Subject tag must be string')
+  local tagged = false
+  -- tag all subject lines
+  for i in header_indices(msg, 'subject') do
+    msg.headers[i] = string.gsub(msg.header[i], '^(.-:)', '%1 ' .. tag)
+    tagged = true
+  end
+  -- if msg has no subject, add one
+  if not tagged then
+    table.insert(msg.headers, 'Subject: ' .. tag .. ' (no subject)')
+  end
+end
+
+-- *** NOT TESTED ***
+function tag_subject(msg, tag)
+  msg = of_any(msg)
+  assert(type(tag) == string, 'Subject tag must be string')
+  local tagged = false
+  -- tag all subject lines
+  for i in header_indices(msg, 'subject') do
+    msg.headers[i] = string.gsub(msg.header[i], '^(.-:)', '%1 ' .. tag)
+    tagged = true
+  end
+  -- if msg has no subject, add one
+  if not tagged then
+    table.insert(msg.headers, 'Subject: ' .. tag .. ' (no subject)')
+  end
+end
+
+
+function sfid(msgspec)
+  if cache.is_sfid(msgspec) then
+    return msgspec
+  else
+    return extract_sfid(of_any(msgspec))
+  end
+end
+
+-- *** NOT TESTED ***
+function insert_sfid(msg, sfid, where)
+  msg = of_any(msg)
+  assert(cache.is_sfid(sfid), 'bad argument #2 to insert_sfid: sfid expected')
+  where = where or 'references'
+  assert(where == 'references' or where == 'message-id',
+    'bad argument #3 to insert_sfid: "references", "message-id" or "both" expected')
+  -- remove old, dangling sfids
+  -- better move this to a function and rethink the proper moment to
+  -- call it.
+  local sfid_pat =
+    '%s-[<%(]sfid%-.%d%+%-%d+%-%S-@' .. cfg.rightid .. '[>%)]'
+  for i in header_indices(msg, 'references', 'in-reply-to') do
+    msg.headers[i] = string.gsub(msg.headers[i], sfid_pat, '')
+  end
+
+  -- tag references?
+  if where == 'references' or where == 'both' then
+    local tagged = false
+    for i in header_indices(msg, 'references') do
+      msg.headers[i] = msg.headers[i] .. msg.eol .. '\t<' .. sfid .. '>'
+      tagged = true
+    end
+    if not tagged then
+      -- no references found; create one and add the sfid
+      table.insert(msg.headers, 'References: <' .. sfid .. '>')
+    end
+  end
+  -- repeated code pattern, probably faster than factored
+  -- tag message-id?
+  if where == 'message-id' or where == 'both' then
+    local tagged = false
+    for i in header_indices(msg, 'message-id') do
+      msg.headers[i] = table.concat{msg.headers[i], msg.eol, '\t(', sfid, ')'}
+      tagged = true
+    end
+    if not tagged then
+      -- no message-id found; create one and add the sfid
+      table.insert(msg.headers,
+                   table.concat{'Message-ID: <', sfid, '> (', sfid, ')'})
+    end
+  end
+end
+
 
 function sfid(msgspec)
   if cache.is_sfid(msgspec) then
