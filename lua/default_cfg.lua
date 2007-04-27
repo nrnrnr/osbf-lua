@@ -32,8 +32,8 @@ return {
   training_not_necessary = "Training not necessary: score = %.2f; " ..
                            "out of learning region: [-%.1f, %.1f]",
 
-  -- Use SFID unless explicitely told otherwise.  To disable sfids, make true.
-  dont_use_sfid     = false,
+  -- To disable sfids, make false.
+  use_sfid     = true,
 
   -- SFID rightid - change it to personalize for your site.
   rightid        = "spamfilter.osbf.lua",

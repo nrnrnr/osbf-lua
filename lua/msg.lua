@@ -235,29 +235,14 @@ function header_tagged(msg, ...)
   return (headers_tagged(msg, ...)())
 end
 
-function tag_subject(msg, tag)
-  msg = of_any(msg)
-  assert(type(tag) == string, 'Subject tag must be string')
-  local tagged = false
-  -- tag all subject lines
-  for i in header_indices(msg, 'subject') do
-    msg.headers[i] = string.gsub(msg.header[i], '^(.-:)', '%1 ' .. tag)
-    tagged = true
-  end
-  -- if msg has no subject, add one
-  if not tagged then
-    table.insert(msg.headers, 'Subject: ' .. tag .. ' (no subject)')
-  end
-end
-
 -- *** NOT TESTED ***
 function tag_subject(msg, tag)
   msg = of_any(msg)
-  assert(type(tag) == string, 'Subject tag must be string')
+  assert(type(tag) == 'string', 'Subject tag must be string')
   local tagged = false
   -- tag all subject lines
   for i in header_indices(msg, 'subject') do
-    msg.headers[i] = string.gsub(msg.header[i], '^(.-:)', '%1 ' .. tag)
+    msg.headers[i] = string.gsub(msg.headers[i], '^(.-:)', '%1 ' .. tag)
     tagged = true
   end
   -- if msg has no subject, add one
@@ -265,7 +250,6 @@ function tag_subject(msg, tag)
     table.insert(msg.headers, 'Subject: ' .. tag .. ' (no subject)')
   end
 end
-
 
 function sfid(msgspec)
   if cache.is_sfid(msgspec) then
@@ -276,11 +260,12 @@ function sfid(msgspec)
 end
 
 -- *** NOT TESTED ***
+local valid_where = {references = true, ['message-id'] = true, both = true}
 function insert_sfid(msg, sfid, where)
   msg = of_any(msg)
   assert(cache.is_sfid(sfid), 'bad argument #2 to insert_sfid: sfid expected')
   where = where or 'references'
-  assert(where == 'references' or where == 'message-id',
+  assert(valid_where[where],
     'bad argument #3 to insert_sfid: "references", "message-id" or "both" expected')
   -- remove old, dangling sfids
   -- better move this to a function and rethink the proper moment to
@@ -291,7 +276,7 @@ function insert_sfid(msg, sfid, where)
     msg.headers[i] = string.gsub(msg.headers[i], sfid_pat, '')
   end
 
-  -- tag references?
+  -- insert in references?
   if where == 'references' or where == 'both' then
     local tagged = false
     for i in header_indices(msg, 'references') do
@@ -304,7 +289,7 @@ function insert_sfid(msg, sfid, where)
     end
   end
   -- repeated code pattern, probably faster than factored
-  -- tag message-id?
+  -- insert in message-id?
   if where == 'message-id' or where == 'both' then
     local tagged = false
     for i in header_indices(msg, 'message-id') do
