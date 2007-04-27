@@ -13,10 +13,10 @@ return {
   pwd = "your_password_here", -- no spaces allowed
 
   -- database files
-  nonspam_file = "nonspam.cfc",
-  spam_file    = "spam.cfc",
+  ham_db  = "ham.cfc",
+  spam_db = "spam.cfc",
 
-  min_pR_success    = 0,  -- min pR to be considered as nonspam
+  min_pR_success    = 0,  -- min pR to be considered as ham
   threshold         = threshold, -- half the width of the reinforcement range
 
   -- tags for the subject line
@@ -28,7 +28,7 @@ return {
 
   -- training result subjects
   trained_as_spam        = "Trained as spam",
-  trained_as_nonspam     = "Trained as nonspam",
+  trained_as_ham     = "Trained as ham",
   training_not_necessary = "Training not necessary: score = %.2f; " ..
                            "out of learning region: [-%.1f, %.1f]",
 

@@ -696,13 +696,13 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 	     *
 	     *                      P(F|S) P(S)
 	     *     P(S|F) = -------------------------------
-	     *               P(F|S) P(S) +  P(F|NS) P(NS)
+	     *               P(F|S) P(S) +  P(F|H) P(H)
 	     *
-	     * S = class spam; NS = class nonspam; F = feature
+	     * S = class spam; H = class ham; F = feature
 	     *
 	     * Here we adopt a different method for estimating
 	     * P(F|S). Instead of estimating P(F|S) as (hits[S][F] /
-	     * (hits[S][F] + hits[NS][F])), like in the original
+	     * (hits[S][F] + hits[H][F])), like in the original
 	     * code, we use (hits[S][F] / learnings[S]) which is the
 	     * ratio between the number of messages of the class S
 	     * where the feature F was observed during learnings and

@@ -68,12 +68,12 @@ end
 function init(options, no_dirs_ok)
   set_dirs(options, no_dirs_ok)
   cfg.dbset = {
-    classes = {dirs.database .. cfg.nonspam_file,
-               dirs.database .. cfg.spam_file},
+    classes = {dirs.database .. cfg.ham_db,
+               dirs.database .. cfg.spam_db},
     ncfs    = 1, -- split "classes" in 2 sublists. "ncfs" is
                  -- the number of classes in the first sublist.
     delimiters = cfg.extra_delimiters or '',
-    nonspam_index = 1,
+    ham_index = 1,
     spam_index    = 2,
   }
   util.validate(cfg.load_if_readable(util.dirfilename('config', 'config.lua')))

@@ -89,8 +89,8 @@ end
 
 -- @param msgspec is either a sfid, or a filename, or missing, 
 -- which indicates a message on standard input.  If a filename or stdin,
--- the sfid is extracted from the message field in the l fashion.
--- @param classification is 'spam' or 'ham' or the equivalent 'nonspam', 
+-- the sfid is extracted from the message field in the usual fashion.
+-- @param classification is 'spam' or 'ham'. 
 
 
 
@@ -113,10 +113,8 @@ local function msgspecs(...) --- maybe should be in util?
          end
 end
 
-local cltx = { nonspam = 'ham' }
 function learner(cmd)
   return function(classification, ...)
-           classification = cltx[classfication] or classification
            for msgspec in msgspecs(...) do
              local sfid = util.validate(msg.sfid(msgspec))
              io.stdout:write(util.validate(cmd(sfid, classification)), '\n')
@@ -128,7 +126,7 @@ learn   = learner(commands.learn)
 unlearn = learner(commands.unlearn)
 
 for _, l in ipairs { 'learn', 'unlearn' } do
-  table.insert(usage_lines, l .. ' <spam|nonspam> [<sfid|filename> ...]')
+  table.insert(usage_lines, l .. ' <spam|ham> [<sfid|filename> ...]')
 end
 
 function sfid(...)

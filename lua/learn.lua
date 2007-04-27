@@ -68,15 +68,14 @@ do
         offset_max_threshold = threshold_offset - max_learn_threshold,
       },
       ham  = {
-        index      = cfg.dbset.nonspam_index,
+        index      = cfg.dbset.ham_index,
         threshold  = threshold_offset + cfg.threshold,
         bigger     = function(x, y) return x > y end, -- hamlike == more positive
-        trained_as = cfg.trained_as_nonspam,
+        trained_as = cfg.trained_as_ham,
         reinforcement_limit = ham_reinforcement_limit,
         offset_max_threshold = threshold_offset + max_learn_threshold,
       },
     }
-   cache.nonspam = cache.ham
    return cache[classification]
   end
 end
@@ -93,7 +92,7 @@ local function train(msg, class_index)
   local pR, msg_error = core.classify(msg, cfg.dbset, 0)
 
   if pR then
-    if ( pR <  0 and class_index == cfg.dbset.nonspam_index ) 
+    if ( pR <  0 and class_index == cfg.dbset.ham_index ) 
     or ( pR >= 0 and class_index == cfg.dbset.spam_index )
     then
 
@@ -283,10 +282,10 @@ end
 
 -- returns a string with statistics of the databases
 function stats(verbose)
-  local nonspam_db = cfg.dbset.classes[cfg.dbset.nonspam_index]
+  local ham_db = cfg.dbset.classes[cfg.dbset.ham_index]
   local spam_db = cfg.dbset.classes[cfg.dbset.spam_index]
   local error_rate1, error_rate2, global_error_rate, spam_rate
-  local stats1 = core.stats(nonspam_db)
+  local stats1 = core.stats(ham_db)
   local stats2 = core.stats(spam_db)
 
   local report = string.format( '%s\n%-30s%12s%12s\n%s\n',
