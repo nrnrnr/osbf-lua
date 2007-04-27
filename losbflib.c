@@ -627,7 +627,7 @@ lua_osbf_stats (lua_State * L)
 /**********************************************************/
 
 /*
-** Assumes the table is on top of the stack.
+** Assumes the table is on top of the stack, left by luaL_register call
 */
 static void
 set_info (lua_State * L, int idx)
@@ -793,7 +793,7 @@ OPENFUN (lua_State * L)
   lua_pushcfunction (L, dir_gc);
   lua_settable (L, -3);
 
-  set_info (L, -3);
   luaL_register (L, libname, osbf);
+  set_info (L, -3); /* must come right after luaL_register */
   return 1;
 }

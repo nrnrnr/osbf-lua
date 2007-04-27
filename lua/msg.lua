@@ -235,7 +235,6 @@ function header_tagged(msg, ...)
   return (headers_tagged(msg, ...)())
 end
 
--- *** NOT TESTED ***
 function tag_subject(msg, tag)
   msg = of_any(msg)
   assert(type(tag) == 'string', 'Subject tag must be string')
@@ -251,6 +250,12 @@ function tag_subject(msg, tag)
   end
 end
 
+function add_header(msg, header)
+  assert(string.find(header, '^%S+[ \t]*:'), 'Invalid RFC-2822 header')
+  msg = of_any(msg)
+  table.insert(msg.headers, header)
+end
+
 function sfid(msgspec)
   if cache.is_sfid(msgspec) then
     return msgspec
@@ -259,8 +264,7 @@ function sfid(msgspec)
   end
 end
 
--- *** NOT TESTED ***
-local valid_where = {references = true, ['message-id'] = true, both = true}
+local valid_where = { references = true, ['message-id'] = true, both = true }
 function insert_sfid(msg, sfid, where)
   msg = of_any(msg)
   assert(cache.is_sfid(sfid), 'bad argument #2 to insert_sfid: sfid expected')
