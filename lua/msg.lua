@@ -338,6 +338,25 @@ function extract_sfid(msg)
   return nil, "Could not extract sfid from message"
 end
 
+-- parses the subject line and returns a table with a filter command
+-- and its args, if found
+function find_subject_command(msg)
+  msg = of_any(msg)
+  for h in headers_tagged(msg, 'subject') do
+    local cmd, pwd, args = string.match(h, '^(%S+)%s+(%S+)(.*)') 
+    -- FIXME: should validate cmd too (against explicit list?
+    --        subject_command table with functions, in command_line?)
+    if pwd and pwd == cfg.pwd and util.password_ok(pwd) then
+      local cmd_table = { cmd }
+      string.gsub(args, '%S+', function (a)
+                                 table.insert(cmd_table, a)
+                                 return nil
+                               end)
+      return cmd_table
+    end
+  end
+  return nil, 'No commands found'
+end
 
 --[[
 
