@@ -1,0 +1,20 @@
+#!/bin/sh
+
+case $# in
+  0) set *.lua ;;
+  *) ;;
+esac
+
+echo "digraph dep {"
+for src
+do
+  for msrc
+  do
+    m="`basename $msrc .lua`"
+    srcm="`basename $src .lua`"
+    if grep -w require $src | grep -w $m > /dev/null; then
+      echo " $srcm -> $m"
+    fi
+  done
+done
+echo "}"

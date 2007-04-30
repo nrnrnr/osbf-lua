@@ -1,0 +1,12 @@
+digraph mdep {
+
+  osbf -> { command_line boot }
+  command_line -> { command mail_command }
+  mail_command -> command
+  command -> learn -> core
+  command -> { msg cache lists util } -> cfg
+  {learn command} -> cfg
+  cfg -> boot
+
+}
+  
