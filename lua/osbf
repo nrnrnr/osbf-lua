@@ -2,9 +2,13 @@
 
 -- simple command-line client
 
-require 'osbf'
 
-local options, args = osbf.util.getopt(arg, osbf.std_opts)
+
+require 'osbf'
+require 'osbf.command_line'
+require 'osbf.options'
+
+local options, args = osbf.options.parse(arg)
 
 if not options then
   io.stderr:write(args, '\n')

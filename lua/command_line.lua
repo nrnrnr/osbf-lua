@@ -1,7 +1,7 @@
 local function eprintf(...) return io.stderr:write(string.format(...)) end
 
-local pairs, ipairs, tostring, io, os, table, string, _G, require, select
-    = pairs, ipairs, tostring, io, os, table, string, _G, require, select
+local pairs, ipairs, tostring, io, os, table, string, _G, require, select, math
+    = pairs, ipairs, tostring, io, os, table, string, _G, require, select, math
 
 local unpack, type, print, assert, tonumber
     = unpack, type, print, assert, tonumber
@@ -9,14 +9,14 @@ local unpack, type, print, assert, tonumber
 
 module(...)
 
-local packagename = string.gsub(_PACKAGE, '%.$', '')
-local osbf = require(packagename)
-local util = require (_PACKAGE .. 'util')
-local cfg  = require (_PACKAGE .. 'cfg')
-local lists = require (_PACKAGE .. 'lists')
+local util     = require (_PACKAGE .. 'util')
+local cfg      = require (_PACKAGE .. 'cfg')
+local core     = require (_PACKAGE .. 'cfg')
+local lists    = require (_PACKAGE .. 'lists')
 local commands = require (_PACKAGE .. 'commands')
-local msg = require (_PACKAGE .. 'msg')
-local cache = require (_PACKAGE .. 'cache')
+local msg      = require (_PACKAGE .. 'msg')
+local cache    = require (_PACKAGE .. 'cache')
+local options  = require (_PACKAGE .. 'options')
 require(_PACKAGE .. 'learn') -- loaded into 'commands'
 
 local usage_lines = { }
@@ -64,7 +64,12 @@ function usage(...)
   local prog = string.gsub(_G.arg[0], '.*' .. cfg.slash, '')
   local prefix = 'Usage: '
   for _, u in ipairs(usage_lines) do
-    io.stderr:write(prefix, prog, ' ', u, '\n')
+    io.stderr:write(prefix, prog, ' [options] ', u, '\n')
+    prefix = string.gsub(prefix, '.', ' ')
+  end
+  prefix = 'Options: '
+  for _, u in ipairs(table.sorted_keys(options.usage)) do
+    io.stderr:write(prefix, '--', u, options.usage[u], '\n')
     prefix = string.gsub(prefix, '.', ' ')
   end
   os.exit(1)
@@ -227,7 +232,7 @@ function filter(...)
       end
       local score_header = string.format(
         '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
-        pR, cfg.min_pR_success, sfid_tag, osbf.core._VERSION, osbf.version)
+        pR, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
       msg.add_header(m, 'X-OSBF-Lua-Score', score_header)
       io.write(msg.to_string(m))
     end

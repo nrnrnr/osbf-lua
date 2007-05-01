@@ -7,8 +7,7 @@ local lists = require(_PACKAGE .. 'lists')
 local util  = require(_PACKAGE .. 'util')
 local cfg   = require(_PACKAGE .. 'cfg')
 local core  = require(_PACKAGE .. 'core')
-local osbf  = require(string.gsub(_PACKAGE, '%.$', ''))
-local dirs  = assert(osbf.dirs)
+local dirs  = assert(cfg.dirs)
 
 local function mk_list_command(cmd, part)
   return function(listname, tag, arg)
@@ -25,8 +24,7 @@ list_del_pat    = mk_list_command('del', 'pats')
 -- Perhaps the optional argument should be denominated in bytes, not buckets?
 
 function init(num_buckets)
-  local ds =
-    { dirs.user, dirs.config, dirs.database, dirs.lists, dirs.cache, dirs.log }
+  local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
   for _, d in ipairs(ds) do
     util.mkdir(d)
   end
@@ -36,7 +34,7 @@ function init(num_buckets)
 
   -- create new, empty databases
   util.validate(core.create_db(cfg.dbset.classes, num_buckets))
-  local config = util.dirfilename('config', 'config.lua')
+  local config = cfg.configfile
   if util.file_is_readable(config) then
     io.stderr:write('Warning: not overwriting existing ', config, '\n')
   else

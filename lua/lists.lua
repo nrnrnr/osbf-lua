@@ -30,7 +30,7 @@ local function load(name)
   if cache[name] then
     return cache[name]
   else
-    local list = util.protected_dofile(util.dirfilename('lists', name)) or
+    local list = util.protected_dofile(cfg.dirfilename('lists', name)) or
                  { strings = { }, pats = { } }
     for k, v in pairs(list) do
       if type(v) == 'table' then
@@ -50,7 +50,7 @@ end
 -- @return true on success; nil, msg on failure.
 local function save(name, l)
   cache[name] = assert(l, 'Tried to save nil as a list?!')
-  local f, err = io.open(util.dirfilename('lists', name), 'w')
+  local f, err = io.open(cfg.dirfilename('lists', name), 'w')
   if not f then return f, err end
   local function writeval(v, indent)
     if type(v) == 'table' then

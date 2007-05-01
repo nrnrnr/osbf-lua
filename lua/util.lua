@@ -6,8 +6,6 @@ local io, string, table, os, package =
 
 module(...)
 
-local packagename = string.gsub(_PACKAGE, '%.$', '')
-local osbf = require(packagename)
 local core = require(_PACKAGE .. 'core')
 
 ----------------------------------------------------------------
@@ -51,7 +49,7 @@ function protected_dofile(file)
 end
 ----------------------------------------------------------------
 function submodule_path(subname)
-  local basename = append_slash(packagename) .. subname
+  local basename = append_slash(string.gsub(_PACKAGE, '%.$', '')) .. subname
   for p in string.gmatch (package.path, '[^;]+') do
     local path = string.gsub(p, '%?', basename)
     if file_is_readable(path) then
@@ -125,62 +123,6 @@ end
 ----------------------------------------------------------------
 
 
-options = { }
-function options.val(key, value, args)
-  if value ~= '' then
-    return value
-  elseif #args > 0 then
-    return table.remove(args, 1)
-  else
-    return nil, 'missing argument for option ' .. key
-  end
-end
-function options.dir(key, value, args)
-  local v, err = options.val(key, value, args)
-  if not v then
-    return v, err
-  elseif osbf.core.is_dir(v) then
-    return v
-  else
-    return nil, v .. ' is not a directory'
-  end
-end
-function options.optional(key, value, args)
-  return value
-end
-function options.bool(key, value, args)
-  if value ~= '' then
-    return nil, 'Option ' .. key .. ' takes no argument'
-  else
-    return true
-  end
-end
-local function no_such_option(key, value, args)
-    if key == '' and value then
-      return nil, 'Missing option name before "="'
-    end
-    return nil, 'Unknown option: ' .. key
-end
-
--- simple getopt to get command line options
-function getopt(args, opt_table)
-  local options_found = {}
-
-  while(args[1]) do
-    -- changed + to * to allow forced end of options with "--" or "-"
-    local key, eq, value = string.match(args[1], '^%-%-?([^=]*)(=?)(.*)')
-    if value == '' then value = eq end
-    if not key or key == '' and value == '' and table.remove(args, 1) then
-      break -- no more options
-    else
-      table.remove(args, 1)
-      local val, err = (opt_table[key] or no_such_option)(key, value, args)
-      if err then return nil, err end
-      options_found[key] = val
-    end
-  end
-  return options_found, args
-end
 
 -- local definition requires because util must load before cfg
 
@@ -203,24 +145,6 @@ function append_to_path(path, file)
   return append_slash(path) .. file
 end
 
--- give a filename in particular directory
--- suffix is used primarily to deal with sfid suffixes
-function dirfilename(dir, basename, suffix)
-  suffix = suffix or ''
-  local d = assert(osbf.dirs[dir], dir .. ' is not a valid directory indicator')
-  return d .. basename .. suffix
-end
-
-----------------------------------------------------------------
-function password_ok()
-  if osbf.cfg.pwd == osbf.cfg.default.pwd then
-    return nil, 'Default password still used in ' .. dirfilename('config', 'config.lua')
-  elseif string.find(osbf.cfg.pwd, '%s') then
-    return nil, 'password in ' .. dirfilename('config', 'config.lua') .. ' contains whitespace'
-  else
-    return true
-  end
-end
 ----------------------------------------------------------------
 
 --- Return sorted list of keys in a table.

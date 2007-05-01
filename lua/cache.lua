@@ -8,7 +8,6 @@ module(...)
 
 local cfg = require(_PACKAGE .. 'cfg')
 local slash = cfg.slash
-local util = require(_PACKAGE .. 'util')
 
 ----------------------------------------------------------------
 -- Utilities for managing the cache
@@ -48,7 +47,7 @@ function subdir(sfid)
 end
 
 function filename(sfid, status)
-  return util.dirfilename('cache', subdir(sfid) .. sfid, assert(suffixes[status]))
+  return cfg.dirfilename('cache', subdir(sfid) .. sfid, assert(suffixes[status]))
 end
     
 function file_and_status(sfid)
