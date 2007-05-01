@@ -69,7 +69,7 @@ local function save(name, l)
     elseif type(v) == 'boolean' then
       f:write(v and 'true' or 'false')
     else
-      assert(false, "Cannot write value of type " .. type(v))
+      assert(false, 'Cannot write value of type ' .. type(v))
     end
   end
   f:write('return ')
@@ -85,7 +85,7 @@ end
 -- @return boolean saying if it was already there.
 function add(listname, part, tag, string)
   local l = load(listname)
-  local t = assert(l[part], "Table is not a list")
+  local t = assert(l[part], 'Table is not a list')
   local already_there = t[tag][string]
   t[tag][string] = true
   if not already_there then
@@ -103,7 +103,7 @@ end
 
 function del(listname, part, tag, string)
   local l = load(listname)
-  local t = assert(l[part], "Table is not a list")
+  local t = assert(l[part], 'Table is not a list')
   local already_there = t[tag][string]
   t[tag][string] = nil
   if already_there then
@@ -194,9 +194,9 @@ function run(listname, cmd, tag, arg)
   if show_cmd[cmd] then
     return show_cmd[cmd](io.stdout, listname)
   elseif not list_cmd[cmd] then
-    return nil, "Unrecognized command " .. cmd
-  elseif not tag or not arg or arg == "" then
-    return nil, "Command '" .. cmd .. "' expects a tag and an argument"
+    return nil, 'Unrecognized command ' .. cmd
+  elseif not tag or not arg or arg == '' then
+    return nil, 'Command "' .. cmd .. '" expects a tag and an argument'
   else
     return list_cmd[cmd](listname, list_part[cmd], string.lower(tag), arg)
   end

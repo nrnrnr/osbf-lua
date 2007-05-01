@@ -116,7 +116,7 @@ function of_string(s, orig)
   local headers = {}
   do
     local lfc = ''
-    for h, nfc in string.gmatch(s, "(.-)\r?\n([^ \t])") do
+    for h, nfc in string.gmatch(s, '(.-)\r?\n([^ \t])') do
       table.insert(headers, lfc .. h)
       lfc = nfc
     end
@@ -235,6 +235,19 @@ function header_tagged(msg, ...)
   return (headers_tagged(msg, ...)())
 end
 
+local function is_rfc2822_field_name(name)
+  return type(name) == 'string'
+         and string.len(name) > 0
+         and not string.find(name, '[^\33-\57\59-\126]') -- '[^!-9;-~]'
+end
+
+function add_header(msg, tag, contents)
+  assert(is_rfc2822_field_name(tag), 'Not a valid RFC2822 field name')
+  assert(type(contents) == 'string', 'Header contents must be string')
+  msg = of_any(msg)
+  table.insert(msg.headers, tag .. ': ' .. contents)
+end
+
 function tag_subject(msg, tag)
   msg = of_any(msg)
   assert(type(tag) == 'string', 'Subject tag must be string')
@@ -246,14 +259,8 @@ function tag_subject(msg, tag)
   end
   -- if msg has no subject, add one
   if not tagged then
-    table.insert(msg.headers, 'Subject: ' .. tag .. ' (no subject)')
+    add_header(msg, 'Subject', '(no subject)')
   end
-end
-
-function add_header(msg, header)
-  assert(string.find(header, '^%S+[ \t]*:'), 'Invalid RFC-2822 header')
-  msg = of_any(msg)
-  table.insert(msg.headers, header)
 end
 
 function sfid(msgspec)
@@ -325,17 +332,17 @@ function extract_sfid(msg)
 
   for refs in headers_tagged(msg, 'references') do
     -- match the last sfid in the field (hence the initial .*)
-    sfid = string.match(refs, ".*<(sfid%-.-)>")
+    sfid = string.match(refs, '.*<(sfid%-.-)>')
     if sfid then return sfid end
   end
 
   -- if not found as a reference, try as a comment in In-Reply-To or in References
   for field in headers_tagged(msg, 'in-reply-to', 'references') do
-    sfid = string.match(field, ".*%((sfid%-.-)%)")
+    sfid = string.match(field, '.*%((sfid%-.-)%)')
     if sfid then return sfid end
   end
   
-  return nil, "Could not extract sfid from message"
+  return nil, 'Could not extract sfid from message'
 end
 
 -- parses the subject line and returns a table with a filter command

@@ -91,8 +91,8 @@ function generate_sfid(sfid_tag, pR)
   -- if pR is not a number, 0 is used instead.
   assert(type(sfid_tag) == 'string', 'sfid_tag type must be string')
   local at_rightid = '@' .. generate_rightid()
-  local leftid = string.format("sfid-%s%s-%+07.2f-", sfid_tag,
-				os.date("%Y%m%d-%H%M%S"),
+  local leftid = string.format('sfid-%s%s-%+07.2f-', sfid_tag,
+				os.date('%Y%m%d-%H%M%S'),
 				type(pR) == 'number' and pR or 0)
   for i = 1, 10000 do 
     local sfid = leftid .. i .. at_rightid
@@ -101,7 +101,7 @@ function generate_sfid(sfid_tag, pR)
       return sfid
     end
   end
-  return nil, "could not generate sfid"
+  return nil, 'could not generate sfid'
 end
 
 function store(sfid, msg)

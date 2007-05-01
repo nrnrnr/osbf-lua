@@ -14,5 +14,5 @@ clean:
 	rm -f *.ps
 
 dep.dot: $(SRC) dep-to-dot
-	dep-to-dot $(SRC) > dep.dot
+	sh dep-to-dot $(SRC) > dep.dot
 

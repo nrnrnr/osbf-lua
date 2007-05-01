@@ -11,6 +11,7 @@ local modname = ...
 module(modname)
 
 dirs = { } -- must come before loading submodules
+version = '3.0'
 
 local submodules =
   { 'core', 'util', 'lists', 'commands', 'mail_commands', 'cfg', 'command_line',

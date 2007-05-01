@@ -24,7 +24,7 @@ function table_read_only(t)
   local proxy = {}
   setmetatable(proxy, { __index = t,
 		    __newindex = function(t, k, v)
-		      assert(false, "attempt to change a constant value")
+		      assert(false, 'attempt to change a constant value')
 		    end
 		  })
   return proxy
@@ -58,7 +58,7 @@ function submodule_path(subname)
       return path
     end
   end
-  return nil, "Submodule " .. subname .. " not found"
+  return nil, 'Submodule ' .. subname .. ' not found'
 end
 
 ----------------------------------------------------------------
@@ -132,7 +132,7 @@ function options.val(key, value, args)
   elseif #args > 0 then
     return table.remove(args, 1)
   else
-    return nil, "missing argument for option " .. key
+    return nil, 'missing argument for option ' .. key
   end
 end
 function options.dir(key, value, args)
@@ -168,7 +168,7 @@ function getopt(args, opt_table)
 
   while(args[1]) do
     -- changed + to * to allow forced end of options with "--" or "-"
-    local key, eq, value = string.match(args[1], "^%-%-?([^=]*)(=?)(.*)")
+    local key, eq, value = string.match(args[1], '^%-%-?([^=]*)(=?)(.*)')
     if value == '' then value = eq end
     if not key or key == '' and value == '' and table.remove(args, 1) then
       break -- no more options
@@ -214,9 +214,9 @@ end
 ----------------------------------------------------------------
 function password_ok()
   if osbf.cfg.pwd == osbf.cfg.default.pwd then
-    return nil, "Default password still used in " .. dirfilename('config', 'config.lua')
+    return nil, 'Default password still used in ' .. dirfilename('config', 'config.lua')
   elseif string.find(osbf.cfg.pwd, '%s') then
-    return nil, "password in " .. dirfilename('config', 'config.lua') .. ' contains whitespace'
+    return nil, 'password in ' .. dirfilename('config', 'config.lua') .. ' contains whitespace'
   else
     return true
   end
@@ -246,4 +246,3 @@ function capitalize(s)
   return string.sub(s, 2)
 end
 
-  

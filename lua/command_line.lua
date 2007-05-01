@@ -9,6 +9,8 @@ local unpack, type, print, assert, tonumber
 
 module(...)
 
+local packagename = string.gsub(_PACKAGE, '%.$', '')
+local osbf = require(packagename)
 local util = require (_PACKAGE .. 'util')
 local cfg  = require (_PACKAGE .. 'cfg')
 local lists = require (_PACKAGE .. 'lists')
@@ -19,6 +21,29 @@ require(_PACKAGE .. 'learn') -- loaded into 'commands'
 
 local usage_lines = { }
 
+local output_to = io.stdout
+
+function set_output(out)
+  -- no checks yet
+  output_to = out
+end
+
+-- outputs text to stdout, stderr or sent it to email address
+-- text - string to output
+-- subj - subject of email (optional)
+function output(text, subj)
+  assert(type(text) == 'string', 'string expected, got ' .. type(text))
+  if output_to == io.stdout or output_to == io.stderr then
+    output_to:write(text)
+  elseif type(output_to) == 'string' then
+    -- assumes output_to is a valid email address
+    subj = subj or 'OSBF command results'
+    msg.send(output_to, subj, text) 
+  else
+    error('Invalid destination to output to')
+  end
+end
+ 
 function run(cmd, ...)
   if not cmd then
     usage()
@@ -167,6 +192,51 @@ end
 
 table.insert(usage_lines, 'classify [-tag] [-cache] [<sfid|filename> ...]')
 
+--- Filter messages
+-- reads a message from a file, sfid or stdin and searchs for
+-- a command in the subject and executes, if found, or classifies
+-- and prints the message.
+-- valid options: -notag   => disables subject tagging
+--                -nocache => disables caching
+--                -nosfid  => disables sfid (implies -nocache)
+function filter(...)
+  local options, argv =
+    util.validate(util.getopt({...},
+      {nocache = util.options.bool, notag = util.options.bool,
+       nosfid = util.options.bool}))
+
+  for msgspec, what in msgspecs(unpack(argv)) do
+    local m = util.validate(msg.of_any(msgspec))
+    local subject_command = msg.find_subject_command(m)
+    if subject_command then
+      -- print cmd and args for testing
+      for i, v in pairs(subject_command) do
+        print(v)
+      end
+    else
+      local pR, sfid_tag, subj_tag = commands.classify(m)
+      if not options.nosfid and cfg.use_sfid then
+        local sfid = cache.generate_sfid(sfid_tag, pR)
+        if not options.nocache and cfg.save_for_training then
+          cache.store(sfid, msg.to_orig_string(m))
+        end
+        msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
+      end
+      if not options.notag and cfg.tag_subject then
+        msg.tag_subject(m, subj_tag)
+      end
+      local score_header = string.format(
+        '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
+        pR, cfg.min_pR_success, sfid_tag, osbf.core._VERSION, osbf.version)
+      msg.add_header(m, 'X-OSBF-Lua-Score', score_header)
+      io.write(msg.to_string(m))
+    end
+  end
+end
+
+table.insert(usage_lines,
+  'filter [-nosfid] [-nocache] [-notag] [<sfid|filename> ...]')
+ 
 
 function stats(...)
   local options =
