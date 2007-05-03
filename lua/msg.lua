@@ -12,33 +12,37 @@ local cfg = require(_PACKAGE .. 'cfg')
 local util = require(_PACKAGE .. 'util')
 local cache = require(_PACKAGE .. 'cache')
 
+__doc = { }
 
---[[
-
+__doc.__overview = [[
 The system understands four different representations of an RFC 822
 email message, the last of which is canonical.
 
   1. The string representation specified by the RFC
   2. The SFID of that message
   3. The name of a file containing the message
-  4. A table with the following elements:
-        { headers   = list of header strings,
-          header_fields = string containing the original header of the
-                          message. It will also contain the EOL which
-                          separates the body from the header, if present
-                          in the message final part,
-          sep       = EOL which separates the header from body, or the empty
-                      string if there's no separator (and no body),
-          body      = string containing the original body,
-          eol       = string with the eol used by the message,
-          lim = { header = string.sub(header_fields, 1, cfg.text_limit),
-                  msg = string.sub(header_fields .. body, 1, cfg.text_limit)
-                },
-          orig = true or false, -- is this as originally received? (nil for unknown)
-          header_index = a table giving index in list of every
-                         occurrence of each header, indexed by all
-                         lower case
-        }
+  4. A message table documented as type T
+]] 
+
+__doc.T = [[
+The main representation of a message is as a table with the following elements:
+
+    { headers   = list of header strings,
+      header_fields = string containing the original header of the
+                      message. It will also contain the EOL which
+                      separates the body from the header, if present
+                      in the message final part,
+      sep       = EOL which separates the header from body, or the empty
+                  string if there's no separator (and no body),
+      body      = string containing the original body,
+      eol       = string with the eol used by the message,
+      lim = { header = string.sub(header_fields, 1, cfg.text_limit),
+              msg = string.sub(header_fields .. body, 1, cfg.text_limit)
+            },
+      header_index = a table giving index in list of every
+                     occurrence of each header, indexed by all
+                     lower case
+    }
 
 An example of the header_index table (abbreviated) might be
 
@@ -51,6 +55,9 @@ An example of the header_index table (abbreviated) might be
  }
 
 Some fields might be generated on demand by a metatable.
+
+It is intended that a client may mutate the message headers or body and
+then return a new message in string form.
 ]]
 
 local demand_fields = { }
@@ -85,7 +92,22 @@ local msg_meta = {
             end
 }
 
-function of_string(s, orig)
+---------------------------------------------------------------------
+---- Conversions
+
+__doc.of_string = [[function(s) returns T
+Takes a message in RFC 822 format and returns our internal table-based
+representation of type T.  If the input string 's' is not actually
+an RFC 822 message, the results are unpredictable.  (But note that this
+function is intended to accept and parse spam, even when the spam
+violates the RFC.)
+
+Norman is quite unhappy with the state of this function.  He doesn't
+like the code, and he thinks the function has no business messing with
+the headers.
+]]
+
+function of_string(s)
   -- Detect header fields, body and eol
   local header_fields, body, sep
   local i, j, eol = string.find(s, '\r?\n(\r?\n)')
@@ -122,19 +144,37 @@ function of_string(s, orig)
     end
   end
   local msg = { headers = headers, header_fields = header_fields,
-                body = body, sep = sep, orig = orig, eol = eol }
+                body = body, sep = sep, eol = eol }
   setmetatable(msg, msg_meta)
   return msg
 end
  
-local function of_openfile(f, orig)
-  local msg = of_string(f:read '*a', orig)
+---------- auxiliary converters
+
+__doc.of_openfile = [[
+function(f) returns T
+f is a file handle open for reading; it should contain an RFC 822
+message as described for 'msg.of_string'.]]
+
+__doc.of_file = [[
+function(filename) returns T
+filename is the name of a file that contains an RFC 822 message as
+described for 'msg.of_string'.]]
+
+__doc.of_sfid = [[
+function(sfid) returns T, status or returns nil, 'missing'
+Looks in the cache for the file designated by sfid, which is
+an original, unmodified message.  If found, returns the message
+and its cache status; if not found, returns nil, 'missing'.]]
+
+local function of_openfile(f)
+  local msg = of_string(f:read '*a')
   f:close()
   return msg
 end
 
-function of_file(filename, orig)
-  return of_openfile(assert(io.open(filename, 'r')), orig)
+function of_file(filename)
+  return of_openfile(assert(io.open(filename, 'r')))
 end
 
 function of_sfid(sfid)
@@ -146,6 +186,19 @@ function of_sfid(sfid)
     return nil, status
   end
 end
+
+---------- guess which converter
+
+__doc.of_any = [[function(v) returns T
+Takes v and tries to return a table of type T.
+Possibilities in order:
+  v is already a table
+  v is a sfid
+  v is a readable file
+  v is a string containing a message
+Generally to be used from the command line, not from
+functions that know what they're doing.]]
+
 
 function of_any(v)
   if type(v) == 'table' then
@@ -163,35 +216,23 @@ function of_any(v)
   end
 end
 
+-------
+__doc.to_string = [[function(v) returns string
+Takes a 'v' in any form acceptable to of_any
+and returns a string containing the message.
+Most commonly used to convert a T to a string,
+e.g., for output.]]
+
+__doc.to_orig_string = [[function(v) returns string
+Takes a 'v' in any form acceptable to of_any
+and returns a string containing the original message.
+Differs from to_string only when applied to a table
+whose headers or body have been modified.]]
+
 function to_string(v)
   v = of_any(v)
   return table.concat{table.concat(v.headers, v.eol), v.eol, v.sep, v.body}
 end
---[[
-function to_string(v)
-  if type(v) == 'table' then
-    return table.concat(table.concat(v.headers, v.eol), v.eol, v.eol, v.body)
-  elseif cache.is_sfid(v) then
-    local openfile, status = cache.file_and_status(sfid)
-    if openfile then
-      local s = openfile:read '*a'
-      openfile:close()
-      return s, status
-    else
-      assert(status == 'missing')
-      return nil, status
-    end
-  else
-    assert(type(v) == 'string')
-    local f = io.open(v, 'r')
-    if f then
-      v = f:read '*a'
-      f:close()
-    end
-    return v
-  end
-end
---]]
 
 function to_orig_string(v)
   v = of_any(v)
@@ -199,6 +240,19 @@ function to_orig_string(v)
 end
 
 ----------------------------------------------------------------
+
+__doc.headers_tagged = [[function(msg, tag, ...) returns iterator
+Iterator successively yields the (untagged) value of each header
+tagged with any of the tags passed in.]]
+
+__doc.header_tagged = [[function(msg, tag, ...) returns string
+Returns the value of the first header tagged with any of the
+tags passed in.]]
+
+__doc.header_indices = [[function(msg, tag, ...) returns iterator
+Iterator successively yields *index* of each header tagged with any of
+the tags passed in.]]
+
 
 --- return indices of headers with each tag in turn
 local yield = coroutine.yield
@@ -234,6 +288,11 @@ end
 function header_tagged(msg, ...)
   return (headers_tagged(msg, ...)())
 end
+
+----------------------------------------------------------------
+
+__doc.add_header = [[function(T, tag, contents)
+Adds a new header to the message with the given tag and contents.]]
 
 local function is_rfc2822_field_name(name)
   return type(name) == 'string'
@@ -271,50 +330,66 @@ function sfid(msgspec)
   end
 end
 
-local valid_where = { references = true, ['message-id'] = true, both = true }
-function insert_sfid(msg, sfid, where)
-  msg = of_any(msg)
-  assert(cache.is_sfid(sfid), 'bad argument #2 to insert_sfid: sfid expected')
-  where = where or 'references'
-  assert(valid_where[where],
-    'bad argument #3 to insert_sfid: "references", "message-id" or "both" expected')
-  -- remove old, dangling sfids
-  -- better move this to a function and rethink the proper moment to
-  -- call it.
-  local sfid_pat =
-    '%s-[<%(]sfid%-.%d%+%-%d+%-%S-@' .. cfg.rightid .. '[>%)]'
-  for i in header_indices(msg, 'references', 'in-reply-to') do
-    msg.headers[i] = string.gsub(msg.headers[i], sfid_pat, '')
+__doc.insert_sfid = [[function(T, sfid, string list)
+Inserts the sfid into the headers named in the third argument.
+The only acceptable headers are References: and Message-ID:.
+Case is not significant.
+]]
+
+do
+  local valid_tag = { references = true, ['message-id'] = true }
+  local function valid_header_set(l)
+    local t = { }
+    for _, h in ipairs(l) do
+      h = string.lower(h)
+      if valid_tag[h] then
+        t[h] = true
+      else
+        util.die([[I don't know how to insert a sfid into a ']] .. h [[' header.]])
+      end
+    end
   end
 
-  -- insert in references?
-  if where == 'references' or where == 'both' then
-    local tagged = false
-    for i in header_indices(msg, 'references') do
-      msg.headers[i] = msg.headers[i] .. msg.eol .. '\t<' .. sfid .. '>'
-      tagged = true
-    end
-    if not tagged then
-      -- no references found; create one and add the sfid
-      table.insert(msg.headers, 'References: <' .. sfid .. '>')
+  local function remove_old_sfids(msg)
+    local sfid_pat = '%s-[<%(]sfid%-.%d%+%-%d+%-%S-@' .. cfg.rightid .. '[>%)]'
+    for i in header_indices(msg, 'references', 'in-reply-to') do
+      msg.headers[i] = string.gsub(msg.headers[i], sfid_pat, '')
     end
   end
-  -- repeated code pattern, probably faster than factored
-  -- insert in message-id?
-  if where == 'message-id' or where == 'both' then
-    local tagged = false
-    for i in header_indices(msg, 'message-id') do
-      msg.headers[i] = table.concat{msg.headers[i], msg.eol, '\t(', sfid, ')'}
-      tagged = true
+
+  function insert_sfid(msg, sfid, where)
+    msg = of_any(msg)
+    assert(cache.is_sfid(sfid), 'bad argument #2 to insert_sfid: sfid expected')
+
+    -- add sfid to a header with tag, or if there's no such header, add one
+    local function modify(tag, l, r, add_angles)
+      -- l and r bracket the sfid
+      -- comment indicates sfid should also be added in angle brackets
+      for i in header_indices(msg, tag) do
+        msg.headers[i] = table.concat {msg.headers[i], msg.eol, '\t' , l, sfid, r}
+        return
+      end
+      -- no header found; create one and add the sfid
+      local h = {tag, ': ', l, sfid, r}
+      if add_angles then --- executed only if no Message-ID, so can be expensive
+        table.insert(h, 3, ' <'..sfid..'>')
+      end
+      table.insert(msg.headers, table.concat(h))
     end
-    if not tagged then
-      -- no message-id found; create one and add the sfid
-      table.insert(msg.headers,
-                   table.concat{'Message-ID: <', sfid, '> (', sfid, ')'})
-    end
+
+    -- now remove the old sfids and insert the new one where called for
+    remove_old_sfids(msg)
+    local insert = valid_header_set(where or {'references'})
+    if insert['references'] then modify('References', '<', '>')       end
+    if insert['message-id'] then modify('Message-ID', '(', ')', true) end
   end
 end
 
+__doc.sfid = [[function(msgspec) returns string or nil, error-message
+Find the sfid associated with the specified message.]]
+
+__doc.extract_sfid = [[function(msgspec) returns string or nil, error-message
+Extract the sfid from the headers of the specified message.]]
 
 function sfid(msgspec)
   if cache.is_sfid(msgspec) then
@@ -327,18 +402,17 @@ end
 function extract_sfid(msg)
   -- if the sfid was not given in the command, extract it
   -- from the references or in-reply-to field
-  local sfid
   msg = of_any(msg)
 
   for refs in headers_tagged(msg, 'references') do
     -- match the last sfid in the field (hence the initial .*)
-    sfid = string.match(refs, '.*<(sfid%-.-)>')
+    local sfid = string.match(refs, '.*<(sfid%-.-)>')
     if sfid then return sfid end
   end
 
   -- if not found as a reference, try as a comment in In-Reply-To or in References
   for field in headers_tagged(msg, 'in-reply-to', 'references') do
-    sfid = string.match(field, '.*%((sfid%-.-)%)')
+    local sfid = string.match(field, '.*%((sfid%-.-)%)')
     if sfid then return sfid end
   end
   

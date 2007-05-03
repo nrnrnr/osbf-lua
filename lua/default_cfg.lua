@@ -38,10 +38,10 @@ return {
   -- SFID rightid - change it to personalize for your site.
   rightid        = "spamfilter.osbf.lua",
 
-  -- Where to insert the SFID? Uncomment exactly one of them:
-  --insert_sfid_in  = "references",
-  --insert_sfid_in  = "message-id",
-  insert_sfid_in  = "both",
+  -- In which headers to insert the SFID? Uncomment exactly one of them:
+  --insert_sfid_in  = {"references"},
+  --insert_sfid_in  = {"message-id"},
+  insert_sfid_in  = {"references", "message-id"},
 
   -- log options
   save_for_training = true,  -- save msg for later training
