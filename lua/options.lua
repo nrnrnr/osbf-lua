@@ -57,7 +57,7 @@ function register(t)
   local long = t.long
   assert(not t.short, "Short options not supported yet")
   assert(parsers[long] == nil, "Duplicate registration of a long option")
-  parsers[long] = type or default
+  parsers[long] = t.type or default
   assert(usage[long] == nil)
   usage[long] = t.usage
   assert(help[long] == nil)
@@ -70,8 +70,10 @@ function parse(args)
 
   while(args[1]) do
     -- changed + to * to allow forced end of options with "--" or "-"
-    local key, eq, value = string.match(args[1], '^%-%-?([^=]*)(==?)(.*)')
-    if value == '' then value = eq end --- XXX THIS MAKES NO SENSE!
+    local key, eq, value = string.match(args[1], '^%-%-?([^=]*)(=?)(.*)')
+    if eq == '=' and value == '' then
+        return nil, 'option ' .. args[1] .. ' is ambiguous'
+    end
     if not key or key == '' and value == '' and table.remove(args, 1) then
       break -- no more options
     else
@@ -83,3 +85,4 @@ function parse(args)
   end
   return found, args
 end
+
