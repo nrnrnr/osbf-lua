@@ -9,6 +9,8 @@ local cfg   = require(_PACKAGE .. 'cfg')
 local core  = require(_PACKAGE .. 'core')
 local dirs  = assert(cfg.dirs)
 
+__doc = __doc or { }
+
 local function mk_list_command(cmd, part)
   return function(listname, tag, arg)
            return lists[cmd](listname, part, string.lower(tag), arg)

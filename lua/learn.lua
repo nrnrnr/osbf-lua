@@ -7,31 +7,31 @@ local ham_reinforcement_limit           = 4
 local spam_reinforcement_limit          = 4
 local threshold_reinforcement_degree    = 1.5
 
-
 local require, print, pairs, type, assert, loadfile, setmetatable =
       require, print, pairs, type, assert, loadfile, setmetatable
 
 local io, string, table, math =
       io, string, table, math
 
-
 local modname = ...
 local modname = string.gsub(modname, '[^%.]+$', 'commands')
 module(modname)
 
-local util = require(_PACKAGE .. 'util')
-local cfg  = require(_PACKAGE .. 'cfg')
-local msg  = require(_PACKAGE .. 'msg')
+local util  = require(_PACKAGE .. 'util')
+local cfg   = require(_PACKAGE .. 'cfg')
+local msg   = require(_PACKAGE .. 'msg')
 local core  = require(_PACKAGE .. 'core')
 local lists = require(_PACKAGE .. 'lists')
-local cachemod = require(_PACKAGE .. 'cache')
+local cache = require(_PACKAGE .. 'cache')
+
+__doc = __doc or { }
 
 
 local errmsgs = {
   learn = {
-    spam = [[This message has already been learned as spam.  To unlearn it,
-    ...]], ham = [[This message has already been learned as ham.  To unlearn
-    it, ...]], missing = [[
+    spam = [[This message has already been learned as spam.  To unlearn it, ...]], 
+    ham = [[This message has already been learned as ham.  To unlearn it, ...]], 
+    missing = [[
 You asked to train on a message that OSBF-Lua does not recognize.  
 In a normal installation, OSBF-Lua keeps a copy of each message, but
 only for a few days.  The message you are trying to train with has
@@ -40,9 +40,7 @@ probably been deleted.]],
   unlearn = {
     ham = [[the message was learned as ham, not spam]],
     spam = [[the message was learned as spam, not ham]],
-    missing = [[OSBF-Lua cannot find the message---messages are kept
-for only a few days, and the one you are trying to unlearn has
-probably been deleted]],
+    missing = nil, -- copied below
     unlearned = [[the message was never learned to begin with]],
   },
 }
@@ -54,11 +52,11 @@ local learn_parms
   -- function given classification, returns table so that
   -- learning and unlearning code can be reused for spam and ham
 do
-  local cache
+  local pcache -- parameter cache
     -- cache results, but don't compute initially because
     -- at this point cfg table may not be fully initialized
   function learn_parms(classification)
-    cache = cache or {
+    pcache = pcache or {
       spam = {
         index      = cfg.dbset.spam_index,
         threshold  = threshold_offset - cfg.threshold,
@@ -76,7 +74,7 @@ do
         offset_max_threshold = threshold_offset + max_learn_threshold,
       },
     }
-   return cache[classification]
+   return pcache[classification]
   end
 end
 
@@ -125,8 +123,13 @@ end
 
 
 
---- the learn command returns 
----      comment, classification, old pR, new pR
+__doc.learn = [[
+function(sfid, classification) returns comment, status, old pR, new pR
+                               returns nil, error-message
+Updates the database to reflect human classification (ham or spam)
+of an unlearned message.  Also changes the message's status in the cache.
+]]
+
 function learn(sfid, classification)
   local msg, status = msg.of_sfid(sfid)
   if status ~= 'unlearned' then
@@ -169,7 +172,7 @@ function learn(sfid, classification)
 
   local orig, new = iterate_training()
   if not orig then return orig, new end -- error case
-  cachemod.change_file_status(sfid, status, classification)
+  cache.change_file_status(sfid, status, classification)
   local comment = 
     orig == new and string.format(cfg.training_not_necessary,
                                   new, max_learn_threshold,
@@ -177,6 +180,13 @@ function learn(sfid, classification)
     or string.format('%s: %.2f -> %.2f', parms.trained_as, orig, new)
   return comment, classification, orig, new
 end  
+
+__doc.unlearn = [[
+function(sfid, [classification]) returns comment, status, old pR, new pR
+                                returns nil, error-message
+Undoes the effect of the learn command.  The classification is optional
+but if present must be equal to the classification originally learned.
+]]
 
 function unlearn(sfid, classification)
   local msg, status = msg.of_sfid(sfid)
@@ -200,7 +210,7 @@ but %s.]], classification, errmsgs.unlearn[status])
     pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
     i = i + 1
   end
-  cachemod.change_file_status(sfid, classification, 'unlearned')
+  cache.change_file_status(sfid, classification, 'unlearned')
   local comment =
     string.format('Message unlearned (was %s): %.2f -> %.2f', classification,
                   old_pR, pR)
@@ -210,6 +220,11 @@ end
 
 ----------------------------------------------------------------
 -- classification seems to go with learning
+
+__doc.sfid_tags = [[table mapping sfid tag --> meaning
+Where sfid tag is tag used in headers and sfid,
+and meaning is an informal explanation.
+]]
 
 sfid_tags = {
   W = 'whitelisted',
@@ -221,7 +236,10 @@ sfid_tags = {
   ['+'] = 'ham (in the reinforcement zone)',
 }
 
--- Return subject-line tag and sfid tag for a given pR, even nil
+__doc.tags = [[function(pR) returns subject-line tag, sfid tag
+pR may be a numeric score or may be nil (to indicate error trying
+to classify).]]
+
 local function tags(pR)
   local zero = cfg.min_pR_success
   if pR == nil then
@@ -241,9 +259,10 @@ end
 
 local msgmod = msg
 
--- Classifies msg and returns information from most to least precise:
--- pR, sfid tag, and subject tag.
--- pR might be nil but the last two always have values
+__doc.classify = [[function(msgspec) returns pR, sfid tag, subject tag
+pR is a numeric score or nil; tags are always strings
+]]
+
 function classify(msg)
   local pR, sfid_tag, subj_tag
 
@@ -282,6 +301,12 @@ end
 
 -----------------------------------------------------------------------------
 -- write statistics of the databases
+
+__doc.write_stats = [[function(outfile, verbose)
+Writes statistics using outfile:write.
+If verbose is true, writes even more statistics.
+]]
+
 function write_stats(outfile, verbose)
   local ham_db  = cfg.dbset.classes[cfg.dbset.ham_index]
   local spam_db = cfg.dbset.classes[cfg.dbset.spam_index]
