@@ -28,10 +28,21 @@ function init(dbsize)
     util.mkdir(d)
   end
 
-  local header_size, bucket_size = core.db_header_and_bucket_sizes()
-  dbsize = dbsize or 94321 * bucket_size + header_size
-  assert(type(dbsize) == 'number') 
-  local num_buckets = math.floor((dbsize - header_size) / bucket_size)
+  local num_buckets = 94321 --- default if no size specified
+  local min_buckets =   100 --- minimum number of buckets acceptable
+
+  local function bytes(buckets)
+    return buckets * core.bucket_size + core.header_size
+  end
+
+  if dbsize then
+    assert(type(dbsize) == 'number') 
+    num_buckets = math.floor((dbsize - core.header_size) / core.bucket_size)
+    if num_buckets < min_buckets then
+      util.die('Database too small; must use at least ',
+               util.human_of_bytes(bytes(min_buckets)), '\n')
+    end
+  end
 
   -- create new, empty databases
   util.validate(core.create_db(cfg.dbset.classes, num_buckets))
@@ -46,4 +57,5 @@ function init(dbsize)
     f:close()
     u:close()
   end
+  return bytes(num_buckets)
 end

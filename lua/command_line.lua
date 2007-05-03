@@ -11,7 +11,7 @@ module(...)
 
 local util     = require (_PACKAGE .. 'util')
 local cfg      = require (_PACKAGE .. 'cfg')
-local core     = require (_PACKAGE .. 'cfg')
+local core     = require (_PACKAGE .. 'core')
 local lists    = require (_PACKAGE .. 'lists')
 local commands = require (_PACKAGE .. 'commands')
 local msg      = require (_PACKAGE .. 'msg')
@@ -258,19 +258,17 @@ table.insert(usage_lines, 'stats [-verbose]')
 -- Not sure if the service is worth the extra complexity at this time.
 
 function init(dbsize, ...)
-  local nb = tonumber(dbsize)
-  if dbsize and not nb then
-    usage('Size of databases ', dbsize, ' is not a number')
-  elseif select('#', ...) > 0 then
+  local nb = dbsize and util.validate(util.bytes_of_human(dbsize))
+  if select('#', ...) > 0 then
     usage()
   else
-    io.stdout:write('Creating directories and databases')
-    if nb then io.stdout:write(' with ', nb, ' bytes') end
-    io.stdout:write('... ')
-    io.stdout:flush()
-    commands.init(nb)
-    io.stdout:write('done!\n')
-    io.stdout:flush()
+    if not core.is_dir(cfg.dirs.user) then
+      util.die('You must create the user directory before initializing it:\n',
+               '  mkdir ', cfg.dirs.user)
+    end
+    nb = commands.init(nb)
+    io.stdout:write('Created directories and databases of ',
+                    util.human_of_bytes(nb), ' each\n')
   end
 end
 

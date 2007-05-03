@@ -633,7 +633,7 @@ static void
 set_info (lua_State * L, int idx)
 {
   lua_pushliteral (L, "_COPYRIGHT");
-  lua_pushliteral (L, "Copyright (C) 2005, 2006 Fidelis Assis");
+  lua_pushliteral (L, "Copyright (C) 2005, 2006, 2007 Fidelis Assis");
   lua_settable (L, idx);
   lua_pushliteral (L, "_DESCRIPTION");
   lua_pushliteral (L, "OSBF-Lua is a Lua library for text classification.");
@@ -643,6 +643,12 @@ set_info (lua_State * L, int idx)
   lua_settable (L, idx);
   lua_pushliteral (L, "_VERSION");
   lua_pushliteral (L, LIB_VERSION);
+  lua_settable (L, idx);
+  lua_pushliteral (L, "header_size");
+  lua_pushnumber (L, (lua_Number) OSBF_CFC_HEADER_SIZE * sizeof(OSBF_BUCKET_STRUCT));
+  lua_settable (L, idx);
+  lua_pushliteral (L, "bucket_size");
+  lua_pushnumber (L, (lua_Number) sizeof(OSBF_BUCKET_STRUCT));
   lua_settable (L, idx);
 }
 
@@ -760,17 +766,6 @@ dir_gc (lua_State * L)
 
 /**********************************************************/
 
-static int
-lua_osbf_header_and_bucket_sizes(lua_State * L)
-{
-  lua_pushnumber (L, (lua_Number)
-    OSBF_CFC_HEADER_SIZE * sizeof(OSBF_BUCKET_STRUCT));
-  lua_pushnumber (L, (lua_Number) sizeof(OSBF_BUCKET_STRUCT));
-  return 2;
-}
-  
-/**********************************************************/
-
 static const struct luaL_reg osbf[] = {
   {"create_db", lua_osbf_createdb},
   {"remove_db", lua_osbf_removedb},
@@ -786,7 +781,6 @@ static const struct luaL_reg osbf[] = {
   {"chdir", lua_osbf_changedir},
   {"dir", l_dir},
   {"is_dir", l_is_dir},
-  {"db_header_and_bucket_sizes", lua_osbf_header_and_bucket_sizes},
   {NULL, NULL}
 };
 
@@ -804,7 +798,6 @@ OPENFUN (lua_State * L)
   lua_pushstring (L, "__gc");
   lua_pushcfunction (L, dir_gc);
   lua_settable (L, -3);
-
   luaL_register (L, libname, osbf);
   set_info (L, -3); /* must come right after luaL_register */
   return 1;

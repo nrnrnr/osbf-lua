@@ -28,7 +28,7 @@ function std.dir(key, value, args)
   elseif core.is_dir(v) then
     return v
   else
-    return nil, v .. ' is not a directory'
+    return nil, 'Path ' .. v .. ' given for option --' .. key .. ' is not a directory'
   end
 end
 function std.optional(key, value, args)

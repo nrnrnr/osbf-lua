@@ -1,5 +1,5 @@
-local require, print, pairs, type, assert, loadfile, setmetatable, package =
-      require, print, pairs, type, assert, loadfile, setmetatable, package
+local require, print, pairs, type, assert, loadfile, setmetatable, tonumber =
+      require, print, pairs, type, assert, loadfile, setmetatable, tonumber
 
 local io, string, table, os, package =
       io, string, table, os, package
@@ -170,3 +170,33 @@ function capitalize(s)
   return string.sub(s, 2)
 end
 
+
+----------------------------------------------------------------
+
+--- return a string as number of bytes
+
+
+local mult = { b = 1, k = 1024, m = 1024 * 1024, g = 1024 * 1024 * 1024 }
+
+function bytes_of_human(s)
+  local n, suff = string.match(string.lower(s), '^(%d+%.?%d*)([bkmg]?)b-')
+  if suff == '' then suff = 'b' end
+  if n then
+    return assert(tonumber(n)) * assert(mult[suff])
+  else
+    return nil, s .. ' does not represent a number of bytes'
+  end
+end
+
+function human_of_bytes(n)
+  assert(tonumber(n))
+  local suff = 'b'
+  for k, v in pairs(mult) do
+    if v > mult[suff] and n / v >= 10 then
+      suff = k
+    end
+  end
+  local digits = n / mult[suff]
+  local fmt = digits < 100 and '%3.1f%s%s' or '%d%s%s'
+  return string.format(fmt, digits, string.upper(suff), suff == 'b' and '' or 'B')
+end
