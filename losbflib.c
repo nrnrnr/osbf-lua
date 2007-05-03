@@ -763,7 +763,8 @@ dir_gc (lua_State * L)
 static int
 lua_osbf_header_and_bucket_sizes(lua_State * L)
 {
-  lua_pushnumber (L, (lua_Number) sizeof(OSBF_CFC_HEADER_SIZE));
+  lua_pushnumber (L, (lua_Number)
+    OSBF_CFC_HEADER_SIZE * sizeof(OSBF_BUCKET_STRUCT));
   lua_pushnumber (L, (lua_Number) sizeof(OSBF_BUCKET_STRUCT));
   return 2;
 }

@@ -257,15 +257,15 @@ table.insert(usage_lines, 'stats [-verbose]')
 -- that would add the recommended lines to the .procmailrc.
 -- Not sure if the service is worth the extra complexity at this time.
 
-function init(buckets, ...)
-  local nb = tonumber(buckets)
-  if buckets and not nb then
-    usage('Number of buckets ', buckets, ' is not a number')
+function init(dbsize, ...)
+  local nb = tonumber(dbsize)
+  if dbsize and not nb then
+    usage('Size of databases ', dbsize, ' is not a number')
   elseif select('#', ...) > 0 then
     usage()
   else
     io.stdout:write('Creating directories and databases')
-    if nb then io.stdout:write(' with ', nb, ' buckets') end
+    if nb then io.stdout:write(' with ', nb, ' bytes') end
     io.stdout:write('... ')
     io.stdout:flush()
     commands.init(nb)
@@ -274,4 +274,4 @@ function init(buckets, ...)
   end
 end
 
-table.insert(usage_lines, 'init [<number of buckets>]')
+table.insert(usage_lines, 'init [<database size in bytes>]')
