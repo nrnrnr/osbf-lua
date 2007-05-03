@@ -760,6 +760,16 @@ dir_gc (lua_State * L)
 
 /**********************************************************/
 
+static int
+lua_osbf_header_and_bucket_sizes(lua_State * L)
+{
+  lua_pushnumber (L, (lua_Number) sizeof(OSBF_CFC_HEADER_SIZE));
+  lua_pushnumber (L, (lua_Number) sizeof(OSBF_BUCKET_STRUCT));
+  return 2;
+}
+  
+/**********************************************************/
+
 static const struct luaL_reg osbf[] = {
   {"create_db", lua_osbf_createdb},
   {"remove_db", lua_osbf_removedb},
@@ -775,6 +785,7 @@ static const struct luaL_reg osbf[] = {
   {"chdir", lua_osbf_changedir},
   {"dir", l_dir},
   {"is_dir", l_is_dir},
+  {"db_header_and_bucket_sizes", lua_osbf_header_and_bucket_sizes},
   {NULL, NULL}
 };
 

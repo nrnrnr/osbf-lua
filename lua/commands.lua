@@ -1,5 +1,5 @@
-local string, io, require, os, assert, ipairs, type =
-      string, io, require, os, assert, ipairs, type
+local string, io, require, os, assert, ipairs, type, math =
+      string, io, require, os, assert, ipairs, type, math
 
 module(...)
 
@@ -21,16 +21,17 @@ list_del_string = mk_list_command('del', 'strings')
 list_del_pat    = mk_list_command('del', 'pats')
 
 -- The init command creates directories and databases and the default config.
--- Perhaps the optional argument should be denominated in bytes, not buckets?
-
-function init(num_buckets)
+-- dbsize is the size in bytes of each database to be created
+function init(dbsize)
   local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
   for _, d in ipairs(ds) do
     util.mkdir(d)
   end
 
-  num_buckets = num_buckets or 94321
-  assert(type(num_buckets) == 'number') 
+  local header_size, bucket_size = core.db_header_and_bucket_sizes()
+  dbsize = dbsize or 94321 * bucket_size + header_size
+  assert(type(dbsize) == 'number') 
+  local num_buckets = math.floor((dbsize - header_size) / bucket_size)
 
   -- create new, empty databases
   util.validate(core.create_db(cfg.dbset.classes, num_buckets))
