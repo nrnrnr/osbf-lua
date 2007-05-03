@@ -21,8 +21,8 @@ list_del_string = mk_list_command('del', 'strings')
 list_del_pat    = mk_list_command('del', 'pats')
 
 -- The init command creates directories and databases and the default config.
--- dbsize is the size in bytes of each database to be created
-function init(dbsize)
+-- totalsize is the total size in bytes of all databases to be created
+function init(totalsize)
   local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
   for _, d in ipairs(ds) do
     util.mkdir(d)
@@ -35,11 +35,12 @@ function init(dbsize)
     return buckets * core.bucket_size + core.header_size
   end
 
-  if dbsize then
-    assert(type(dbsize) == 'number') 
+  if totalsize then
+    assert(type(totalsize) == 'number') 
+    local dbsize = totalsize / 2
     num_buckets = math.floor((dbsize - core.header_size) / core.bucket_size)
     if num_buckets < min_buckets then
-      util.die('Database too small; must use at least ',
+      util.die('Databases too small; each database must use at least ',
                util.human_of_bytes(bytes(min_buckets)), '\n')
     end
   end
@@ -57,5 +58,5 @@ function init(dbsize)
     f:close()
     u:close()
   end
-  return bytes(num_buckets)
+  return 2 * bytes(num_buckets) --- total bytes consumed by databases
 end

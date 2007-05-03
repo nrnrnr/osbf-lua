@@ -65,7 +65,8 @@ function register(t)
 end
 
 -- simple getopt to get command line options
-function parse(args)
+function parse(args, options)
+  options = options or parsers
   local found = {}
 
   while(args[1]) do
@@ -78,7 +79,7 @@ function parse(args)
       break -- no more options
     else
       table.remove(args, 1)
-      local val, err = (parsers[key] or no_such_option)(key, value, args)
+      local val, err = (options[key] or no_such_option)(key, value, args)
       if err then return nil, err end
       found[key] = val
     end

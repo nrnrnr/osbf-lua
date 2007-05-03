@@ -280,101 +280,79 @@ function classify(msg)
   return pR, sfid_tag, subj_tag
 end
 
--- returns a string with statistics of the databases
-function stats(verbose)
-  local ham_db = cfg.dbset.classes[cfg.dbset.ham_index]
+-----------------------------------------------------------------------------
+-- write statistics of the databases
+function write_stats(outfile, verbose)
+  local ham_db  = cfg.dbset.classes[cfg.dbset.ham_index]
   local spam_db = cfg.dbset.classes[cfg.dbset.spam_index]
-  local error_rate1, error_rate2, global_error_rate, spam_rate
-  local stats1 = core.stats(ham_db)
-  local stats2 = core.stats(spam_db)
+  local stats1, stats2 = core.stats(ham_db), core.stats(spam_db)
 
-  local report = string.format( '%s\n%-30s%12s%12s\n%s\n',
-     string.rep('-', 54), 'Database Statistics', 'ham', 'spam',
-     string.rep('-', 54))
-
-  report = report .. string.format(
-    table.concat{
-    '%-30s%12s%12s\n',
-    '%-30s%12d%12d\n',
-    '%-30s%11.1f%%%11.1f%%\n'},
-    'Database version', 'OSBF 1.0', 'OSBF 1.0',
-    'Total buckets in database', stats1.buckets, stats2.buckets,
-    'Buckets used', stats1.use * 100, stats2.use * 100)
-
-  if verbose then
-    report = report .. string.format(
-      table.concat{
-      '%-30s%12d%12d\n',
-      '%-30s%12d%12d\n',
-      '%-30s%12d%12d\n',
-      '%-30s%12d%12d\n',
-      '%-30s%12.1f%12.1f\n',
-      '%-30s%12d%12d\n',
-      '%-30s%12d%12d\n'},
-      'Bucket size (bytes)', stats1.bucket_size, stats2.bucket_size,
-      'Header size (bytes)', stats1.header_size, stats2.header_size,
-      'Number of chains', stats1.chains, stats2.chains,
-      'Max chain len (buckets)', stats1.max_chain, stats2.max_chain,
-      'Average chain len (buckets)', stats1.avg_chain, stats2.avg_chain,
-      'Max bucket displacement', stats1.max_displacement,stats2.max_displacement,
-      'Buckets unreachable', stats1.unreachable, stats2.unreachable)
-  end
-
-  if stats1.classifications and stats2.classifications then
-    if stats1.classifications + stats1.mistakes - stats2.mistakes > 0 then
-      error_rate1 = stats1.mistakes /
-       (stats1.classifications + stats1.mistakes - stats2.mistakes)
-    else
-      error_rate1 = 0
-    end
-  end
-  if stats1.classifications and stats2.classifications then
-    if stats2.classifications + stats2.mistakes - stats1.mistakes > 0 then
-       error_rate2 = stats2.mistakes /
-         (stats2.classifications + stats2.mistakes - stats1.mistakes)
-    else
-      error_rate2 = 0
-    end
-  end
-  if stats1.classifications + stats2.classifications > 0 then
-    spam_rate = (stats2.classifications + stats2.mistakes-stats1.mistakes) /
-      (stats1.classifications + stats2.classifications)
-  else
-    spam_rate = 0
-  end
+  ---------- compute derived statistics
+  local error_rate1, error_rate2, spam_rate, global_error_rate = 0, 0, 0, 0
 
   if stats1.classifications + stats2.classifications > 0 then
+    local function error_rate(s1, s2)
+      if s1.classifications + s1.mistakes - s2.mistakes > 0 then
+        return s1.mistakes / (s1.classifications + s1.mistakes - s2.mistakes)
+      else
+        return 0
+      end
+    end
+    error_rate1, error_rate2 = error_rate(stats1, stats2), error_rate(stats2, stats1)
+    spam_rate = (stats2.classifications + stats2.mistakes - stats1.mistakes) /
+                    (stats1.classifications + stats2.classifications)
     global_error_rate = (stats1.mistakes + stats2.mistakes) /
-       (stats1.classifications + stats2.classifications)
-  else
-    global_error_rate = 0
+                             (stats1.classifications + stats2.classifications)
   end
 
-  report = report .. string.format(
-    table.concat{
-      '%-30s%12.0f%12.0f\n',
-      '%-30s%12d%12d\n',
-      '%-30s%12d%12d\n'},
-      'Classifications', stats1.classifications, stats2.classifications,
-      'Mistakes', stats1.mistakes, stats2.mistakes,
-      'Trainings', stats1.learnings, stats2.learnings)
+  -------------- utility functions and values for writing reports
+
+  local function writef(...) return outfile:write(string.format(...)) end
+
+  local hline = string.rep('-', 54)       -- line of width 54
+  local sfmt  = '%-30s%12s%12s\n'         -- string report, width 54
+  local dfmt  = '%-30s%12d%12d\n'         -- integer report, width 54
+  local ffmt  = '%-30s%12d%12d\n'         -- floating report, width 54
+  local pfmt   ='%-30s%11.1f%%%11.1f%%\n' -- percentage report, width 54
+  local p2fmt  ='%-30s%11.2f%%%11.2f%%\n' -- percentage report, width 54, 2 digits
+  local gsfmt  = '%-15s%7.2f%%%22s%7.2f%%\n'  -- global accuracy & spam rate
+
+  local hline = function() return outfile:write(hline, '\n') end -- tricky binding
+  local function report(what, key, fmt)
+    return writef(fmt or dfmt, what, stats1[key], stats2[key])
+  end
+
+  ---------------- actually issue the report
+
+  hline()
+  writef(sfmt, 'Database Statistics', 'ham', 'spam')
+  hline()
+  writef(sfmt, 'Database version', core._VERSION, core._VERSION)
+  report('Total buckets in database', 'buckets')
+  writef(sfmt, 'Size of database', util.human_of_bytes(stats1.bytes),
+                                   util.human_of_bytes(stats2.bytes))
+  writef(pfmt, 'Buckets used', stats1.use * 100, stats2.use * 100)
+  if verbose then
+    report('Bucket size (bytes)', 'bucket_size')
+    report('Header size (bytes)', 'header_size')
+    report('Number of chains', 'chains')
+    report('Max chain len (buckets)', 'max_chain')
+    report('Average chain len (buckets)', 'avg_chain', ffmt)
+    report('Max bucket displacement', 'max_displacement')
+    report('Buckets unreachable', 'unreachable')
+  end
+
+  report('Classifications', 'classifications', ffmt)
+  report('Mistakes', 'mistakes')
+  report('Trainings', 'learnings')
 
   if verbose then
-    report = report .. string.format('%-30s%12d%12d\n',
-      'Header reinforcements', stats1.extra_learnings, stats2.extra_learnings)
+    report('Header reinforcements', 'extra_learnings')
   end
 
-  report = report .. string.format(
-    table.concat{
-      '%-30s%11.2f%%%11.2f%%\n',
-      '%s\n',
-      '%-15s%7.2f%%%22s%7.2f%%\n',
-      '%s\n'},
-      'Accuracy', (1-error_rate1)*100, (1-error_rate2)*100,
-      string.rep('-', 54),
-      'Global accuracy:', (1-global_error_rate)*100,
-        'Spam rate:', spam_rate * 100,
-      string.rep('-', 54))
-
-  return report
+  writef(p2fmt, 'Accuracy', (1-error_rate1)*100, (1-error_rate2)*100)
+  hline()
+  writef(gsfmt, 'Global accuracy:', (1-global_error_rate)*100,
+         'Spam rate:', spam_rate * 100)
+  hline()
 end

@@ -563,6 +563,10 @@ lua_osbf_stats (lua_State * L)
       lua_pushnumber (L, (lua_Number) class.header_size);
       lua_settable (L, -3);
 
+      lua_pushliteral (L, "bytes");
+      lua_pushnumber (L, class.header_size + class.total_buckets * class.bucket_size);
+      lua_settable (L, -3);
+
       lua_pushliteral (L, "learnings");
       lua_pushnumber (L, (lua_Number) class.learnings);
       lua_settable (L, -3);

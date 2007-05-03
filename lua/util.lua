@@ -188,11 +188,15 @@ function bytes_of_human(s)
   end
 end
 
+local smallest_mantissa = .9999 -- I hate roundoff error
+--- we choose to show, e.g. 1.1MB instead of 1109KB.
+
+
 function human_of_bytes(n)
   assert(tonumber(n))
   local suff = 'b'
   for k, v in pairs(mult) do
-    if v > mult[suff] and n / v >= 10 then
+    if v > mult[suff] and n / v >= smallest_mantissa then
       suff = k
     end
   end

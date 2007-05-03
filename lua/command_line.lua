@@ -243,14 +243,15 @@ table.insert(usage_lines,
   'filter [-nosfid] [-nocache] [-notag] [<sfid|filename> ...]')
  
 
-function stats(...)
-  local options =
-    util.validate(util.getopt({...}, {verbose = util.options.bool}))
-  local report = commands.stats(options.verbose)
-  io.stdout:write(report)
+do
+  local opts = {verbose = options.std.bool, v = options.std.bool}
+  function stats(...)
+    local opts = util.validate(options.parse({...}, opts))
+    commands.write_stats(io.stdout, opts.verbose or opts.v)
+  end
 end
  
-table.insert(usage_lines, 'stats [-verbose]')
+table.insert(usage_lines, 'stats [-v|-verbose]')
 
 --- Initialize OSBF-Lua's state in the filesystem.
 -- A truly nice touch here would be to offer a -procmail option
@@ -267,8 +268,8 @@ function init(dbsize, ...)
                '  mkdir ', cfg.dirs.user)
     end
     nb = commands.init(nb)
-    io.stdout:write('Created directories and databases of ',
-                    util.human_of_bytes(nb), ' each\n')
+    io.stdout:write('Created directories and databases using a total of ',
+                    util.human_of_bytes(nb), '\n')
   end
 end
 
