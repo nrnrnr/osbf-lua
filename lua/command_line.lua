@@ -274,3 +274,15 @@ function init(dbsize, ...)
 end
 
 table.insert(usage_lines, 'init [<database size in bytes>]')
+
+
+function internals(s, ...)
+  if select('#', ...) > 0 then
+    usage()
+  else
+    local i = require(_PACKAGE .. 'internals')
+    i(io.stdout, s)
+  end
+end
+
+table.insert(usage_lines, 'internals [<module>|<module>.<function>]')

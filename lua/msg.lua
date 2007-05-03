@@ -24,8 +24,8 @@ email message, the last of which is canonical.
   4. A message table documented as type T
 ]] 
 
-__doc.T = [[
-The main representation of a message is as a table with the following elements:
+__doc.T = [[a table
+The main representation of a message is a table with these elements:
 
     { headers   = list of header strings,
       header_fields = string containing the original header of the
