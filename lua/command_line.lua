@@ -234,7 +234,7 @@ function filter(...)
         '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
         pR, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
       msg.add_header(m, 'X-OSBF-Lua-Score', score_header)
-      io.write(msg.to_string(m))
+      io.stdout:write(msg.to_string(m))
     end
   end
 end
@@ -247,7 +247,7 @@ function stats(...)
   local options =
     util.validate(util.getopt({...}, {verbose = util.options.bool}))
   local report = commands.stats(options.verbose)
-  io.write(report)
+  io.stdout:write(report)
 end
  
 table.insert(usage_lines, 'stats [-verbose]')
