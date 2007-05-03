@@ -162,7 +162,7 @@ lua_osbf_config (lua_State * L)
 static int
 lua_osbf_createdb (lua_State * L)
 {
-  const char *cfcname;
+  const char *cfcname = "Unknown database name";
   uint32_t buckets;
   uint32_t minor = 0;
   char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
@@ -195,7 +195,7 @@ lua_osbf_createdb (lua_State * L)
     lua_pushnumber (L, (lua_Number) num_classes);
   else
     lua_pushnil (L);
-  lua_pushstring (L, errmsg);
+  lua_pushfstring (L, "%s: %s", cfcname, errmsg);
   return 2;
 }
 
@@ -208,7 +208,6 @@ static int
 lua_osbf_removedb (lua_State * L)
 {
   const char *cfcname;
-  char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
   int num_classes;
   int save_errno, removed;
 
@@ -227,27 +226,15 @@ lua_osbf_removedb (lua_State * L)
 	removed++;
       else
 	{
-	  save_errno = errno;
-	  strncat (errmsg, cfcname, OSBF_ERROR_MESSAGE_LEN);
-	  strncat (errmsg, ": ", OSBF_ERROR_MESSAGE_LEN);
-	  /* append err message after file name */
-	  strncat (errmsg, strerror (save_errno), OSBF_ERROR_MESSAGE_LEN);
-	  break;
+          lua_pushnil(L);
+          lua_pushfstring(L, "%s: %s", cfcname, strerror(errno));
+          return 2;
 	}
     }
 
-  if (errmsg[0] != '\0')
-    {
-      lua_pushnil (L);
-      lua_pushstring (L, errmsg);
-      return 2;
-    }
-  else
-    {
-      /* return the number of files deleted */
-      lua_pushnumber (L, (lua_Number) removed);
-      return 1;
-    }
+  /* return the number of files deleted */
+  lua_pushnumber (L, (lua_Number) removed);
+  return 1;
 }
 
 /**********************************************************/
@@ -623,7 +610,7 @@ lua_osbf_stats (lua_State * L)
   else
     {
       lua_pushnil (L);
-      lua_pushstring (L, errmsg);
+      lua_pushfstring (L, "%s: %s", cfcfile, errmsg);
       return 2;
     }
 }

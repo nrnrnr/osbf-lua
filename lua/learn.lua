@@ -285,7 +285,8 @@ end
 function write_stats(outfile, verbose)
   local ham_db  = cfg.dbset.classes[cfg.dbset.ham_index]
   local spam_db = cfg.dbset.classes[cfg.dbset.spam_index]
-  local stats1, stats2 = core.stats(ham_db), core.stats(spam_db)
+  local stats1 = util.validate(core.stats(ham_db))
+  local stats2 = util.validate(core.stats(spam_db))
 
   ---------- compute derived statistics
   local error_rate1, error_rate2, spam_rate, global_error_rate = 0, 0, 0, 0

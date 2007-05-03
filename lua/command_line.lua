@@ -170,8 +170,8 @@ table.insert(usage_lines, 'sfid [<sfid|filename> ...]')
 
 function classify(...)
   local options, argv =
-    util.validate(util.getopt({...},
-      {tag = util.options.bool, cache = util.options.bool}))
+    util.validate(options.parse({...},
+      {tag = options.std.bool, cache = options.std.bool}))
   local show =
     options.tag 
       and
@@ -206,9 +206,9 @@ table.insert(usage_lines, 'classify [-tag] [-cache] [<sfid|filename> ...]')
 --                -nosfid  => disables sfid (implies -nocache)
 function filter(...)
   local options, argv =
-    util.validate(util.getopt({...},
-      {nocache = util.options.bool, notag = util.options.bool,
-       nosfid = util.options.bool}))
+    util.validate(options.parse({...},
+      {nocache = options.std.bool, notag = options.std.bool,
+       nosfid = options.std.bool}))
 
   for msgspec, what in msgspecs(unpack(argv)) do
     local m = util.validate(msg.of_any(msgspec))
