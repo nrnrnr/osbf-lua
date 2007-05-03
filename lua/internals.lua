@@ -5,10 +5,18 @@ local osbf = _G[assert(string.match(modname, '(.-)%.'))]
 
 local function internals(out, s)
   if not s then
-    local documented, undocumented = { }, { }
+    local documented, undocumented, ufuns = { }, { }, { }
     for k, v in pairs(osbf) do
       if k ~= '_M' and type(v) == 'table' and v['_M'] then
         (v.__doc and documented or undocumented)[k] = true
+        if v.__doc then
+          local doc = v.__doc
+          for f in pairs(v) do
+            if not string.find(f, '^_') and not doc[f] then
+              ufuns[k .. '.' .. f] = true
+            end
+          end
+        end
       end
     end
     local function show(what, t)
@@ -20,6 +28,7 @@ local function internals(out, s)
     end
     show('Documented modules', documented)
     show('Undocumented modules', undocumented)
+    show('Undocumented functions', ufuns)
   else
     local module, member
     if osbf[s] then
