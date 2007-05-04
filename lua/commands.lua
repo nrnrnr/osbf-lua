@@ -30,21 +30,18 @@ function init(totalsize)
     util.mkdir(d)
   end
 
-  local num_buckets = 94321 --- default if no size specified
-  local min_buckets =   100 --- minimum number of buckets acceptable
-
   local function bytes(buckets)
     return buckets * core.bucket_size + core.header_size
   end
 
-  if totalsize then
-    assert(type(totalsize) == 'number') 
-    local dbsize = totalsize / 2
-    num_buckets = math.floor((dbsize - core.header_size) / core.bucket_size)
-    if num_buckets < min_buckets then
-      util.die('Databases too small; each database must use at least ',
-               util.human_of_bytes(bytes(min_buckets)), '\n')
-    end
+  totalsize = totalsize or 2 * cfg.constants.default_db_megabytes * 1024 * 1024
+  assert(type(totalsize) == 'number') 
+  local dbsize = totalsize / 2
+  local min_buckets =   100 --- minimum number of buckets acceptable
+  local num_buckets = math.floor((dbsize - core.header_size) / core.bucket_size)
+  if num_buckets < min_buckets then
+    util.die('Databases too small; each database must use at least ',
+             util.human_of_bytes(bytes(min_buckets)), '\n')
   end
 
   -- create new, empty databases
