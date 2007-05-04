@@ -1,7 +1,8 @@
 local modname = ...
-local util = require(string.gsub(modname, '[^%.]+$', 'util'))
+local osbfname = string.gsub(modname, '%..-$', '')
+local util = require(osbfname .. '.util')
 
-local osbf = _G[assert(string.match(modname, '(.-)%.'))]
+local osbf = _G[osbfname]
 
 local function internals(out, s)
   local function show(what, t)
@@ -27,7 +28,7 @@ local function internals(out, s)
   if not s then
     local documented, undocumented, ufuns = { }, { }, { }
     for k, v in pairs(osbf) do
-      if k ~= '_M' and type(v) == 'table' and v['_M'] then
+      if package.loaded[osbfname .. '.' .. k] == v then
         (v.__doc and documented or undocumented)[k] = true
         if v.__doc then
           undoc(k, v, ufuns)
