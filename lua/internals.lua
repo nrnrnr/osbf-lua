@@ -4,26 +4,34 @@ local util = require(string.gsub(modname, '[^%.]+$', 'util'))
 local osbf = _G[assert(string.match(modname, '(.-)%.'))]
 
 local function internals(out, s)
+  local function show(what, t)
+    local l = table.sorted_keys(t)
+    if #l > 0 then
+      out:write('\n', what, ':\n')
+      for _, m in ipairs(l) do out:write('  ', m, '\n') end
+    end
+  end
+
+  local function undoc(modname, m, ufuns)
+    local doc = assert(m.__doc)
+    ufuns = ufuns or { }
+    for f in pairs(m) do
+      if not string.find(f, '^_') and not doc[f] then
+        ufuns[modname .. '.' .. f] = true
+      end
+    end
+    return ufuns
+  end
+    
+
   if not s then
     local documented, undocumented, ufuns = { }, { }, { }
     for k, v in pairs(osbf) do
       if k ~= '_M' and type(v) == 'table' and v['_M'] then
         (v.__doc and documented or undocumented)[k] = true
         if v.__doc then
-          local doc = v.__doc
-          for f in pairs(v) do
-            if not string.find(f, '^_') and not doc[f] then
-              ufuns[k .. '.' .. f] = true
-            end
-          end
+          undoc(k, v, ufuns)
         end
-      end
-    end
-    local function show(what, t)
-      local l = table.sorted_keys(t)
-      if #l > 0 then
-        out:write(what, ':\n')
-        for _, m in ipairs(l) do out:write('  ', m, '\n') end
       end
     end
     show('Documented modules', documented)
@@ -54,7 +62,8 @@ local function internals(out, s)
       if string.find(k, '^__') then return end
       local d = string.gsub(doc[k], '\n\n', '\n  \n')
       d = string.gsub(d, '\n(.)', '\n  %1')
-      out:write('\n', s, '.', k, ' = ', d, final_newline(d))
+      local sep = osbf[module][k] and '.' or ': '
+      out:write('\n', s, sep, k, ' = ', d, final_newline(d))
     end
 
     if not doc then
@@ -78,6 +87,7 @@ local function internals(out, s)
           document(k)
         end
       end
+      show('Undocumented functions', undoc(module, osbf[module]))
     else -- document just the member
       if not osbf[module][member] then
         out:write('There is no such thing as ', s, '\n')

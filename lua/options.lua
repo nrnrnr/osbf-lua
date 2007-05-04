@@ -11,6 +11,27 @@ local core = require (_PACKAGE .. 'core')
 
 -- each is represented as a higher-order function to be used during parsing
 
+__doc = {
+  std = [[table of option types:
+val   - an option that must take an argument
+dir   - an option that must take an existing directory as argument
+bool  - an option that is either present or not; it takes no argument
+]],
+
+  register = [[function {long = string, type = type, usage = string, help = string}
+Registers a command-line option used by the main program.
+  long  - The long name of the option (short options aren't supported)
+  type  - The type of the option, from the option.std table
+  usage - A usage line for the option (optional)
+  help  - A long help text for the option (optional)
+]],
+
+  help  = [[a table of long help texts indexed by option]],
+  usage = [[a table of usage lines indexed by option]],
+
+}
+__doc.__order = { 'std', 'parse', 'register' }
+
 std = { }
 function std.val(key, value, args)
   if value ~= '' then
@@ -30,9 +51,6 @@ function std.dir(key, value, args)
   else
     return nil, 'Path ' .. v .. ' given for option --' .. key .. ' is not a directory'
   end
-end
-function std.optional(key, value, args)
-  return value
 end
 function std.bool(key, value, args)
   if value ~= '' then
@@ -64,7 +82,31 @@ function register(t)
   help[long] = t.help
 end
 
--- simple getopt to get command line options
+----------------------------------------------------------------
+__doc.parse = [[function(args, [opt_tab]) returns option table, arg list
+'opt_tab', if present, is a table mapping long names to option types.
+If absent, the parser uses the table created by 'options.register'.
+The function parses the list of args, peeling off options and
+returning a table of their values, plus any remaining arguments.  The
+syntax of an option may be any of the following:
+
+  --name=value
+  -name=value
+  --name value
+  -name value
+  --name
+  -name
+
+Whether a value is expected depends on the type of the option.
+
+The end of options may be forced with -- or -.  
+
+XXX   Things that are bogus   XXX
+We may one day want - to mean standard input.
+The wild diversity of syntax represents needless complexity.
+How about if we pick standard Unix long-option syntax (-name value)
+and stick with it?]]
+
 function parse(args, options)
   options = options or parsers
   local found = {}
