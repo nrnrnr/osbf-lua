@@ -35,7 +35,7 @@ constants = util.table_read_only
     learn_flags               = 0,
     mistake_flag              = 2,
     reinforcement_flag        = 4,
-    default_db_megabytes      = 1.1,
+    default_db_megabytes      = 1.08332062 -- 94321 buckets by default
   }
 
 text_limit = 100000
