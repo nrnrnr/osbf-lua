@@ -51,9 +51,10 @@ function init(totalsize)
     util.mkdir(d)
   end
 
-  totalsize = totalsize or 2 * cfg.constants.default_db_megabytes * 1024 * 1024
+  local dbcount = #cfg.dbset.classes
+  totalsize = totalsize or dbcount * cfg.constants.default_db_megabytes * 1024 * 1024
   assert(type(totalsize) == 'number') 
-  local dbsize = totalsize / 2
+  local dbsize = totalsize / dbcount
   -- create new, empty databases
   local totalbytes = 0
   for _, path in ipairs(cfg.dbset.classes) do
