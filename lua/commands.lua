@@ -22,6 +22,27 @@ list_add_pat    = mk_list_command('add', 'pats')
 list_del_string = mk_list_command('del', 'strings')
 list_del_pat    = mk_list_command('del', 'pats')
 
+--- Creates a single database
+-- returns exact size in bytes, which is the greatest multiple of
+-- bucket size <= size_in_bytes
+function create_single_db(db_path, size_in_bytes)
+  assert(type(size_in_bytes) == 'number') 
+
+  local function bytes(buckets)
+    return buckets * core.bucket_size + core.header_size
+  end
+
+  local min_buckets =   100 --- minimum number of buckets acceptable
+  local num_buckets =
+    math.floor((size_in_bytes - core.header_size) / core.bucket_size)
+  if num_buckets < min_buckets then
+    util.die('Database too small; each database must use at least ',
+             util.human_of_bytes(bytes(min_buckets)), '\n')
+  end
+  util.validate(core.create_db({db_path}, num_buckets))
+  return bytes(num_buckets)
+end
+
 -- The init command creates directories and databases and the default config.
 -- totalsize is the total size in bytes of all databases to be created
 function init(totalsize)
@@ -30,22 +51,14 @@ function init(totalsize)
     util.mkdir(d)
   end
 
-  local function bytes(buckets)
-    return buckets * core.bucket_size + core.header_size
-  end
-
   totalsize = totalsize or 2 * cfg.constants.default_db_megabytes * 1024 * 1024
   assert(type(totalsize) == 'number') 
   local dbsize = totalsize / 2
-  local min_buckets =   100 --- minimum number of buckets acceptable
-  local num_buckets = math.floor((dbsize - core.header_size) / core.bucket_size)
-  if num_buckets < min_buckets then
-    util.die('Databases too small; each database must use at least ',
-             util.human_of_bytes(bytes(min_buckets)), '\n')
-  end
-
   -- create new, empty databases
-  util.validate(core.create_db(cfg.dbset.classes, num_buckets))
+  local totalbytes = 0
+  for _, path in ipairs(cfg.dbset.classes) do
+    totalbytes = totalbytes + create_single_db(path, dbsize)
+  end
   local config = cfg.configfile
   if util.file_is_readable(config) then
     io.stderr:write('Warning: not overwriting existing ', config, '\n')
@@ -57,5 +70,5 @@ function init(totalsize)
     f:close()
     u:close()
   end
-  return 2 * bytes(num_buckets) --- total bytes consumed by databases
+  return totalbytes --- total bytes consumed by databases
 end

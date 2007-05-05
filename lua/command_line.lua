@@ -275,6 +275,42 @@ end
 
 table.insert(usage_lines, 'init [<database size in bytes>]')
 
+--- Changes the size of a single database.
+-- class is either 'ham' or 'spam'
+-- newsize is the new size
+-- if the new size is lesser than the original size, contents are
+-- pruned, less significative buckets first, to fit the new size.
+-- XXX if resized to 1.1M we get 95778 buckets, not 94321
+function resize(class, newsize, ...)
+  local nb = newsize and util.validate(util.bytes_of_human(newsize))
+  if select('#', ...) > 0
+  or type(class) ~= 'string' then
+    usage()
+  else
+    local ham_index = cfg.dbset.ham_index
+    local spam_index = cfg.dbset.spam_index
+    local dbname =
+      class == 'ham' and cfg.dbset.classes[ham_index]
+        or
+      class == 'spam' and cfg.dbset.classes[spam_index]
+        or
+      util.die('Unknown class to resize: "', class,
+        '". Valid classes are "ham" or spam"')
+
+    local stats = util.validate(core.stats(dbname))
+    local tmpname = util.validate(os.tmpname())
+    -- XXX non atomic...
+    os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force)
+    local real_bytes = commands.create_single_db(tmpname, nb)
+    util.validate(core.import(tmpname, dbname))
+    util.validate(os.rename(tmpname, dbname))
+    class = util.capitalize(class)
+    io.stdout:write(class, ' database resized to ',
+      util.human_of_bytes(real_bytes), '\n')
+  end
+end
+
+table.insert(usage_lines, 'resize <spam|ham> <new database size in bytes>' )
 
 function internals(s, ...)
   if select('#', ...) > 0 then
