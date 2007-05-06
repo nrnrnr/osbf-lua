@@ -201,5 +201,5 @@ function human_of_bytes(n)
   end
   local digits = n / mult[suff]
   local fmt = digits < 100 and '%3.1f%s%s' or '%d%s%s'
-  return string.format(fmt, digits, string.upper(suff), suff == 'b' and '' or 'B')
+  return string.format(fmt, digits, string.upper(suff), 'B')
 end
