@@ -63,8 +63,11 @@ local function internals(out, s)
       if string.find(k, '^__') then return end
       local d = string.gsub(doc[k], '\n\n', '\n  \n')
       d = string.gsub(d, '\n(.)', '\n  %1')
-      local sep = osbf[module][k] and '.' or ': '
-      out:write('\n', s, sep, k, ' = ', d, final_newline(d))
+      local exported = osbf[module][k] ~= nil
+      if not exported then
+        d = string.gsub(d, '^%s*function', 'local function')
+      end
+      out:write('\n', s, exported and '.' or ': ', k, ' = ', d, final_newline(d))
     end
 
     if not doc then
