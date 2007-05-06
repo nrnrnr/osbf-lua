@@ -176,10 +176,10 @@ end
 --- return a string as number of bytes
 
 
-local mult = { [''] = 1, k = 1024, m = 1024 * 1024, g = 1024 * 1024 * 1024 }
+local mult = { [''] = 1, K = 1024, M = 1024 * 1024, G = 1024 * 1024 * 1024 }
 
 function bytes_of_human(s)
-  local n, suff = string.match(string.lower(s), '^(%d+%.?%d*)([kmg]?)b?$')
+  local n, suff = string.match(string.upper(s), '^(%d+%.?%d*)([KMG]?)B?$')
   if n and mult[suff] then
     return assert(tonumber(n)) * mult[suff]
   else
@@ -201,5 +201,5 @@ function human_of_bytes(n)
   end
   local digits = n / mult[suff]
   local fmt = digits < 100 and '%3.1f%s%s' or '%d%s%s'
-  return string.format(fmt, digits, string.upper(suff), 'B')
+  return string.format(fmt, digits, suff, 'B')
 end
