@@ -176,13 +176,12 @@ end
 --- return a string as number of bytes
 
 
-local mult = { b = 1, k = 1024, m = 1024 * 1024, g = 1024 * 1024 * 1024 }
+local mult = { [''] = 1, k = 1024, m = 1024 * 1024, g = 1024 * 1024 * 1024 }
 
 function bytes_of_human(s)
-  local n, suff = string.match(string.lower(s), '^(%d+%.?%d*)([bkmg]?)b-')
-  if suff == '' then suff = 'b' end
-  if n then
-    return assert(tonumber(n)) * assert(mult[suff])
+  local n, suff = string.match(string.lower(s), '^(%d+%.?%d*)([kmg]?)b?$')
+  if n and mult[suff] then
+    return assert(tonumber(n)) * mult[suff]
   else
     return nil, s .. ' does not represent a number of bytes'
   end
@@ -194,7 +193,7 @@ local smallest_mantissa = .9999 -- I hate roundoff error
 
 function human_of_bytes(n)
   assert(tonumber(n))
-  local suff = 'b'
+  local suff = ''
   for k, v in pairs(mult) do
     if v > mult[suff] and n / v >= smallest_mantissa then
       suff = k
