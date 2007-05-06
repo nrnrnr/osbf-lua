@@ -292,7 +292,8 @@ end
 ----------------------------------------------------------------
 
 __doc.add_header = [[function(T, tag, contents)
-Adds a new header to the message with the given tag and contents.]]
+Adds a new header to the message with the given tag and contents.i
+]]
 
 local function is_rfc2822_field_name(name)
   return type(name) == 'string'
@@ -306,6 +307,11 @@ function add_header(msg, tag, contents)
   msg = of_any(msg)
   table.insert(msg.headers, tag .. ': ' .. contents)
 end
+
+__doc.tag_subject = [[function(msg, tag)
+Prepends tag to all subject lines in msg headers.
+If msg has no subject, adds one.
+]]
 
 function tag_subject(msg, tag)
   msg = of_any(msg)
@@ -386,10 +392,7 @@ do
 end
 
 __doc.sfid = [[function(msgspec) returns string or nil, error-message
-Find the sfid associated with the specified message.]]
-
-__doc.extract_sfid = [[function(msgspec) returns string or nil, error-message
-Extract the sfid from the headers of the specified message.]]
+Finds the sfid associated with the specified message.]]
 
 function sfid(msgspec)
   if cache.is_sfid(msgspec) then
@@ -398,6 +401,9 @@ function sfid(msgspec)
     return extract_sfid(of_any(msgspec))
   end
 end
+
+__doc.extract_sfid = [[function(msgspec) returns string or nil, error-message
+Extracts the sfid from the headers of the specified message.]]
 
 function extract_sfid(msg)
   -- if the sfid was not given in the command, extract it
@@ -419,8 +425,11 @@ function extract_sfid(msg)
   return nil, 'Could not extract sfid from message'
 end
 
--- parses the subject line and returns a table with a filter command
--- and its args, if found
+__doc.find_subject_command = [[function(msg)
+Returns a table with command and args or nil, errmsg
+Searches Subject: lines in msg for a filter command.
+]]
+
 function find_subject_command(msg)
   msg = of_any(msg)
   for h in headers_tagged(msg, 'subject') do

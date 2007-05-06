@@ -19,31 +19,14 @@ local cache    = require (_PACKAGE .. 'cache')
 local options  = require (_PACKAGE .. 'options')
 require(_PACKAGE .. 'learn') -- loaded into 'commands'
 
+__doc = __doc or { }
+
 local usage_lines = { }
 
-local output_to = io.stdout
+__doc.run = [[function(cmd, ...)
+Runs command cmd calling it with arguments received.
+]] 
 
-function set_output(out)
-  -- no checks yet
-  output_to = out
-end
-
--- outputs text to stdout, stderr or sent it to email address
--- text - string to output
--- subj - subject of email (optional)
-function output(text, subj)
-  assert(type(text) == 'string', 'string expected, got ' .. type(text))
-  if output_to == io.stdout or output_to == io.stderr then
-    output_to:write(text)
-  elseif type(output_to) == 'string' then
-    -- assumes output_to is a valid email address
-    subj = subj or 'OSBF command results'
-    msg.send(output_to, subj, text) 
-  else
-    error('Invalid destination to output to')
-  end
-end
- 
 function run(cmd, ...)
   if not cmd then
     usage()
@@ -55,6 +38,9 @@ function run(cmd, ...)
   end
 end
     
+__doc.usage = [[function(usage)
+Prints command syntax to stderr and exits with error code 1.
+]] 
 
 function usage(...)
   if select('#', ...) > 0 then
@@ -86,6 +72,14 @@ local list_responses =
 local what = { add = 'String', ['add-pat'] = 'Pattern',
                del = 'String', ['del-pat'] = 'Pattern', }
   
+__doc.listfun = [[function(listname)
+Factory to create a closure to perform operations on listname.
+The returned function requires 3 arguments:
+ cmd - the operation to be performed;
+ tag - the header field name;
+ arg - contents of the header field to match.
+]]
+
 local function listfun(listname)
   return function(cmd, tag, arg)
            local result = lists.run(listname, cmd, tag, arg)
@@ -102,8 +96,13 @@ local function listfun(listname)
            end
          end
 end
-               
+
+__doc.blacklist = 'Closure to perform operations on the blacklist.\n'
+
 blacklist = listfun 'blacklist'
+
+__doc.whitelist = 'Closure to perform operations on the whitelist.\n'
+
 whitelist = listfun 'whitelist'
 
 for _, l in ipairs { 'whitelist', 'blacklist' } do
@@ -124,8 +123,11 @@ end
 
 
 
---- Iterator to generate multiple msg specs from command line,
---- or stdin if no specs are given.
+__doc.msgspecs = [[function(...)
+Iterator to generate multiple msg specs from command line,
+or stdin if no specs are given.
+]]
+
 local function msgspecs(...) --- maybe should be in util?
   local msgs = { ... }
   local stdin = false
@@ -143,6 +145,12 @@ local function msgspecs(...) --- maybe should be in util?
          end
 end
 
+__doc.learner = [[function(cmd)
+Factory to generate closures for learning messages as belonging
+to the specified class. The first argument of the closure is the
+class and the remaining are message specs.
+]]
+
 function learner(cmd)
   return function(classification, ...)
            for msgspec in msgspecs(...) do
@@ -152,12 +160,18 @@ function learner(cmd)
          end
 end
 
+__doc.learn = 'Closure to learn messages as belonging to the specified class.\n'
 learn   = learner(commands.learn)
+__doc.unlearn = 'Closure to unlearn messages as belonging to the specified class.\n'
 unlearn = learner(commands.unlearn)
 
 for _, l in ipairs { 'learn', 'unlearn' } do
   table.insert(usage_lines, l .. ' <spam|ham> [<sfid|filename> ...]')
 end
+
+__doc.sfid = [[function(...)
+Searches SFID and prints to stdout for each message spec  
+]]
 
 function sfid(...)
   for msgspec, what in msgspecs(...) do
@@ -167,6 +181,12 @@ function sfid(...)
 end
 
 table.insert(usage_lines, 'sfid [<sfid|filename> ...]')
+
+__doc.classify = [[function(...)
+Reads a message from a file, sfid or stdin, classifies it
+and prints the classification to stdout.
+Valid option: -cache => caches the original message
+]]
 
 function classify(...)
   local options, argv =
@@ -197,13 +217,15 @@ end
 
 table.insert(usage_lines, 'classify [-tag] [-cache] [<sfid|filename> ...]')
 
---- Filter messages
--- reads a message from a file, sfid or stdin and searchs for
--- a command in the subject and executes, if found, or classifies
--- and prints the message.
--- valid options: -notag   => disables subject tagging
---                -nocache => disables caching
---                -nosfid  => disables sfid (implies -nocache)
+__doc.filter = [[function(...)
+Reads a message from a file, sfid or stdin, searches for a command
+in the subject line and either executes the command, if found, or
+classifies and prints the classified message to stdout.
+Valid options: -notag   => disables subject tagging
+               -nocache => disables caching
+               -nosfid  => disables sfid (implies -nocache)
+]]
+
 function filter(...)
   local options, argv =
     util.validate(options.parse({...},
@@ -242,6 +264,10 @@ end
 table.insert(usage_lines,
   'filter [-nosfid] [-nocache] [-notag] [<sfid|filename> ...]')
  
+__doc.stats = [[function(...)
+Writes classification and database statistics to stdout.
+Valid options: -v, --verbose => adds more database statistics.
+]]
 
 do
   local opts = {verbose = options.std.bool, v = options.std.bool}
@@ -253,10 +279,9 @@ end
  
 table.insert(usage_lines, 'stats [-v|-verbose]')
 
---- Initialize OSBF-Lua's state in the filesystem.
--- A truly nice touch here would be to offer a -procmail option
--- that would add the recommended lines to the .procmailrc.
--- Not sure if the service is worth the extra complexity at this time.
+__doc.init = [[function(dbsize, ...)
+Initialize OSBF-Lua's state in the filesystem.
+]]
 
 function init(dbsize, ...)
   local nb = dbsize and util.validate(util.bytes_of_human(dbsize))
@@ -275,12 +300,15 @@ end
 
 table.insert(usage_lines, 'init [<database size in bytes>]')
 
---- Changes the size of a single database.
--- class is either 'ham' or 'spam'
--- newsize is the new size
--- if the new size is lesser than the original size, contents are
--- pruned, less significative buckets first, to fit the new size.
--- XXX if resized to 1.1M we get 95778 buckets, not 94321
+__doc.resize = [[function (class, newsize)
+Changes the size of a class database.
+class is either 'ham' or 'spam'.
+newsize is the new size in bytes.
+If the new size is lesser than the original size, contents are
+pruned, less significative buckets first, to fit the new size.
+XXX if resized back to 1.1M we get 95778 buckets, not 94321.
+]]
+
 function resize(class, newsize, ...)
   local nb = newsize and util.validate(util.bytes_of_human(newsize))
   if select('#', ...) > 0
@@ -300,7 +328,7 @@ function resize(class, newsize, ...)
     local stats = util.validate(core.stats(dbname))
     local tmpname = util.validate(os.tmpname())
     -- XXX non atomic...
-    os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force)
+    os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force?)
     local real_bytes = commands.create_single_db(tmpname, nb)
     util.validate(core.import(tmpname, dbname))
     util.validate(os.rename(tmpname, dbname))
@@ -311,6 +339,10 @@ function resize(class, newsize, ...)
 end
 
 table.insert(usage_lines, 'resize <spam|ham> <new database size in bytes>' )
+
+__doc.internals = [[functions(s, ...)
+Shows docs.
+]]
 
 function internals(s, ...)
   if select('#', ...) > 0 then

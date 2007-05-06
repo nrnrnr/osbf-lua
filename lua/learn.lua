@@ -26,7 +26,6 @@ local cache = require(_PACKAGE .. 'cache')
 
 __doc = __doc or { }
 
-
 local errmsgs = {
   learn = {
     spam = [[This message has already been learned as spam.  To unlearn it, ...]], 
@@ -123,9 +122,9 @@ end
 
 
 
-__doc.learn = [[
-function(sfid, classification) returns comment, status, old pR, new pR
-                               returns nil, error-message
+__doc.learn = [[function(sfid, classification)
+Returns comment, status, old pR, new pR
+  or    nil, error-message
 Updates the database to reflect human classification (ham or spam)
 of an unlearned message.  Also changes the message's status in the cache.
 ]]
@@ -181,9 +180,9 @@ function learn(sfid, classification)
   return comment, classification, orig, new
 end  
 
-__doc.unlearn = [[
-function(sfid, [classification]) returns comment, status, old pR, new pR
-                                returns nil, error-message
+__doc.unlearn = [[function(sfid, classification)
+Returns comment, status, old pR, new pR
+  or    nil, error-message
 Undoes the effect of the learn command.  The classification is optional
 but if present must be equal to the classification originally learned.
 ]]
