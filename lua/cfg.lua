@@ -16,6 +16,7 @@ local options = require (_PACKAGE .. 'options')
 local boot    = require (_PACKAGE .. 'boot')
 local core    = require (_PACKAGE .. 'core')
 
+
 --- put default configuration in my configuration
 for k, v in pairs(d) do
   _M[k] = v
@@ -23,10 +24,16 @@ end
 
 local default_pwd = assert(d.pwd)
 
+__doc = __doc or { }
+__doc.version = "OSBF-Lua version."
+__doc.slash = "Holds the detected OS slash char, '/' or '\\'."
+ 
 slash = assert(string.match(package.path, [=[[\/]]=]))
 
 --- XXX could we get rid of this and make all of config read-only
 --- except changeable via 'load'?
+
+__doc.constants = "Constants used by OSBF-Lua"
 
 constants = util.table_read_only
   {
@@ -38,7 +45,14 @@ constants = util.table_read_only
     default_db_megabytes      = 1.08332062 -- 94321 buckets by default
   }
 
+__doc.text_limit = [[Initial length of a message to be used in
+classifications and learnings.]]
+
 text_limit = 100000
+
+__doc.load = [[function(filename)
+Loads a config file.
+]]
 
 function load(filename)
   local config, err = util.protected_dofile(filename)
@@ -53,6 +67,11 @@ function load(filename)
   end
   return true
 end
+
+__doc.load_if_readable = [[function(filename)
+Loads a config file if readable.
+Normally used to load user's config file.
+]]
 
 function load_if_readable(filename)
   if util.file_is_readable(filename) then
@@ -110,9 +129,26 @@ for _, o in ipairs(opts) do options.register(o) end
 
 --- directories
 
+__doc.dirs = [[Table with system dirs:
+dirs.udir     - User's OSBF-Lua directory. Defaults to $HOME/.osbf-lua.
+dirs.dbdir    - Database directory. Defaults to dirs.udir.
+dirs.listdir  - Directory for blacklist and whitelist. Defaults to dirs.udir.
+dirs.cachedir - Directory for message cache. Defaults to dirs.udir/cache.
+]]
+
 dirs = { }
 
+__doc.configfile = [[Configuration file; initialized by set_dirs.
+Defaults to dirs.udir/config.lua.]]
+
 configfile = nil -- initialized by set_dirs
+
+__doc.set_dirs = [[function(options, no_dirs_ok)
+Sets directories used by OSBF-Lua to command-line option values
+or default values.
+If no_dirs_ok is false, all dirs, given or default, are checked for
+existance. In that case, the program exits with error if any doesn't exist.
+]]
 
 function set_dirs(options, no_dirs_ok)
   local HOME = os.getenv 'HOME'
@@ -146,8 +182,11 @@ function set_dirs(options, no_dirs_ok)
 end
 
 
--- give a filename in particular directory
--- suffix is used primarily to deal with sfid suffixes
+__doc.dirfilename = [[function(dir, filename, suffix)
+Returns a filename in particular directory of table dirs.
+Suffix is used primarily to deal with sfid suffixes.
+]]
+
 function dirfilename(dir, basename, suffix)
   suffix = suffix or ''
   local d = assert(dirs[dir], dir .. ' is not a valid directory indicator')
@@ -155,6 +194,10 @@ function dirfilename(dir, basename, suffix)
 end
 
 ----------------------------------------------------------------
+__doc.password_ok = [[function()
+Returns true if password in user config file is OK or nil, errmsg.
+]]
+
 function password_ok()
   if pwd == default_pwd then
     return nil, 'Default password still used in ' .. configfile
@@ -165,6 +208,11 @@ function password_ok()
   end
 end
 
+__doc.init = [[function(options, no_dirs_ok)
+Sets OSBF-Lua directories, databases and loads user's config file.
+]]
+
+__doc.dbset = "Table with database info."
 local function init(options, no_dirs_ok)
   set_dirs(options, no_dirs_ok)
   dbset = {
