@@ -201,7 +201,7 @@ but %s.]], classification, errmsgs.unlearn[status])
   local parms = learn_parms(classification)
   local k = cfg.constants
   local old_pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
-  core.unlearn(orig_msg, cfg.dbset, parms.index, k.learn_flags+k.mistake_flag)
+  core.unlearn(lim_orig_msg, cfg.dbset, parms.index, k.learn_flags+k.mistake_flag)
   local pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
   local i = 0
   while i < parms.reinforcement_limit and parms.bigger(pR, threshold_offset) do
