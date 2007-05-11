@@ -204,41 +204,41 @@ function human_of_bytes(n)
   return string.format(fmt, digits, suff, 'B')
 end
 ----------------------------------------------------------------
-function encode_quoted_printable(s) return s end -- totally bogus
---[====[
-do
-  local quoted_printable_table = { ['='] = '3D', [' '] = '20', }
+-- PIL, section 21.1
+local split_qp_at
 
-  function encode_quoted_printable(text, len)
-    local limited_text = ""
-    if len < 5 then len = 5 end
-    if not string.find(text, '\n$') then
-      text = text .. "\n"
+function encode_quoted_printable(s, max_width)
+  s = string.gsub(s, "([\128-\255=])", function (c)
+          return string.format("=%02X", string.byte(c))
+        end)
+  local lines = { }
+  if not string.find(s, '\n$') then s = s .. '\n' end
+  for l in string.gmatch(s, '(.-)\n') do
+    repeat
+      first, rest = split_qp_at(l, max_width)
+      table.insert(lines, first)
+      l = rest
+    until l == nil
+  end
+  table.insert(lines, '')
+  return table.concat(lines, '\n')
+end
+
+-- splits a line that's too long, quoting the newline with =
+split_qp_at = function(l, width)    
+  width = width or 65
+  if width < 5 then width = 5 end
+  if string.len(l) <= width then
+    return l
+  else
+    -- cut off, but cannot cut off at = or =X (but =XX is OK)
+    local i = width - 1
+    local s = string.sub(l, 1, i)
+    while string.find(s, '=.?$') do
+      i = i - 1
+      s = string.sub(l, 1, i)
     end
-    local ilen = len - 3 -- reserve space for final =20 or final "=\n"
-    for l in string.gmatch(text, "(.-\n)") do
-      local lines = split_lines(stl, ilen)
-      local ll = string.len(l)
-      if ll > ilen then
-        local first = string.sub(l, 1, ilen)
-        local first = string.match(string.sub(l, 1, ilen), "^(.+[^=][^=])")
-        ilen = string.len(first)
-        if string.sub(first, -1) == " " then
-          limited_text = limited_text ..
-            string.sub(first, 1, ilen-1) .. "=20\n" ..
-            limit_lines(string.sub(l, ilen+1), len)
-        else
-          limited_text = limited_text ..
-            first .. "=\n" ..
-            limit_lines(string.sub(l, ilen+1), len)
-        end
-      else
-        l = string.gsub(l, " \n", "=20\n")
-        l = string.gsub(l, "\t\n", "=09\n")
-        limited_text =  limited_text .. l
-      end
-    end
-    return limited_text
+    return s .. '=', string.sub(l, i+1)
   end
 end
-]====]
+
