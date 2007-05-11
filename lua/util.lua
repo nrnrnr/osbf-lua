@@ -203,3 +203,42 @@ function human_of_bytes(n)
   local fmt = digits < 100 and '%3.1f%s%s' or '%d%s%s'
   return string.format(fmt, digits, suff, 'B')
 end
+----------------------------------------------------------------
+function encode_quoted_printable(s) return s end -- totally bogus
+--[====[
+do
+  local quoted_printable_table = { ['='] = '3D', [' '] = '20', }
+
+  function encode_quoted_printable(text, len)
+    local limited_text = ""
+    if len < 5 then len = 5 end
+    if not string.find(text, '\n$') then
+      text = text .. "\n"
+    end
+    local ilen = len - 3 -- reserve space for final =20 or final "=\n"
+    for l in string.gmatch(text, "(.-\n)") do
+      local lines = split_lines(stl, ilen)
+      local ll = string.len(l)
+      if ll > ilen then
+        local first = string.sub(l, 1, ilen)
+        local first = string.match(string.sub(l, 1, ilen), "^(.+[^=][^=])")
+        ilen = string.len(first)
+        if string.sub(first, -1) == " " then
+          limited_text = limited_text ..
+            string.sub(first, 1, ilen-1) .. "=20\n" ..
+            limit_lines(string.sub(l, ilen+1), len)
+        else
+          limited_text = limited_text ..
+            first .. "=\n" ..
+            limit_lines(string.sub(l, ilen+1), len)
+        end
+      else
+        l = string.gsub(l, " \n", "=20\n")
+        l = string.gsub(l, "\t\n", "=09\n")
+        limited_text =  limited_text .. l
+      end
+    end
+    return limited_text
+  end
+end
+]====]

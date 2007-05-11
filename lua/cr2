@@ -1,0 +1,573 @@
+#!/usr/bin/lua5.1
+-- Script for sending training form email to the user
+-- Version 1.0.2
+--
+-- This software is licensed to the public under the Free Software
+-- Foundation's GNU GPL, version 2.  You may obtain a copy of the
+-- GPL by visiting the Free Software Foundations web site at
+-- www.fsf.org, and a copy is included in this distribution.
+--
+-- Copyright 2006, 2007  Fidelis Assis, all rights reserved.
+
+local osbf = require 'osbf3'
+local cfg = osbf.cfg
+local options = osbf.options
+local util = osbf.util
+local core = osbf.core
+local commands = osbf.commands
+
+local homepage = 'http://osbf-lua.luaforge.net'
+
+local options, args = util.validate(options.parse(arg))
+osbf.init(options)
+
+if #arg ~= 1 then
+  util.die('Usage: ', arg[0], ' <email-address>')
+end
+
+local user_email = arg[1]
+
+local max_sfids    = 50  --- needs to go into user config
+
+local dirs = osbf.cfg.dirs
+
+----------------------------------------------------------------
+---- html support
+
+local html = { }
+do
+  local quote = { ['&'] = '&amp;', ['<'] = '&lt;', ['>'] = '&gt;', ['"'] = '&quot;' }
+
+  function html.of_ascii(s)
+    return string.gsub(s, '[%&%<%>%"]', quote)
+  end
+
+  local function html_atts(t)
+    if t then
+      local s = { }
+      for k, v in pairs(t) do
+        table.insert(s, table.concat { k, '="', v, '"' })
+      end
+      return ' ' .. table.concat(s, ' ')
+    else
+      return ''
+    end
+  end
+
+  local function tag(t)
+    return function(atts, s)
+             if not s and type(atts) ~= 'table' then
+               atts, s = nil, atts
+             end
+             if s then
+               return table.concat { '<', t, html_atts(atts), '>', s, '</', t, '>' }
+             else
+               return table.concat { '<', t, html_atts(atts), '>' }
+             end
+           end
+  end
+
+  local tags = { 'a', 'b', 'i', 'p', 'table', 'col', 'tbody', 'tr', 'td', 'center' }
+
+  for _, t in ipairs(tags) do html[t] = tag(t) end
+end
+----------------------------------------------------------------
+  
+
+local homelink = html.a({href=homepage}, 'OSBF-Lua')
+
+-- must be ready to use quoted-printable encoding (= -> =3D)
+
+local menu_items = { -- menu possibilities per each message
+  "none", "recover", "remove", "whitelist_from", "whitelist_subject", 
+  "spam", "nonspam", "undo",
+}
+
+----------------------------------------------------------------
+---- Language/Locale Support
+
+local function replace_dollar(s, t)
+  return string.gsub(s, '%$([%a_]+)', t)
+end
+
+-- how to render menu items, table headings, etc in English
+local English = {
+  homelink = homelink,
+  subject = "OSBF-Lua training form",
+  send_actions = "Send Actions",
+  title = [[$homelink Training Form<br>
+            Check the pre-selected actions, change if necessary, 
+            and click "$send_actions"]],
+  title_nready  = [[$homelink Training Form<br>
+            Select the proper training actino for each message
+            and click "$send_actions"]],
+  none 		= "None",
+  recover	= "Recover message",
+  remove	= "Remove from cache",
+  whitelist_from = "Add 'From:' to whitelist",
+  whitelist_subj = "Add 'Subject:' to whitelist",
+  train_as_ham	= "Train as Ham",
+  train_as_spam = "Train as Spam",
+  train_undo    = "Undo training",
+  train_nomsgs  = "No messages for training",
+  table = { date  = "Date", from = "From", subject = "Subject", action = "Action" },
+
+  stats = {
+    stats     = "Statistics",
+    num_class = "Classifications",
+    mistakes  = "Mistakes",
+    learnings = "Learnings",
+    accuracy  = "Accuracy",
+    spam      = "Spam",
+    non_spam  = "Ham",
+    total     = "Total",
+  },
+}
+
+-- how to render menu items, table headings, etc in Brazilian Portuguese
+local Brazilian_Portuguese = {
+  homelink = homelink,
+  subject = "OSBF-Lua - =?ISO-8859-1?Q?formul=E1rio_de_treinamento?=",
+  send_actions = "Enviar A&ccedil;&otilde;es",
+  title = [[$homelink - Formul&aacute;rio de treinamento<br>
+            Verifique as a&ccedil&otilde;es pr&eacute;-selecionadas, 
+            altere se necess&aacute;rio, e clique em "$send_actions"]],
+  title_nready = [[$homelink - Formul&aacute;rio de treinamento<br>
+                   Selecione a a&ccedil;&atilde;o de treinamento
+                   adequada para cada mensagem e clique em "$send_actions"]],
+  none 		= "Nenhuma",
+  recover	= "Recuperar mensagem",
+  remove	= "Remover do cache",
+  whitelist_from = "P&ocirc;r remetente em whitelist",
+  whitelist_subj = "P&ocirc;r 'Assunto:' em whitelist",
+  train_as_ham	= "Treinar como N&atilde;o-Spam",
+  train_as_spam = "Treinar como Spam",
+  train_undo    = "Desfazer treinamento",
+  train_nomsgs  = "N&atilde;o h&aacute; mensagens para treinamento",
+  table = { date  = "Data", from = "De", subject = "Assunto",
+            action = "A&ccedil;&atilde;o" },
+
+  stats = {
+    stats     = "Estat&iacute;sticas",
+    num_class = "Classifica&ccedil;&otilde;es",
+    mistakes  = "Erros",
+    learnings = "Treinamentos",
+    accuracy  = "Precis&atilde;o",
+    spam      = "Spam",
+    non_spam  = "N&atilde;o Spam",
+    total     = "Total",
+  },
+}
+
+local languages = { en_us = English, pt_br = Brazilian_Portuguese, posix = English }
+
+----- set language according to locale
+local language = languages.posix
+for l in string.gmatch(os.getenv 'LANGUAGE' or '', '[^:]+') do
+  local lang = languages[string.lower(l)]
+  if lang then
+    language = lang
+    break
+  end
+end
+
+-- flatten table
+for k, v in pairs(language.table) do
+  language['table_' .. k] = v
+end
+
+-- replace $ strings (shallow only; $ may not refer to $)
+for k, v in pairs(language) do
+  if type(v) == 'string' then
+    language[k] = replace_dollar(v, language)
+  end
+end
+
+
+local function localize(s) return replace_dollar(s, language) end
+
+----------------------------------------------------------------
+
+local mail_cmd = util.validate(osbf.cfg.mail_cmd, "No mail command!!")
+
+local colors = {
+  background = '#ffec8b',
+  border = '#3d0000',
+  spam = "#ff0000",
+  ham = "#0000aa",
+  default = "#000000",
+  invalid = "#ff0000", -- color for an invalid date
+}
+
+local select = 
+  [[<select class="menu" onChange="this.style.backgroundColor='$colors.background'
+    name="$sfid">]]
+
+local function make_select(sfid, ready)
+  local selected = { }
+  if string.find(sfid, "sfid%-[-S]") then
+    selected.spam = true
+  elseif string.find(sfid, "sfid%-[+H]") then
+    selected.ham  = true
+  else
+    selected.none = true
+  end
+  local function menu_item(tag)
+    return string.format([[<option class="menu" value="%s"%s>]], tag, language[tag],
+                         selected[tag] and ' selected' or '')
+  end
+
+  local menu = { replace_dollar(select, {sfid=sfid}) }
+  for _, m in ipairs(menu_items) do
+    table.insert(menu, menu_item(m))
+  end
+  table.insert(menu, "</option></select>")
+  return table.concat(select, '\n')
+end
+
+-- return an HTML table with statistics
+local function html_stat_table()
+  local hstats, sstats, herr, serr, spam_rate, gerr = commands.stats()
+  local stats = language.stats
+  stats.bcolor = colors.border --- what a hack!
+
+  local columns = { 'stats', 'num_class', 'mistakes', 'learnings', 'accuracy' }
+  local widths = {
+    stats = 136, num_class = 109, mistakes = 75, learnings = 111, accuracy = 92
+  }
+
+  local hams  = {stats.ham, hstats.classifications, hstats.mistakes,
+                 hstats.learnings, (1-herr)*100}
+  local spams = {stats.spam, sstats.classifications, sstats.mistakes,
+                 sstats.learnings, (1-serr)*100}
+  local totals = {stats.total, hstats.classifications + sstats.classifications,
+                   hstats.learnings+sstats.learnings, (1-gerr) * 100}
+
+  local headers, cols, hspams, hhams, footers = { }, { }, { }, { }, { }
+  for i = 1, #columns do
+    local c = columns[i]
+    local wtab = {width = widths[c]}
+    local text = language.stats[c]
+    if c == 'stats' then text = html.i(text) end
+    table.insert(headers, html.td (wtab, html.p(html.b(text))))
+    table.insert(cols,    html.col(wtab))
+    table.insert(hspams,  html.td (wtab, html.p(spams[i])))
+    table.insert(hhams,   html.td (wtab, html.p(hams [i])))
+    table.insert(footers, html.td (wtab, html.p(hams [i])))
+  end
+  local header = html.tr({class="stats_header", height="25", valign="middle"},
+                         table.concat(headers, '\n'))
+  local function row(l)
+    return html.tr({class="stats_row", valign="MIDDLE", height="25"}, table.concat(l))
+  end
+  local function linecat(l) return table.concat(l, '\n') end
+  local tbl =
+    html.table({always="", border=1, bordercolor=colors.border,
+                cellpadding=4, cellspacing=0},
+              linecat {table.concat(cols),
+                html.tbody(linecat {row(hspams), row(hhams), row(footers)})})
+  return html.center(tbl)
+end
+
+local rfc2822_to_localtime --- this should move to util module
+do
+  local tmonth = {jan=1, feb=2, mar=3, apr=4, may=5, jun=6,
+                  jul=7, aug=8, sep=9, oct=10, nov=11, dec=12}
+
+  rfc2822_to_localtime = function (date)
+
+    -- remove comments (CFWS)
+    date = string.gsub(date, "%b()", "")
+
+    -- Ex: Tue, 21 Nov 2006 14:26:58 -0200
+    local day, month, year, hh, mm, ss, zz =
+      string.match(date,
+       "%a%a%a,%s+(%d+)%s+(%a%a%a)%s+(%d%d+)%s+(%d%d):(%d%d)(%S*)%s+(%S+)")
+
+    if not (day and month and year) then
+      day, month, year, hh, mm, ss, zz =
+      string.match(date,
+       "(%d+)%s+(%a%a%a)%s+(%d%d+)%s+(%d%d):(%d%d)(%S*)%s+(%S+)")
+      if  not (day and month and year) then
+        return nil
+      end
+    end
+
+    local month_number = tmonth[string.lower(month)]
+    if not month_number then
+      return nil
+    end
+
+    year = tonumber(year)
+
+    if year >= 0 and year < 50 then
+      year = year + 2000
+    elseif year >= 50 and year <= 99 then
+      year = year + 1900
+    end
+
+    if not ss or ss == "" then
+      ss = 0
+    else
+      ss = string.match(ss, "^:(%d%d)$")
+    end
+
+    if not ss then
+      return nil
+    end
+
+
+    local tz = nil
+    local s, zzh, zzm = string.match(zz, "([-+])(%d%d)(%d%d)")
+    if s and zzh and zzm then
+      tz = zzh * 3600 + zzm * 60
+      if s == "-" then tz = -tz end
+    else
+      if zz == "GMT" or zz == "UT" then
+        tz = 0;
+      elseif zz == "EST" or zz == "CDT" then
+        tz = -5 * 3600
+      elseif zz == "CST" or zz == "MDT" then
+        tz = -6 * 3600
+      elseif zz == "MST" or zz == "PDT" then
+        tz = -7 * 3600
+      elseif zz == "PST" then
+        tz = -8 * 3600
+      elseif zz == "EDT" then
+        tz = -4 * 3600
+      -- todo: military zones
+      end
+    end
+
+    if not tz then
+      return nil
+    end
+ 
+    local ts = os.time{year=year, month=month_number,
+                        day=day, hour=hh, min=mm, sec=ss}
+
+    if not ts then
+--[[
+      local h = io.open(log_dir .. "log_cache.txt", "a")
+      h:write(date, "\n")
+      h:close()
+--]]
+      return nil
+    end
+
+    -- find out the local offset to UTC
+    local uy, um, ud, uhh, umm, uss =
+         string.match(os.date("!%Y%m%d %H:%M:%S", ts),
+                         "(%d%d%d%d)(%d%d)(%d%d) (%d%d):(%d%d):(%d%d)")
+    lts = os.time{year=uy, month=um,
+                        day=ud, hour=uhh, min=umm, sec=uss}
+    local off_utc = ts - lts
+
+    return ts - (tz - off_utc)
+  end
+end
+
+
+--------------------------------------------------------
+
+local hstats, sstats = commands.stats()
+local ready = hstats.learnings >= 10 and sstats[2].learnings >= 10
+
+if not ready then language.title = language.title_nready end
+
+language.email = user_email -- more hacks
+language.password = osbf.cfg.pwd
+
+local message_header = localize [[
+From: $email
+To: $email
+X-Spamfilter-Lua-Whitelist: $password
+Subject: $subject
+
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+	boundary="--=-=-=-train-report-boundary-=-=-="
+This is a multi-part message in MIME format.
+
+----=-=-=-train-report-boundary-=-=-=
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+
+]]
+
+local start_html = [[
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+  <head>
+    <meta content="text/html; charset=ISO-8859-1" 
+          http-equiv="content-type">
+    <title>Train_form</title>
+
+<style>
+select.menu, option.menu {
+  font-family: Helvetica, sans-serif;
+  font-size: 11px;
+}
+
+tr.msgs {
+  font-family: Helvetica, sans-serif;
+  font-size: 14px;
+  height: 24px;
+  background-color: #ddeedd;
+}
+
+tr.stats_header {
+  font-family: Helvetica, sans-serif;
+  font-size: 12px;
+  color: rgb(0, 0, 0);
+  background-color: rgb(172, 172, 124);
+}
+tr.stats_row {
+  font-family: Helvetica, sans-serif;
+  font-size: 12px;
+  color: rgb(0, 0, 0);
+  background-color: rgb(221, 238, 221);
+  text-align: right;
+}
+tr.stats_footer {
+  font-family: Helvetica, sans-serif;
+  font-size: 12px;
+  color: rgb(0, 0, 0);
+  background-color: rgb(201, 216, 201);
+  text-align: right;
+}
+</style>
+</head>
+<body>
+]]
+
+local start_form = localize [[
+<div style="text-align: left;"><small><span style="font-weight: bold;
+  font-family: Helvetica, sans-serif;"><i>$title</i></span></small><br>
+   </div>
+<form enctype="text/plain" method="post" 
+      action="mailto:$email?subject=batch_train $password" name="TRAIN_FROM">
+<div style="text-align: center;"></div>
+<table style="text-align: left; max-width: 80%; height: 48px;" 
+       border="0" cellpadding="2" cellspacing="2"><tbody>
+<tr>
+  <th style="text-align: center; max-width: 18%; font-family: Helvetica, sans-serif;
+      background-color: #acac7c; height: 24px;"><p><small>
+      <span style="font-weight: bold;">$table_date</span></small></p> </th>
+  <th style="text-align: center; max-width: 23%; font-family: Helvetica, sans-serif;
+       background-color: #acac7c; height: 24px;"><p><small>
+      <span style="font-weight: bold;">$table_from</span></small></p></th> 
+  <th style="max-width: 45%; text-align: center; font-family: Helvetica, sans-serif;
+        background-color: #acac7c; height: 24px;"><p><small>
+      <span style="font-weight: bold;">$table_subject</span></small></p></th>
+  <th style="text-align: center; max-width: 14%; font-family: Helvetica, sans-serif;
+        background-color: #acac7c; height: 24px;"><p><small>
+      <span style="font-weight: bold;">$table_action</span></small></p></th>
+</tr>
+]]
+
+local end_form = localize [[
+</tbody></table><br><div style="text-align: center;">
+<input accesskey="E" type="submit" value="$send_actions"></form><br><hr><br>
+]]
+
+local end_html = 
+[[</div></body></html>
+
+----=-=-=-train-report-boundary-=-=-=--
+]]
+
+local sfidtab, sfidtab_out = {}, {}
+
+local sfid_subdirs = {""}
+if cfg.use_sfid_subdir then
+  sfid_subdirs = {os.date("%d/%H/", os.time()- 24*3600), -- yesterday
+		  os.date("%d/%H/", os.time())}          -- today
+end
+
+--- shouldn't sfids be sorted by time or something?
+for _, subdir in ipairs(sfid_subdirs) do
+  for f in core.dir(dirs.cache .. subdir) do
+    if string.match(f, "sfid%-[-+].+[^-][^sh]$") then
+      table.insert(sfidtab, f)
+      if #sfidtab >= max_sfids then
+        break
+      end
+    elseif string.match(f, "sfid%-[^BW]-[-+]0[01].[%.,]..%-%d-@.+[^-][^sh]$") then
+      table.insert(sfidtab_out, f)
+    end
+  end
+end
+
+for _, f in ipairs(sfidtab_out) do
+  if #sfidtab < max_sfids then
+    table.isnert(sfidtab, f)
+  else
+    break
+  end
+end
+
+local loop_msg, header
+
+local loop_template = [[
+<tr class="msgs">
+  <td style="width: 15%; max-width: 18%; color: $datecolor;"><small>$date</small></td>
+  <td style="width: 26%; max-width: 23%; color: $fgcolor;"><small>$from</small></td>
+  <td style="width: 45%; max-width: 45%; color: $fgcolor<small>$subject</small></td>
+  <td style="width: 14%; max-width: 14%; vertical-align: middle; color: $fgcolor;">
+              <p><small>$select</small></td>
+</tr>]]
+
+
+loop_msg = { }
+for _, f in ipairs(sfidtab) do
+  local m, status = msg.of_sfid(sfid)
+  util.validate(file, 'Sudden disappearance of a sfid from the cache')
+  local subject = msg.header_tagged(m, 'subject') or '(no subject)'
+  local from = msg.header_tagged(m, 'from') or '(no from)'
+  local date = msg.header_tagged(m, 'date') or '(no date)'
+
+  from = string.gsub(from, nocase("=%?ISO%-8859%-1%?Q%?") .. "(.-)%?=", "%1")
+  from = string.gsub(from, "(" .. string.rep("%S", 32) ..")(%S)", "%1 %2")
+  from = html.of_ascii(from)
+
+  subject = string.gsub(subject, nocase("=%?ISO%-8859%-1%?Q%?") .. "(.-)%?=", "%1")
+  subject = string.gsub(subject, "(" .. string.rep("%S", 40) ..")(%S)", "%1 %2")
+  subject = html.of_ascii(subject)
+
+  if ready and string.match(f, "sfid%-[-S]") then
+    fgcolor = colors.spam
+  elseif ready and string.match(f, "sfid%-[+H]") then
+    fgcolor = colors.ham
+  else
+    fgcolor = colors.default
+  end
+
+  local date_fgcolor = fgcolor
+  local lts = rfc2822_to_localtime(date) 
+  if lts then
+    date = os.date("%Y/%m/%d %H:%M", lts)
+  else
+    date_fgcolor = colors.invalid
+  end
+
+  local data = {
+    datecolor = date_fgcolor, fgcolor = fgcolor,
+    from = from, subject = subject, date = date,
+    select = make_select(f, ready)
+  }
+
+  table.insert(loop_msg, replace_dollar(loop_template, data))
+end
+
+loop_msg = table.concat(loop_msg)
+
+local body =
+  #sfidtab > 0 and
+  table.concat { start_html, start_form, loop_msg, html_stat_table(), end_html } or
+  table.concat { start_html, "<center>", language.train_nomsgs, "</center><p>",
+                 html_stat_table(), end_html }
+
+-- since this is to be run from a cron job anyway, best to pipe to sendmail from there
+io.stdout:write(message_header, util.encode_quoted_printable(body, 65), '\n')
+   --- encoded-printable is not implemented yet

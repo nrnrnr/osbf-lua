@@ -7,13 +7,9 @@
 require 'osbf'
 require 'osbf.command_line'
 require 'osbf.options'
+require 'osbf.util'
 
-local options, args = osbf.options.parse(arg)
-
-if not options then
-  io.stderr:write(args, '\n')
-  os.exit(1)
-end
+local options, args = osbf.util.validate(osbf.options.parse(arg))
 
 osbf.init(options, args[1] == 'init')
 

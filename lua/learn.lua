@@ -299,14 +299,19 @@ function classify(msg)
 end
 
 -----------------------------------------------------------------------------
--- write statistics of the databases
+-- calculate statistics
 
-__doc.write_stats = [[function(outfile, verbose)
-Writes statistics using outfile:write.
-If verbose is true, writes even more statistics.
+__doc.stats = [[function() returns hstats, sstats, herr, rerr, srate, gerr
+where
+  hstats = core ham  statistics
+  sstats = core spam statistics
+  herr   = ham  error rate
+  serr   = spam error rate
+  srate  = spam rate
+  gerr   = global error rate
 ]]
 
-function write_stats(outfile, verbose)
+function stats()
   local ham_db  = cfg.dbset.classes[cfg.dbset.ham_index]
   local spam_db = cfg.dbset.classes[cfg.dbset.spam_index]
   local stats1 = util.validate(core.stats(ham_db))
@@ -329,6 +334,20 @@ function write_stats(outfile, verbose)
     global_error_rate = (stats1.mistakes + stats2.mistakes) /
                              (stats1.classifications + stats2.classifications)
   end
+  return stats1, stats2, error_rate1, error_rate2, spam_rate, global_error_rate
+end
+
+-----------------------------------------------------------------------------
+-- write statistics of the databases
+
+__doc.write_stats = [[function(outfile, verbose)
+Writes statistics using outfile:write.
+If verbose is true, writes even more statistics.
+]]
+
+function write_stats(outfile, verbose)
+  local stats1, stats2, error_rate1, error_rate2, spam_rate, global_error_rate =
+    stats()
 
   -------------- utility functions and values for writing reports
 
