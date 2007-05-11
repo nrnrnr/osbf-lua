@@ -101,12 +101,21 @@ message to be sent.
 ----------------------------------------------------------------
 
 
+
+
 local default_pwd = assert(d.pwd)
 
 __doc.version = "OSBF-Lua version."
 __doc.slash = "Holds the detected OS slash char, '/' or '\\'."
  
 slash = assert(string.match(package.path, [=[[\/]]=]))
+
+__doc.homepage = 'Home page of the OSBF-Lua project.'
+homepage = 'http://osbf-lua.luaforge.net'
+
+
+
+
 
 --- XXX could we get rid of this and make all of config read-only
 --- except changeable via 'load'?

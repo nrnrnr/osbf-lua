@@ -21,8 +21,6 @@ local cache = require(_PACKAGE .. 'cache')
 
 local html = util.html
 
-local homepage = 'http://osbf-lua.luaforge.net'
-
 ----------------------------------------------------------------
 ---- Color and template support
 
@@ -46,7 +44,7 @@ end
 ---- Language/Locale Support
 
 
-local homelink = html.a({href=homepage}, 'OSBF-Lua')
+local homelink = html.a({href=cfg.homepage}, 'OSBF-Lua')
 
 -- how to render menu items, table headings, etc in English
 local English = {

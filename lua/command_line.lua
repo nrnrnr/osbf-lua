@@ -367,3 +367,13 @@ _M['cache-report'] =
   end
 
 table.insert(usage_lines, 'cache-report <user-email> [<training-email>]')
+
+-----------------------------------------------------------------
+
+__doc.homepage = [[function()
+Shows the project's home page.]]
+
+function homepage()
+  io.stdout:write(cfg.homepage, '\n')
+end
+table.insert(usage_lines, 'homepage')

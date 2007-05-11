@@ -1,0 +1,39 @@
+Here's what's implemented:
+
+  ==> cache_report.lua <==       implemented as 'osbf3 cache-report'
+  ==> classify.sample <==        implemented as 'osbf3 classify'
+  ==> create_databases.lua <==   part of 'osbf3 init'
+  ==> database_status.lua <==    implemented as 'osbf3 stats'
+  ==> getopt.lua <==             part of the options modules
+  ==> roc.lua <==                still relevant, but we have nothing to generate logs
+  ==> spamfilter_commands.lua <= all this code has been refactored into modules
+  ==> spamfilter_config.lua <==  updated and renamed default_cfg.lua
+  ==> train.sample <==           implemented as 'osbf3 learn'
+
+Here's what's partly implemented:
+
+  ==> promailrc.sample <==       still relevant but needs updating
+  ==> spamfilter.lua <==         partially implemented as 'osbf3 filter', 
+                                 but the batch_train subject line is not implemented 
+                                 yet
+
+Here's what needs to be reimplemented:
+
+  ==> spamfilter.help <==        we need an 'osbf3 help' command that will
+                                 be like 'osbf3 internals' only different.
+                                 we might be able to share some code with 'internals'
+                                 using __help instead of __doc.
+  ==> toer.lua <==                needs a major update
+
+Here are some new things I'd like to implement:
+
+  ==> resize the databases
+  ==> have 'osbf3 init' generate a random password
+  ==> add command-line support for message numbers
+  ==> guaranteed recovery for 'osbf3 filter' using pcall
+
+Here's what seems irrelevant:
+
+  ==> random.lua <==             not sure why this is here
+
+
