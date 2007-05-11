@@ -3,8 +3,8 @@ local require, print, pairs, ipairs, type, assert, loadfile, setmetatable =
 
 local function eprintf(...) return io.stderr:write(string.format(...)) end
 
-local io, string, table, coroutine =
-      io, string, table, coroutine
+local io, os, string, table, coroutine, tonumber =
+      io, os, string, table, coroutine, tonumber
 
 module(...)
 
