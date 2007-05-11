@@ -592,4 +592,5 @@ local body =
 
 -- since this is to be run from a cron job anyway, best to pipe to sendmail from there
 io.stdout:write(message_header, util.encode_quoted_printable(body, 65), '\n')
-   --- encoded-printable is not implemented yet
+   --- this code is bogus because it encodes the boundary!
+
