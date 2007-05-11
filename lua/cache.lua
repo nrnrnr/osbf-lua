@@ -53,7 +53,7 @@ Returns the subdirectory of the cache in which that sfid should be stored,
 or if subdirectories are not used, returns the empty string.]]
                
 function subdir(sfid)
-  assert(is_sfid(sfid), 'invalid sfid!')
+  assert(is_sfid(sfid), 'invalid sfid: ' .. sfid)
   if cfg.use_sfid_subdir then
     return
       table.concat { string.sub(sfid, 13, 14), slash, string.sub(sfid, 16, 17), slash }
