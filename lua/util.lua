@@ -77,7 +77,7 @@ end
 ----------------------------------------------------------------
 
 function mkdir(path)
-  if not core.is_dir(path) then
+  if not core.isdir(path) then
     local rc = os.execute('mkdir ' .. path)
     if rc ~= 0 then
       die('Could not create directory ', path)

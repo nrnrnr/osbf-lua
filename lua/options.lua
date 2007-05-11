@@ -46,7 +46,7 @@ function std.dir(key, value, args)
   local v, err = std.val(key, value, args)
   if not v then
     return v, err
-  elseif core.is_dir(v) then
+  elseif core.isdir(v) then
     return v
   else
     return nil, 'Path ' .. v .. ' given for option --' .. key .. ' is not a directory'

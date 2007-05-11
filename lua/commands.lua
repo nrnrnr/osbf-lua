@@ -63,7 +63,7 @@ function create_single_db(db_path, size_in_bytes)
     util.die('Database too small; each database must use at least ',
              util.human_of_bytes(bytes(min_buckets)), '\n')
   end
-  util.validate(core.create_db({db_path}, num_buckets))
+  util.validate(core.create_db(db_path, num_buckets))
   return bytes(num_buckets)
 end
 

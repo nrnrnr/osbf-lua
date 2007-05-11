@@ -17,6 +17,8 @@ Here's what's partly implemented:
                                  but the batch_train subject line is not implemented 
                                  yet
 
+  util.log isn't implemented yet (or called)
+
 Here's what needs to be reimplemented:
 
   ==> spamfilter.help <==        we need an 'osbf3 help' command that will

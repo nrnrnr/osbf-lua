@@ -162,79 +162,20 @@ lua_osbf_config (lua_State * L)
 static int
 lua_osbf_createdb (lua_State * L)
 {
-  const char *cfcname = "Unknown database name";
-  uint32_t buckets;
+  const char *cfcname = luaL_checkstring(L, 1);
+  uint32_t buckets    = (uint32_t) luaL_checkint(L, 2);
   uint32_t minor = 0;
   char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
-  int32_t num_classes;
 
-  /* check if the second arg is a table */
-  luaL_checktype (L, 1, LUA_TTABLE);
-
-  /* get the number of classes to create */
-  num_classes = luaL_getn (L, 1);
-
-  /* get number of buckets */
-  buckets = luaL_checknumber (L, 2);
-
-  lua_pushnil (L);		/* first key */
-  while (lua_next (L, 1) != 0)
-    {
-      cfcname = luaL_checkstring (L, -1);
-      lua_pop (L, 1);
-
-      if (osbf_create_cfcfile (cfcname, buckets, OSBF_VERSION,
-			       minor, errmsg) != EXIT_SUCCESS)
-	{
-	  num_classes = -1;
-	  break;
-	}
-    }
-
-  if (num_classes >= 0)
-    lua_pushnumber (L, (lua_Number) num_classes);
-  else
+  if (osbf_create_cfcfile (cfcname, buckets, OSBF_VERSION,
+                           minor, errmsg) == EXIT_SUCCESS) {
+    lua_pushboolean(L, 1);
+    return 1;
+  } else {
     lua_pushnil (L);
-  lua_pushfstring (L, "%s: %s", cfcname, errmsg);
-  return 2;
-}
-
-/**********************************************************/
-
-/* removes all classes (files) in a database */
-/* returns the number of files removed or error */
-/* and the number of the last file removed */
-static int
-lua_osbf_removedb (lua_State * L)
-{
-  const char *cfcname;
-  int num_classes;
-  int save_errno, removed;
-
-  /* check if the second arg is a table */
-  luaL_checktype (L, 1, LUA_TTABLE);
-
-  /* get the number of classes to remove */
-  num_classes = luaL_getn (L, 1);
-  removed = 0;
-  lua_pushnil (L);		/* first key */
-  while (lua_next (L, 1) != 0)
-    {
-      cfcname = luaL_checkstring (L, -1);
-      lua_pop (L, 1);
-      if (remove (cfcname) == 0)
-	removed++;
-      else
-	{
-          lua_pushnil(L);
-          lua_pushfstring(L, "%s: %s", cfcname, strerror(errno));
-          return 2;
-	}
-    }
-
-  /* return the number of files deleted */
-  lua_pushnumber (L, (lua_Number) removed);
-  return 1;
+    lua_pushfstring (L, "%s: %s", cfcname, errmsg);
+    return 2;
+  }
 }
 
 /**********************************************************/
@@ -641,6 +582,17 @@ set_info (lua_State * L, int idx)
   lua_pushliteral (L, "bucket_size");
   lua_pushnumber (L, (lua_Number) sizeof(OSBF_BUCKET_STRUCT));
   lua_settable (L, idx);
+
+#define add_const(C) lua_pushliteral(L, #C); lua_pushnumber(L, (lua_Number) C); \
+                     lua_settable(L, idx);
+  add_const(NO_EDDC);
+  add_const(COUNT_CLASSIFICATIONS);
+  add_const(NO_MICROGROOM);
+  add_const(MISTAKE);
+  add_const(EXTRA_LEARNING);
+
+#undef add_const
+
 }
 
 /**********************************************************/
@@ -759,7 +711,6 @@ dir_gc (lua_State * L)
 
 static const struct luaL_reg osbf[] = {
   {"create_db", lua_osbf_createdb},
-  {"remove_db", lua_osbf_removedb},
   {"config", lua_osbf_config},
   {"classify", lua_osbf_classify},
   {"learn", lua_osbf_learn},
@@ -771,7 +722,7 @@ static const struct luaL_reg osbf[] = {
   {"getdir", lua_osbf_getdir},
   {"chdir", lua_osbf_changedir},
   {"dir", l_dir},
-  {"is_dir", l_is_dir},
+  {"isdir", l_is_dir},
   {NULL, NULL}
 };
 

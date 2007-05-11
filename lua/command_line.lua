@@ -288,7 +288,7 @@ function init(dbsize, ...)
   if select('#', ...) > 0 then
     usage()
   else
-    if not core.is_dir(cfg.dirs.user) then
+    if not core.isdir(cfg.dirs.user) then
       util.die('You must create the user directory before initializing it:\n',
                '  mkdir ', cfg.dirs.user)
     end
@@ -349,6 +349,7 @@ function internals(s, ...)
     usage()
   else
     local i = require(_PACKAGE .. 'internals')
+    require(_PACKAGE .. 'core_doc')
     i(io.stdout, s)
   end
 end
