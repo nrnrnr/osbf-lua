@@ -21,11 +21,11 @@ local homepage = 'http://osbf-lua.luaforge.net'
 local options, args = util.validate(options.parse(arg))
 osbf.init(options)
 
-if #arg ~= 1 then
+if #args ~= 1 then
   util.die('Usage: ', arg[0], ' <email-address>')
 end
 
-local user_email = arg[1]
+local user_email = args[1]
 
 local max_sfids    = 50  --- needs to go into user config
 
