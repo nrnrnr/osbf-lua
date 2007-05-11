@@ -242,3 +242,43 @@ split_qp_at = function(l, width)
   end
 end
 
+----------------------------------------------------------------
+--- html support
+
+html = { }
+do
+  local quote = { ['&'] = '&amp;', ['<'] = '&lt;', ['>'] = '&gt;', ['"'] = '&quot;' }
+
+  function html.of_ascii(s)
+    return string.gsub(s, '[%&%<%>%"]', quote)
+  end
+
+  local function html_atts(t)
+    if t then
+      local s = { }
+      for k, v in pairs(t) do
+        table.insert(s, table.concat { k, '="', v, '"' })
+      end
+      return ' ' .. table.concat(s, ' ')
+    else
+      return ''
+    end
+  end
+
+  local function tag(t)
+    return function(atts, s)
+             if not s and type(atts) ~= 'table' then
+               atts, s = nil, atts
+             end
+             if s then
+               return table.concat { '<', t, html_atts(atts), '>', s, '</', t, '>' }
+             else
+               return table.concat { '<', t, html_atts(atts), '>' }
+             end
+           end
+  end
+
+  local meta = { __index = function(t, k) local u = tag(k); t[k] = u; return u end }
+  setmetatable(html, meta)
+end
+----------------------------------------------------------------

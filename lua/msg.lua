@@ -448,14 +448,96 @@ function find_subject_command(msg)
   return nil, 'No commands found'
 end
 
+local tmonth = {jan=1, feb=2, mar=3, apr=4, may=5, jun=6,
+                jul=7, aug=8, sep=9, oct=10, nov=11, dec=12}
+
+function rfc2822_to_localtime(date)
+  -- remove comments (CFWS)
+  date = string.gsub(date, "%b()", "")
+
+  -- Ex: Tue, 21 Nov 2006 14:26:58 -0200
+  local day, month, year, hh, mm, ss, zz =
+    string.match(date,
+     "%a%a%a,%s+(%d+)%s+(%a%a%a)%s+(%d%d+)%s+(%d%d):(%d%d)(%S*)%s+(%S+)")
+
+  if not (day and month and year) then
+    day, month, year, hh, mm, ss, zz =
+    string.match(date,
+     "(%d+)%s+(%a%a%a)%s+(%d%d+)%s+(%d%d):(%d%d)(%S*)%s+(%S+)")
+    if not (day and month and year) then
+      return nil
+    end
+  end
+
+  local month_number = tmonth[string.lower(month)]
+  if not month_number then
+    return nil
+  end
+
+  year = tonumber(year)
+
+  if year >= 0 and year < 50 then
+    year = year + 2000
+  elseif year >= 50 and year <= 99 then
+    year = year + 1900
+  end
+
+  if not ss or ss == "" then
+    ss = 0
+  else
+    ss = string.match(ss, "^:(%d%d)$")
+  end
+
+  if not ss then
+    return nil
+  end
+
+
+  local tz = nil
+  local s, zzh, zzm = string.match(zz, "([-+])(%d%d)(%d%d)")
+  if s and zzh and zzm then
+    tz = zzh * 3600 + zzm * 60
+    if s == "-" then tz = -tz end
+  else
+    if zz == "GMT" or zz == "UT" then
+      tz = 0;
+    elseif zz == "EST" or zz == "CDT" then
+      tz = -5 * 3600
+    elseif zz == "CST" or zz == "MDT" then
+      tz = -6 * 3600
+    elseif zz == "MST" or zz == "PDT" then
+      tz = -7 * 3600
+    elseif zz == "PST" then
+      tz = -8 * 3600
+    elseif zz == "EDT" then
+      tz = -4 * 3600
+    -- todo: military zones
+    end
+  end
+
+  if not tz then
+    return nil
+  end
+
+  local ts = os.time{year=year, month=month_number,
+                      day=day, hour=hh, min=mm, sec=ss}
+
+  if not ts then
 --[[
+    local h = io.open(log_dir .. "log_cache.txt", "a")
+    h:write(date, "\n")
+    h:close()
+--]]
+    return nil
+  end
 
-Things to come:
+  -- find out the local offset to UTC
+  local uy, um, ud, uhh, umm, uss =
+       string.match(os.date("!%Y%m%d %H:%M:%S", ts),
+                       "(%d%d%d%d)(%d%d)(%d%d) (%d%d):(%d%d):(%d%d)")
+  lts = os.time{year=uy, month=um,
+                      day=ud, hour=uhh, min=umm, sec=uss}
+  local off_utc = ts - lts
 
-
-
-You can then write, e.g.,
-
-  for subj in msg.headers_tagged(msg, 'subject') do ... end
-
-]]
+  return ts - (tz - off_utc)
+end

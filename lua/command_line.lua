@@ -354,3 +354,16 @@ function internals(s, ...)
 end
 
 table.insert(usage_lines, 'internals [<module>|<module>.<function>]')
+
+----------------------------------------------------------------
+
+__doc['cache-report'] = [[function(email, temail)
+Writes cache-report email message on standard output.]]
+
+_M['cache-report'] =
+  function(email, temail, xxx)
+    if not email or xxx then usage() end
+    commands.write_training_message(io.stdout, email, temail)
+  end
+
+table.insert(usage_lines, 'cache-report <user-email> [<training-email>]')

@@ -8,7 +8,8 @@ local util  = require(_PACKAGE .. 'util')
 local cfg   = require(_PACKAGE .. 'cfg')
 local core  = require(_PACKAGE .. 'core')
 local dirs  = assert(cfg.dirs)
-require(_PACKAGE .. 'learn') -- load the learning commands
+require(_PACKAGE .. 'learn')  -- load the learning commands
+require(_PACKAGE .. 'report') -- load the cache-report command
 
 __doc = __doc or { }
 

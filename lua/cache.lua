@@ -1,8 +1,8 @@
-local require, print, pairs, type, assert, tostring =
-      require, print, pairs, type, assert, tostring
+local require, print, ipairs, pairs, type, assert, tostring =
+      require, print, ipairs, pairs, type, assert, tostring
 
-local io, string, table, os =
-      io, string, table, os
+local io, string, table, os, coroutine =
+      io, string, table, os, coroutine
 
 module(...)
 
@@ -12,7 +12,8 @@ __doc.__order = { 'sfid', 'status', 'file_and_status', 'change_file_status' }
 
 __doc.sfid = 'A string (spam filter id) that uniquely identifies a message'
 
-local cfg = require(_PACKAGE .. 'cfg')
+local cfg  = require(_PACKAGE .. 'cfg')
+local core = require(_PACKAGE .. 'core')
 local slash = cfg.slash
 
 ----------------------------------------------------------------
@@ -178,3 +179,22 @@ function recover(sfid)
 end
 
 ----------------------------------------------------------------
+
+local function yield_two_days_sfids()
+  local sfid_subdirs = 
+    cfg.use_sfid_subdir and
+    {os.date("%d/%H/", os.time()- 24*3600), os.date("%d/%H/", os.time())}
+                -- yesterday and today
+    or {""}
+
+  --- shouldn't sfids be sorted by time or something?
+  for _, subdir in ipairs(sfid_subdirs) do
+    for f in core.dir(cfg.dirs.cache .. subdir) do
+      if string.find(f, "^sfid%-") then
+        coroutine.yield(f)
+      end
+    end
+  end
+end
+
+function two_days_sfids() return coroutine.wrap(yield_two_days_sfids) end
