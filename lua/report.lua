@@ -124,7 +124,9 @@ local languages = { en_us = English, pt_br = Brazilian_Portuguese, posix = Engli
 
 ----- set language according to locale
 local language = languages.posix
-for l in string.gmatch(os.getenv 'LANGUAGE' or '', '[^:]+') do
+local locale = type(cfg.report_locale) == 'string' and string.lower(cfg.report_locale)
+               or os.getenv 'LANGUAGE' or ''
+for l in string.gmatch(locale, '[^:]+') do
   local lang = languages[string.lower(l)]
   if lang then
     language = lang
