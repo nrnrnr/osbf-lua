@@ -122,7 +122,7 @@ homepage = 'http://osbf-lua.luaforge.net'
 
 __doc.constants = "Constants used by OSBF-Lua"
 
-constants = util.table_read_only
+constants = 
   {
     classify_flags            = 0,
     count_classification_flag = 2,

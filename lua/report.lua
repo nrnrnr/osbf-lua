@@ -191,7 +191,7 @@ $body
   local body = [[<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
     <html>
       <head>
-        <meta content="text/html; charset=ISO-8859-1" 
+        <meta content="text/html; charset=ISO-8859-1"
             http-equiv="content-type">
        <title>Train_form</title>
        <style>$style</style>

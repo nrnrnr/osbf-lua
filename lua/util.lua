@@ -16,17 +16,6 @@ function table_tab(t)
   setmetatable(t, { __index = table__index })
   return t
 end
-
--- Function to make a table read-only
-function table_read_only(t)
-  local proxy = {}
-  setmetatable(proxy, { __index = t,
-		    __newindex = function(t, k, v)
-		      assert(false, 'attempt to change a constant value')
-		    end
-		  })
-  return proxy
-end
 ----------------------------------------------------------------
 function file_is_readable(file)
   local f = io.open(file, 'r')
