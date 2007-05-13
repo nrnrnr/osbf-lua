@@ -205,22 +205,21 @@ function human_of_bytes(n)
 end
 ----------------------------------------------------------------
 -- PIL, section 21.1
-local split_qp_at
+local split_qp_at -- returns prefix, suffix; defined below
 
 function encode_quoted_printable(s, max_width)
-  s = string.gsub(s, "([\128-\255=])", function (c)
-          return string.format("=%02X", string.byte(c))
-        end)
-  local lines = { }
-  if not string.find(s, '\n$') then s = s .. '\n' end
-  for l in string.gmatch(s, '(.-)\n') do
+  local function qpsubst(c) return string.format("=%02X", string.byte(c)) end
+  s = string.gsub(s, "([\128-\255=])", qpsubst)
+  local lines = { } -- accumulate lines of output
+  for l in string.gmatch(string.find(s, '\n$') and s or s .. '\n', '(.-)\n') do
+    l = string.gsub(l, '(%s)$', qpsubst) -- quote space at end of line
     repeat
       first, rest = split_qp_at(l, max_width)
       table.insert(lines, first)
       l = rest
     until l == nil
   end
-  table.insert(lines, '')
+  table.insert(lines, '') -- arrange for terminating newline
   return table.concat(lines, '\n')
 end
 
