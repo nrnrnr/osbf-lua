@@ -130,6 +130,10 @@ of an unlearned message.  Also changes the message's status in the cache.
 ]]
 
 function learn(sfid, classification)
+  if type(classification) ~= 'string'
+  or classification ~= 'ham' and classification ~= 'spam' then
+    return nil, 'learn command requires a class: "spam" or "ham".' -- error
+  end 
   local msg, status = msg.of_sfid(sfid)
   if status ~= 'unlearned' then
     return nil, errmsgs.learn[status]
@@ -188,8 +192,11 @@ but if present must be equal to the classification originally learned.
 ]]
 
 function unlearn(sfid, classification)
-  local msg, status = msg.of_sfid(sfid)
+  local msg, status = util.validate(msg.of_sfid(sfid))
   classification = classification or status -- unlearn parm now optional
+  if status == 'unlearned' then
+    return nil, errmsgs.unlearn['unlearned']
+  end
   if status ~= classification then
     return nil, string.format([[
 You asked to unlearn a message that you thought had been learned as %s,

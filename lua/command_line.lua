@@ -153,9 +153,16 @@ class and the remaining are message specs.
 
 function learner(cmd)
   return function(classification, ...)
-           for msgspec in msgspecs(...) do
+           local has_class =
+             classification == 'ham' or classification == 'spam'
+           if not has_class and cmd == commands.learn then
+             usage('learn command requires a class, either "spam" or "ham".')
+           end
+           for msgspec in
+             has_class and msgspecs(...) or msgspecs(classification, ... ) do
              local sfid = util.validate(msg.sfid(msgspec))
-             io.stdout:write(util.validate(cmd(sfid, classification)), '\n')
+             io.stdout:write(util.validate(cmd(sfid,
+               has_class and classification or nil)), '\n')
            end
          end
 end
@@ -273,6 +280,9 @@ do
   local opts = {verbose = options.std.bool, v = options.std.bool}
   function stats(...)
     local opts = util.validate(options.parse({...}, opts))
+    if #opts ~= select('#', ...) then
+      usage()
+    end
     commands.write_stats(io.stdout, opts.verbose or opts.v)
   end
 end
