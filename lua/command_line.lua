@@ -278,9 +278,15 @@ Valid options: -v, --verbose => adds more database statistics.
 
 do
   local opts = {verbose = options.std.bool, v = options.std.bool}
+  local function table_len(t)
+    local n = 0
+    for _ in pairs(t) do n = n + 1 end
+    return n
+  end
+  
   function stats(...)
     local opts = util.validate(options.parse({...}, opts))
-    if #opts ~= select('#', ...) then
+    if table_len(opts) ~= select('#', ...) then
       usage()
     end
     commands.write_stats(io.stdout, opts.verbose or opts.v)
