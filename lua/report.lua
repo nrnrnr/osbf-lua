@@ -78,7 +78,7 @@ local English = {
     learnings = "Learnings",
     accuracy  = "Accuracy",
     spam      = "Spam",
-    non_spam  = "Ham",
+    ham       = "Ham",
     total     = "Total",
   },
 }
@@ -115,7 +115,7 @@ local Brazilian_Portuguese = {
     learnings = "Treinamentos",
     accuracy  = "Precis&atilde;o",
     spam      = "Spam",
-    non_spam  = "N&atilde;o Spam",
+    ham       = "N&atilde;o Spam",
     total     = "Total",
   },
 }
@@ -168,7 +168,7 @@ local html_stat_table, html_sfid_rows, html_style
 ----------------------------------------------------------------
 ----- building the training message
 
-local function message(sfids, email, temail)
+local function message(sfids, email, temail, ready)
   local message = [[
 From: $email
 To: $email
@@ -204,7 +204,7 @@ $body
 
   local payload =
   #sfids == 0 and [[
-     "<center>$train_nomsgs</center><p>
+     <center>$train_nomsgs</center><p>
      $stats
   ]] or [[
     <div style="text-align: left;">
@@ -236,7 +236,7 @@ $body
     password  = cfg.pwd,
     style     = html_style,
     stats     = html_stat_table(),
-    sfid_rows = html_sfid_rows(sfids),
+    sfid_rows = html_sfid_rows(sfids, ready),
   }
   local qp = util.encode_quoted_printable
   data.payload =    replace_dollar(payload, data)
@@ -322,7 +322,7 @@ end
 
 local sfid_menu --- defined below
 
-function html_sfid_rows(sfids) -- declared local above
+function html_sfid_rows(sfids, ready) -- declared local above
 
   -- for case insensitive match - from PIL
   local function nocase (s)
@@ -389,7 +389,7 @@ do
     end
 
     local select = 
-      [[<select class="menu" onChange="this.style.backgroundColor='$colors.background'
+      [[<select class="menu" onChange="this.style.backgroundColor='$colors.background'"
         name="$sfid">]]
 
     local menu = { replace_dollar(select, {sfid=sfid}) }
@@ -414,7 +414,7 @@ function html_stat_table() -- declared local above
   }
 
   local function pct(x)
-    return string.format('%4.1f%%', 100 * x)
+    return string.format('%5.2f%%', 100 * x)
   end
 
   local hams   = {stats.ham, hstats.classifications, hstats.mistakes,
@@ -422,7 +422,8 @@ function html_stat_table() -- declared local above
   local spams  = {stats.spam, sstats.classifications, sstats.mistakes,
                   sstats.learnings, pct(1-serr)}
   local totals = {stats.total, hstats.classifications + sstats.classifications,
-                   hstats.learnings+sstats.learnings, pct(1-gerr)}
+                  hstats.mistakes + sstats.mistakes,
+                  hstats.learnings + sstats.learnings, pct(1-gerr)}
 
   local headers, cols, hspams, hhams, footers = { }, { }, { }, { }, { }
   for i = 1, #columns do
@@ -430,23 +431,24 @@ function html_stat_table() -- declared local above
     local wtab = {width = widths[c]}
     local text = language.stats[c]
     if c == 'stats' then text = html.i(text) end
-    table.insert(headers, html.td (wtab, html.p(html.b(text))))
+    table.insert(headers, html.td (wtab, html.p(html.center(html.b(text)))))
     table.insert(cols,    html.col(wtab))
-    table.insert(hspams,  html.td (wtab, html.p(spams[i])))
+    table.insert(hspams,  html.td (wtab, html.p(spams [i])))
     table.insert(hhams,   html.td (wtab, html.p(hams [i])))
-    table.insert(footers, html.td (wtab, html.p(hams [i])))
+    table.insert(footers, html.td (wtab, html.p(totals [i])))
   end
-  local header = html.tr({class="stats_header", height="25", valign="middle"},
-                         table.concat(headers, '\n'))
-  local function row(l)
-    return html.tr({class="stats_row", valign="MIDDLE", height="25"}, table.concat(l))
+  local function row(l, class)
+    return html.tr({class=class, valign="middle", height="25"}, table.concat(l))
   end
   local function linecat(l) return table.concat(l, '\n') end
   local tbl =
     html.table({always="", border=1, bordercolor=colors.border,
                 cellpadding=4, cellspacing=0},
               linecat {table.concat(cols),
-                html.tbody(linecat {row(hspams), row(hhams), row(footers)})})
+                html.tbody(linecat {row(headers, "stats_header"),
+                                    row(hspams, "stats_row"),
+                                    row(hhams, "stats_row"),
+                                    row(footers, "stats_footer")})})
   return html.center(tbl)
 end
 
@@ -484,5 +486,5 @@ function write_training_message(outfile, email, temail)
   add_sfids_matching("sfid%-[-+].+[^-][^sh]$") 
   add_sfids_matching("sfid%-[^BW]-[-+]0[01].[%.,]..%-%d-@.+[^-][^sh]$") 
 
-  outfile:write(message(sfids, email, temail))
+  outfile:write(message(sfids, email, temail, ready))
 end

@@ -5,7 +5,7 @@ include ./config
 DIST_DIR= osbf-$LIB_VERSION
 TAR_FILE= $(DIST_DIR).tar.gz
 ZIP_FILE= $(DIST_DIR).zip
-LIBNAME= lib$T$(LIB_EXT).$(LIB_VERSION)
+LIBNAME= lib$(MODNAME)$(LIB_EXT).$(LIB_VERSION)
 BINNAME=osbf3
 
 
