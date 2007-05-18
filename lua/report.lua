@@ -122,16 +122,16 @@ local Brazilian_Portuguese = {
 
 local languages = { en_us = English, pt_br = Brazilian_Portuguese, posix = English }
 
------ set language according to locale
-local language = languages.posix
-local locale = 'posix'
+local language -- set (potentially differently) for each report generated
 
--- must be executed after user config is loaded
-local function init(opt_locale)
-  locale = opt_locale
-             or
-           type(cfg.report_locale) == 'string' and string.lower(cfg.report_locale)
-             or os.getenv 'LANGUAGE' or ''
+-- not sensible to call this function until user config is loaded
+local function set_language(opt_locale)
+  ----- set language according to locale
+  local locale =
+    opt_locale or
+    type(cfg.report_locale) == 'string' and cfg.report_locale or
+    os.getenv 'LANGUAGE' or
+    'posix'
   for l in string.gmatch(locale, '[^:]+') do
     local lang = languages[string.lower(l)]
     if lang then
@@ -139,6 +139,7 @@ local function init(opt_locale)
       break
     end
   end
+  language = language or languages.posix
 
   -- flatten actions
   for k, v in pairs(language.actions) do
@@ -318,12 +319,14 @@ do
       <span style="font-weight: bold;">$contents</span></small></p> 
   </th>]]
 
-  local cols = { }
-  for _, what in ipairs { 'date', 'from', 'subject', 'action' } do
-    local data = { mw = max_widths[what], contents = language.table[what] }
-    table.insert(cols, replace_dollar(col, data))
+  function html_first_row()
+    local cols = { }
+    for _, what in ipairs { 'date', 'from', 'subject', 'action' } do
+      local data = { mw = max_widths[what], contents = language.table[what] }
+      table.insert(cols, replace_dollar(col, data))
+    end
+    return html.tr(table.concat(cols, '\n'))
   end
-  html_first_row = html.tr(table.concat(cols, '\n'))
 end
 
 local sfid_menu --- defined below
@@ -340,7 +343,7 @@ function html_sfid_rows(sfids, ready) -- declared local above
   local tag_colors =
     { S = colors.spam, H = colors.ham, ['-'] = colors.spam, ['+'] = colors.ham }
 
-  rows = { html_first_row }
+  rows = { html_first_row() }
   for _, sfid in ipairs(sfids) do
     local m, status = msg.of_sfid(sfid)
     util.validate(m, 'Sudden disappearance of sfid from the cache')
@@ -460,14 +463,16 @@ end
 
 --=============== END OF MESSAGE SUPPORT =========================
 
-__doc.write_training_message = [[function(outfile, email, temail) 
+__doc.write_training_message = [[function(outfile, email, temail, [locale]) 
 Writes an RFC822-compliant email message on 'outfile'.
 The message contains a training form and is sent to 'email'.  
 When the training form is filled out and posted, the results
-are sent to 'temail', which may be omitted and defaults to 'email'.]]
+are sent to 'temail', which may be omitted and defaults to 'email'.
+The optional 'locale' determines the language used in the form.
+]]
 
 function write_training_message(outfile, email, temail, opt_locale)
-  init(opt_locale)
+  set_language(opt_locale)
   temail = temail or email
 
   local hstats, sstats = stats()
