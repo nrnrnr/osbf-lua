@@ -55,7 +55,7 @@ local English = {
             Check the pre-selected actions, change if necessary, 
             and click "$send_actions"]],
   title_nready  = [[$homelink Training Form<br>
-            Select the proper training actino for each message
+            Select the proper training action for each message
             and click "$send_actions"]],
   actions = {
     none        = "None",
@@ -124,28 +124,34 @@ local languages = { en_us = English, pt_br = Brazilian_Portuguese, posix = Engli
 
 ----- set language according to locale
 local language = languages.posix
-local locale = type(cfg.report_locale) == 'string' and string.lower(cfg.report_locale)
-               or os.getenv 'LANGUAGE' or ''
-for l in string.gmatch(locale, '[^:]+') do
-  local lang = languages[string.lower(l)]
-  if lang then
-    language = lang
-    break
+local locale = 'posix'
+
+-- must be executed after user config is loaded
+local function init(opt_locale)
+  locale = opt_locale
+             or
+           type(cfg.report_locale) == 'string' and string.lower(cfg.report_locale)
+             or os.getenv 'LANGUAGE' or ''
+  for l in string.gmatch(locale, '[^:]+') do
+    local lang = languages[string.lower(l)]
+    if lang then
+      language = lang
+      break
+    end
+  end
+
+  -- flatten actions
+  for k, v in pairs(language.actions) do
+    language[k] = v
+  end
+
+  -- replace $ strings (shallow only; $ may not refer to $)
+  for k, v in pairs(language) do
+    if type(v) == 'string' then
+      language[k] = replace_dollar(v, language)
+    end
   end
 end
-
--- flatten actions
-for k, v in pairs(language.actions) do
-  language[k] = v
-end
-
--- replace $ strings (shallow only; $ may not refer to $)
-for k, v in pairs(language) do
-  if type(v) == 'string' then
-    language[k] = replace_dollar(v, language)
-  end
-end
-
 ----------------------------------------------------------------
 ---- combined support for color and localization
 
@@ -460,7 +466,8 @@ The message contains a training form and is sent to 'email'.
 When the training form is filled out and posted, the results
 are sent to 'temail', which may be omitted and defaults to 'email'.]]
 
-function write_training_message(outfile, email, temail)
+function write_training_message(outfile, email, temail, opt_locale)
+  init(opt_locale)
   temail = temail or email
 
   local hstats, sstats = stats()

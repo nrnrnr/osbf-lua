@@ -375,15 +375,23 @@ table.insert(usage_lines, 'internals [<module>|<module>.<function>]')
 ----------------------------------------------------------------
 
 __doc['cache-report'] = [[function(email, temail)
-Writes cache-report email message on standard output.]]
+Writes cache-report email message on standard output.
+Valid options: -lang => specifies the language of the report.
+If -lang is not specified, user's config locale is used. If not
+specified in user's config, the server's locale is used.
+If the informed locale is not known, posix is used.]]
 
-_M['cache-report'] =
-  function(email, temail, xxx)
-    if not email or xxx then usage() end
-    commands.write_training_message(io.stdout, email, temail)
-  end
-
-table.insert(usage_lines, 'cache-report <user-email> [<training-email>]')
+do
+  local opts = {lang = options.std.val}
+  _M['cache-report'] =
+    function(...)
+      local opts, args = util.validate(options.parse({...}, opts))
+      local email, temail = args[1], args[2]
+      if not email or args[3] then usage() end
+      commands.write_training_message(io.stdout, email, temail, opts.lang)
+    end
+end
+table.insert(usage_lines, 'cache-report [-lang=<locale>] <user-email> [<training-email>]')
 
 -----------------------------------------------------------------
 
