@@ -224,11 +224,18 @@ osbf_bayes_classify (const unsigned char *text,
 		     uint32_t ptt[], char *errmsg);
 
 extern int
-osbf_bayes_learn (const unsigned char *text,
+old_osbf_bayes_learn (const unsigned char *text,
 		  unsigned long len,
 		  const char *pattern,
 		  const char *classes[],
 		  unsigned tc, int sense, uint32_t flags, char *errmsg);
+
+extern int
+osbf_bayes_train (const unsigned char *text,
+		  unsigned long len,
+		  const char *pattern,
+		  const char *class,
+		  int sense, uint32_t flags, char *errmsg);
 
 extern int
 osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,

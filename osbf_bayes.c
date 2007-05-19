@@ -205,7 +205,213 @@ get_next_hash (struct token_search *pts)
 /******************************************************************/
 /* Train the specified class with the text pointed to by "p_text" */
 /******************************************************************/
-int osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
+int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
+		      unsigned long text_len,	/* length of text */
+		      const char *delims,	/* token delimiters */
+		      const char *database,	/* database to be trained */
+		      int sense,	/* 1 => learn;  -1 => unlearn */
+		      uint32_t flags,	/* flags */
+		      char *errmsg)
+{
+  int err;
+  uint32_t window_idx;
+  int32_t learn_error;
+  int32_t h;
+  off_t fsize;
+  uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1];
+  int32_t num_hash_paddings;
+  int microgroom;
+  struct token_search ts;
+  CLASS_STRUCT class;
+
+  /* fprintf(stderr, "Starting learning...\n"); */
+
+  ts.ptok = (unsigned char *) p_text;
+  ts.ptok_max = (unsigned char *) (p_text + text_len);
+  ts.toklen = 0;
+  ts.hash = 0;
+  ts.delims = delims;
+
+  microgroom = (flags & NO_MICROGROOM) == 0;
+
+  fsize = check_file (database);
+  if (fsize < 0)
+    {
+      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "File not available: %s.",
+		database);
+      return (-1);
+    }
+
+  /* open the class to be trained and mmap it into memory */
+  err = osbf_open_class (database, O_RDWR, &class, errmsg);
+  if (err != 0)
+    {
+      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "Couldn't open %s.",
+		database);
+      fprintf (stderr, "Couldn't open %s.", database);
+      return err;
+    }
+
+  /*   init the hashpipe with 0xDEADBEEF  */
+  for (h = 0; h < OSB_BAYES_WINDOW_LEN; h++)
+    hashpipe[h] = 0xDEADBEEF;
+
+  learn_error = 0;
+  /* experimental code - set num_hash_paddings = 0 to disable */
+  /* num_hash_paddings = OSB_BAYES_WINDOW_LEN - 1; */
+  num_hash_paddings = OSB_BAYES_WINDOW_LEN - 1;
+  while (learn_error == 0 && ts.ptok <= ts.ptok_max)
+    {
+
+      if (get_next_hash (&ts) != 0)
+	{
+	  /* after eof, insert fake tokens until the last real */
+	  /* token comes out at the other end of the hashpipe */
+	  if (num_hash_paddings-- > 0)
+	    ts.hash = 0xDEADBEEF;
+	  else
+	    break;
+	}
+
+      /*  Shift the hash pipe down one and insert new hash */
+      for (h = OSB_BAYES_WINDOW_LEN - 1; h > 0; h--)
+	hashpipe[h] = hashpipe[h - 1];
+      hashpipe[0] = ts.hash;
+
+#if (DEBUG)
+      {
+	fprintf (stderr, "  Hashpipe contents: ");
+	for (h = 0; h < OSB_BAYES_WINDOW_LEN; h++)
+	  fprintf (stderr, " %" PRIu32, hashpipe[h]);
+	fprintf (stderr, "\n");
+      }
+#endif
+
+      {
+	uint32_t hindex, bindex;
+	uint32_t h1, h2;
+
+	for (window_idx = 1; window_idx < OSB_BAYES_WINDOW_LEN; window_idx++)
+	  {
+
+	    h1 =
+	      hashpipe[0] * hctable1[0] +
+	      hashpipe[window_idx] * hctable1[window_idx];
+	    h2 = hashpipe[0] * hctable2[0] +
+#ifdef CRM114_COMPATIBILITY
+	      hashpipe[window_idx] * hctable2[window_idx - 1];
+#else
+	      hashpipe[window_idx] * hctable2[window_idx];
+#endif
+	    hindex = h1 % class.header->num_buckets;
+
+#if (DEBUG)
+	    fprintf (stderr,
+		     "Polynomial %" PRIu32 " has h1:%" PRIu32 "  h2: %"
+		     PRIu32 "\n", window_idx, h1, h2);
+#endif
+
+	    bindex = osbf_find_bucket (&class, h1, h2);
+	    if (bindex < class.header->num_buckets)
+	      {
+		if (BUCKET_IN_CHAIN (&class, bindex))
+		  {
+		    if (!BUCKET_IS_LOCKED (&class, bindex))
+		      osbf_update_bucket (&class, bindex, sense);
+		  }
+		else if (sense > 0)
+		  {
+		    osbf_insert_bucket (&class, bindex, h1, h2, sense);
+		  }
+	      }
+	    else
+	      {
+		snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
+			  ".cfc file is full!");
+		learn_error = -1;
+		break;
+	      }
+	  }
+      }
+    }				/*   end the while k==0 */
+
+
+  if (learn_error == 0)
+    {
+
+      if (sense > 0)
+	{
+	  /* extra learnings are all those done with the  */
+	  /* same document, after the first learning */
+	  if (flags & EXTRA_LEARNING)
+	    {
+	      /* increment extra learnings counter */
+	      class.header->extra_learnings += 1;
+	    }
+	  else
+	    {
+	      /* increment normal learnings counter */
+
+	      /* old code disabled because the databases are disjoint and
+	         this correction should be applied to both simultaneously
+
+	         class.header->learnings += 1;
+	         if (class.header->learnings >= OSBF_MAX_BUCKET_VALUE)
+	         {
+	           uint32_t i;
+
+	           class.header->learnings >>= 1;
+	           for (i = 0; i < NUM_BUCKETS (&class); i++)
+	             BUCKET_VALUE (&class, i) = BUCKET_VALUE (&class, i) >> 1;
+	         }
+	       */
+
+	      if (class.header->learnings < OSBF_MAX_BUCKET_VALUE)
+		{
+		  class.header->learnings += 1;
+		}
+
+	      /* increment mistakes counter */
+	      if (flags & MISTAKE)
+		{
+		  class.header->mistakes += 1;
+		}
+	    }
+	}
+      else
+	{
+	  if (flags & EXTRA_LEARNING)
+	    {
+	      /* decrement extra learnings counter */
+	      if (class.header->extra_learnings > 0)
+		class.header->extra_learnings -= 1;
+	    }
+	  else
+	    {
+	      /* decrement learnings counter */
+	      if (class.header->learnings > 0)
+		class.header->learnings -= 1;
+	      /* decrement mistakes counter */
+	      if ((flags & MISTAKE) && class.header->mistakes > 0)
+		class.header->mistakes -= 1;
+	    }
+	}
+    }
+
+  err = osbf_close_class (&class, errmsg);
+
+  if (learn_error != 0)
+    return (learn_error);
+
+  return (err);
+
+}
+
+
+/******************************************************************/
+/* Train the specified class with the text pointed to by "p_text" */
+/******************************************************************/
+int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
 		      unsigned long text_len,	/* length of text */
 		      const char *delims,	/* token delimiters */
 		      const char *classnames[],	/* class file names */

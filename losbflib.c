@@ -302,7 +302,44 @@ lua_osbf_classify (lua_State * L)
 /**********************************************************/
 
 static int
-osbf_train (lua_State * L, int sense)
+lua_osbf_train (lua_State * L)
+     /* train(sense, text, dbname, [flags, [delimiters]]) returns true or nil, error */
+{
+  int sense;
+  const unsigned char *text;
+  size_t text_len;
+  const char *dbname;
+  uint32_t flags = 0;		/* default value */
+  const char *delimiters = "";	/* extra token delimiters */
+  size_t delimiters_len = 0;
+  char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
+
+  /* get args */
+  sense  = luaL_checkint(L, 1);
+  text   = (unsigned char *) luaL_checklstring (L, 2, &text_len);
+  dbname = luaL_checkstring(L, 3);
+  flags  = (uint32_t) luaL_optint(L, 4, 0);
+  delimiters = luaL_optlstring(L, 5, "", &delimiters_len);
+  luaL_checktype (L, 6, LUA_TNONE);
+
+  if (osbf_bayes_train (text, text_len, delimiters, dbname,
+			sense, flags, errmsg) < 0)
+    {
+      lua_pushnil (L);
+      lua_pushstring (L, errmsg);
+      return 2;
+    }
+  else
+    {
+      lua_pushboolean (L, 1);
+      return 1;
+    }
+}
+
+/**********************************************************/
+
+static int
+old_osbf_train (lua_State * L, int sense)
 {
   const unsigned char *text;
   size_t text_len;
@@ -352,7 +389,7 @@ osbf_train (lua_State * L, int sense)
   if (lua_isnumber (L, 4))
     flags = (uint32_t) luaL_checknumber (L, 4);
 
-  if (osbf_bayes_learn (text, text_len, delimiters, classes,
+  if (old_osbf_bayes_learn (text, text_len, delimiters, classes,
 			ctbt, sense, flags, errmsg) < 0)
     {
       lua_pushnil (L);
@@ -369,17 +406,17 @@ osbf_train (lua_State * L, int sense)
 /**********************************************************/
 
 static int
-lua_osbf_learn (lua_State * L)
+lua_osbf_old_learn (lua_State * L)
 {
-  return osbf_train (L, 1);
+  return old_osbf_train (L, 1);
 }
 
 /**********************************************************/
 
 static int
-lua_osbf_unlearn (lua_State * L)
+lua_osbf_old_unlearn (lua_State * L)
 {
-  return osbf_train (L, -1);
+  return old_osbf_train (L, -1);
 }
 
 /**********************************************************/
@@ -713,8 +750,9 @@ static const struct luaL_reg osbf[] = {
   {"create_db", lua_osbf_createdb},
   {"config", lua_osbf_config},
   {"classify", lua_osbf_classify},
-  {"learn", lua_osbf_learn},
-  {"unlearn", lua_osbf_unlearn},
+  {"learn", lua_osbf_old_learn},
+  {"unlearn", lua_osbf_old_unlearn},
+  {"train", lua_osbf_train},
   {"dump", lua_osbf_dump},
   {"restore", lua_osbf_restore},
   {"import", lua_osbf_import},
