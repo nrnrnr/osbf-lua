@@ -96,7 +96,7 @@ local function train(msg, class_index)
       -- approximate count. there could be cases where there was no mistake
       -- in the first classification, but just a change in classification
       -- because ot other trainings - and vice versa.
-      core.learn(msg, cfg.dbset, class_index, cfg.constants.mistake_flag)
+      core.learn(msg, cfg.dbset, class_index, core.MISTAKE)
       local new_pR, msg_error = core.classify(msg, cfg.dbset, 0)
       if new_pR then
         return true, new_pR, pR
@@ -161,7 +161,7 @@ function learn(sfid, classification)
         -- (may exit early if the change in new_pR is big enough)
         pR = new_pR
         core.learn(lim_orig_header, cfg.dbset, parms.index,
-                   k.learn_flags+k.reinforcement_flag)
+                   k.learn_flags+core.EXTRA_LEARNING)
         new_pR, p_array = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
         if parms.bigger(new_pR, trd) or math.abs (pR - new_pR) >= rd then
           break
@@ -208,7 +208,7 @@ but %s.]], classification, errmsgs.unlearn[status])
   local parms = learn_parms(classification)
   local k = cfg.constants
   local old_pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
-  core.unlearn(lim_orig_msg, cfg.dbset, parms.index, k.learn_flags+k.mistake_flag)
+  core.unlearn(lim_orig_msg, cfg.dbset, parms.index, k.learn_flags+core.MISTAKE)
   local pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
   local i = 0
   while i < parms.reinforcement_limit and parms.bigger(pR, threshold_offset) do
@@ -286,7 +286,7 @@ function classify(msg)
 
   local k = cfg.constants
   local count_classifications_flag =
-    cfg.count_classifications and k.count_classification_flag or 0
+    cfg.count_classifications and core.COUNT_CLASSIFICATIONS or 0
 
   local pR, class_probs =
     core.classify(msg.lim.msg, cfg.dbset,
