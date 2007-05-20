@@ -266,11 +266,21 @@ The size of a database is header_size + bucket_size * num_buckets.]]
 __doc.bucket_size = [[Number of bytes in a single bucket in a database.
 The size of a database is header_size + bucket_size * num_buckets.]]
 
-__doc.NO_EDDC = [[Flag for core.classify]]
-__doc.COUNT_CLASSIFICATIONS = [[Flag for core.classify]]
-__doc.NO_MICROGROOM = [[Flag for core.learn]]
-__doc.MISTAKE = [[Flag for core.learn]]
-__doc.EXTRA_LEARNING = [[Flag for core.learn]]
+__doc.NO_EDDC = [[Flag for core.classify
+Disables EDDC (normally for testing only ---usually lowers accuracy).]]
+__doc.COUNT_CLASSIFICATIONS = [[Flag for core.classify
+Turns on the classficiation counter.]]
+__doc.NO_MICROGROOM = [[Flag for core.learn
+Intended for tests only (explanation not understood).]]
+__doc.MISTAKE = [[Flag for core.learn
+Increments the mistake counter in addition to the learning counter.
+Do not use in conjuction with EXTRA_LEARNING.]]
+__doc.EXTRA_LEARNING = [[Flag for core.learn
+Increment the extra-learning, or reinforcement, counter, 
+in addition to the learning counter.  Do not use in conjunction
+with MISTAKE.]]
+
+
 
 
 __doc.__overview = [[

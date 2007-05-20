@@ -94,7 +94,7 @@ local function train(msg, class_index)
     or ( pR >= 0 and class_index == cfg.dbset.spam_index )
     then
 
-      -- core.MSTAKE indicates that the mistake counter in the database
+      -- core.MISTAKE indicates that the mistake counter in the database
       -- must be incremented. This is an approximate counting because there
       -- can be cases where there was no mistake in the first
       -- classification, but because of other trainings in between, the
