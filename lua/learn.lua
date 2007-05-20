@@ -94,9 +94,11 @@ local function train(msg, class_index)
     or ( pR >= 0 and class_index == cfg.dbset.spam_index )
     then
 
-      -- approximate count. there could be cases where there was no mistake
-      -- in the first classification, but just a change in classification
-      -- because ot other trainings - and vice versa.
+      -- core.MSTAKE indicates that the mistake counter in the database
+      -- must be incremented. This is an approximate counting because there
+      -- can be cases where there was no mistake in the first
+      -- classification, but because of other trainings in between, the
+      -- present classification is wrong. And vice-versa.
       core.learn(msg, cfg.dbset, class_index, core.MISTAKE)
       local new_pR, msg_error = core.classify(msg, cfg.dbset, 0)
       if new_pR then
@@ -147,7 +149,9 @@ function learn(sfid, classification)
     nil, 'Unknown classification ' .. classification -- error
   end
 
-  -- Full description in http://osbf-lua.luaforge.net/papers/trec2006_osbf_lua.pdf
+  -- This function implements TONE-HR, a training protocol described in
+  -- http://osbf-lua.luaforge.net/papers/trec2006_osbf_lua.pdf
+  -- (should we rename it to tone_hr?)
 
   local function iterate_training()
     -- train once on the whole message, always
