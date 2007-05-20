@@ -79,13 +79,19 @@ end
 
 local msgmod = msg
 
-__doc.train = [[function(msg, class_index) returns new_pR, old_pR or nil, error
-Train message 'msg' as belonging to database cfg.dbset[class_index].
-First classifies message to know whether to set MISTAKE flag.
-If training was not necessary, return identical probabilities.
+__doc.tone = [[function(msg, class_index) returns new_pR, old_pR or nil, error
+Conditionally train message 'msg' as belonging to database
+cfg.dbset[class_index]. Training is actually done 
+'on or near error' (TONE): if the classifier produces the wrong
+classification, we train with the MISTAKE flag.  Otherwise,
+if pR lies within the reinforcement zone (near error), we train
+without the MISTAKE flag.
+
+If training was not necessary (correct and not near error), 
+return identical probabilities.
 ]]
 
-local function train(msg, class_index)
+local function tone(msg, class_index)
 
   local pR, msg_error = core.classify(msg, cfg.dbset, 0)
 
@@ -153,9 +159,9 @@ function learn(sfid, classification)
   -- http://osbf-lua.luaforge.net/papers/trec2006_osbf_lua.pdf
   -- (should we rename it to tone_hr?)
 
-  local function iterate_training()
-    -- train once on the whole message, always
-    local new_pR, orig_pR = train(lim_orig_msg, parms.index)
+  local function tone_msg_and_reinforce_header()
+    -- train on the whole message if on or near error
+    local new_pR, orig_pR = tone(lim_orig_msg, parms.index)
     if new_pR == nil then
       return nil, orig_pR --- error
     elseif parms.bigger(parms.threshold, new_pR)
@@ -184,7 +190,7 @@ function learn(sfid, classification)
     return orig_pR, new_pR
   end
 
-  local orig, new = iterate_training()
+  local orig, new = tone_msg_and_reinforce_header()
   if not orig then return orig, new end -- error case
   cache.change_file_status(sfid, status, classification)
   local comment = 
