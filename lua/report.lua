@@ -351,7 +351,9 @@ function html_sfid_rows(sfids, ready) -- declared local above
       return msg.header_tagged(m, tag) or string.format('(no %s)', tag)
     end
     local function htmlify(s, n)
-      -- strip RFC2822 quotation and do something very strange with comments
+      -- strip RFC2822 quotation from s and make sure it contains no word
+      -- longer than n characters (by inserting spaces if necessary), then
+      -- escape special characters using html.of_ascii
       s = string.gsub(s, "=%?[Ii][Ss][Oo]%-8859%-1%?[Qq]%?(.-)%?=", "%1")
       s = string.gsub(s, "(" .. string.rep("%S", n) ..")(%S)", "%1 %2")
       s = html.of_ascii(s)
