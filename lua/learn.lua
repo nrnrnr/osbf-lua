@@ -13,6 +13,8 @@ local require, print, pairs, type, assert, loadfile, setmetatable =
 local io, string, table, math =
       io, string, table, math
 
+local prog = _G.arg and _G.arg[0] or 'osbf'
+
 local modname = ...
 local modname = string.gsub(modname, '[^%.]+$', 'commands')
 module(modname)
@@ -26,10 +28,14 @@ local cache = require(_PACKAGE .. 'cache')
 
 __doc = __doc or { }
 
+
+local to_unlearn = [[To unlearn it, 
+try ']] .. prog .. [[ unlearn [<sfid|filename>]'.]]
+
 local errmsgs = {
   learn = {
-    spam = [[This message has already been learned as spam.  To unlearn it, ...]], 
-    ham = [[This message has already been learned as ham.  To unlearn it, ...]], 
+    spam = [[This message has already been learned as spam.  ]] .. to_unlearn,
+    ham = [[This message has already been learned as ham.  ]] .. to_unlearn,
     missing = [[
 You asked to train on a message that OSBF-Lua does not recognize.  
 In a normal installation, OSBF-Lua keeps a copy of each message, but

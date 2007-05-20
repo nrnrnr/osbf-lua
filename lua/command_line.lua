@@ -172,9 +172,9 @@ learn   = learner(commands.learn)
 __doc.unlearn = 'Closure to unlearn messages as belonging to the specified class.\n'
 unlearn = learner(commands.unlearn)
 
-for _, l in ipairs { 'learn', 'unlearn' } do
-  table.insert(usage_lines, l .. ' <spam|ham> [<sfid|filename> ...]')
-end
+table.insert(usage_lines, 'learn    <spam|ham>  [<sfid|filename> ...]')
+table.insert(usage_lines, 'unlearn [<spam|ham>] [<sfid|filename> ...]')
+
 
 __doc.sfid = [[function(...)
 Searches SFID and prints to stdout for each message spec  
