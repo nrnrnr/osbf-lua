@@ -79,11 +79,12 @@ end
 
 local msgmod = msg
 
--- train "msg" as belonging to class "class_index"
--- return result (true or false), new_pR, old_pR or
---        nil, error_msg
--- true means there was a training, false indicates that the
--- training was not necessary
+__doc.train = [[function(msg, class_index) returns new_pR, old_pR or nil, error
+Train message 'msg' as belonging to database cfg.dbset[class_index].
+First classifies message to know whether to set MISTAKE flag.
+If training was not necessary, return identical probabilities.
+]]
+
 local function train(msg, class_index)
 
   local pR, msg_error = core.classify(msg, cfg.dbset, 0)
@@ -99,7 +100,7 @@ local function train(msg, class_index)
       core.learn(msg, cfg.dbset, class_index, core.MISTAKE)
       local new_pR, msg_error = core.classify(msg, cfg.dbset, 0)
       if new_pR then
-        return true, new_pR, pR
+        return new_pR, pR
       else
         return nil, msg_error
       end
@@ -108,12 +109,12 @@ local function train(msg, class_index)
       core.learn(msg, cfg.dbset, class_index, 0)
       local new_pR, msg_error = core.classify(msg, cfg.dbset, 0)
       if new_pR then
-        return true, new_pR, pR
+        return new_pR, pR
       else
         return nil, msg_error
       end
     else
-      return false, pR, pR
+      return pR, pR
     end
   else
     return nil, msg_error
@@ -146,13 +147,21 @@ function learn(sfid, classification)
     nil, 'Unknown classification ' .. classification -- error
   end
 
+  -- Full description in http://osbf-lua.luaforge.net/papers/trec2006_osbf_lua.pdf
+
   local function iterate_training()
-    local r, new_pR, orig_pR = train(lim_orig_msg, parms.index)
-    if r == nil then -- r could be false here: what is the right thing to do?
-      return r, new_pR --- error
-    elseif parms.bigger(parms.threshold, new_pR) and
-      math.abs(new_pR - orig_pR) < header_learn_threshold
-    then -- train
+    -- train once on the whole message, always
+    local new_pR, orig_pR = train(lim_orig_msg, parms.index)
+    if new_pR == nil then
+      return nil, orig_pR --- error
+    elseif parms.bigger(parms.threshold, new_pR)
+    and    math.abs(new_pR - orig_pR) < header_learn_threshold
+    then 
+      -- Iterative training on the header only (header reinforcement)
+      -- as described in the paper.  Continues until pR it exceeds a
+      -- calculated threshold or pR changes by another threshold or we
+      -- run out of iterations.  Thresholds and iteration counts were
+      -- determined empirically.
       local trd = threshold_reinforcement_degree * parms.offset_max_threshold
       local rd  = reinforcement_degree * header_learn_threshold
       local k   = cfg.constants
@@ -167,10 +176,8 @@ function learn(sfid, classification)
           break
         end
       end
-      return orig_pR, new_pR
-    else -- no training needed
-      return new_pR, new_pR
     end
+    return orig_pR, new_pR
   end
 
   local orig, new = iterate_training()
