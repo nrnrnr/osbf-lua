@@ -8,6 +8,8 @@ module(...)
 
 local core = require(_PACKAGE .. 'core')
 
+__doc = { }
+
 ----------------------------------------------------------------
 --- Special tables.
 -- Metafunction used to create a table on demand.
@@ -17,6 +19,7 @@ function table_tab(t)
   return t
 end
 ----------------------------------------------------------------
+__doc.file_is_readable = [[function(filename) returns bool]]
 function file_is_readable(file)
   local f = io.open(file, 'r')
   if f then
@@ -27,7 +30,11 @@ function file_is_readable(file)
   end
 end
 ----------------------------------------------------------------
--- check if file exists before "doing" it
+__doc.protected_dofile = [[function(filename) returns non-nil or nil, error
+Attempts 'dofile(filename)', but if filename can't be loaded
+(e.g., because it is missing or has a syntax error), instead of
+calling lua_error(), return nil, error-message.]]
+
 function protected_dofile(file)
   local f, err_msg = loadfile(file)
   if f then
@@ -37,6 +44,12 @@ function protected_dofile(file)
   end
 end
 ----------------------------------------------------------------
+__doc.submodule_path = [[function(name) returns pathname or nil, error
+Given the name of a submodule of the osbf module, returns the
+location in the filesystem from which that module would be loaded.
+This is used to find the default_cfg.lua file used to create the 
+user's config.lua file by the init command.]]
+
 function submodule_path(subname)
   local basename = append_slash(string.gsub(_PACKAGE, '%.$', '')) .. subname
   for p in string.gmatch (package.path, '[^;]+') do
@@ -49,6 +62,12 @@ function submodule_path(subname)
 end
 
 ----------------------------------------------------------------
+__doc.os_quote = [[function(s) returns string
+Takes a string s and returns s with shell metacharacters quoted,
+such that if the shell reads os_quote(s), what the shell sees
+is the original s.  Useful for forming commands to use with
+os.execute and io.popen.]]
+
 --- Quote a string for use in a Unix shell command.
 do
   local quote_me = '[^%w%+%-%=%@%_%/]' -- easier to complement what doesn't need quotes
@@ -64,6 +83,10 @@ do
 end
 
 ----------------------------------------------------------------
+__doc.mkdir = [[function(pathname)
+If pathname is not already a directory, execute 'mkdir pathname'.
+Will die with a fatal error if parent directory is missing or has
+wrong permissions (i.e., if os.execute('mkdir <pathname>') fails).]]
 
 function mkdir(path)
   if not core.isdir(path) then
@@ -73,8 +96,10 @@ function mkdir(path)
     end
   end
 end
-
 ----------------------------------------------------------------
+__doc.die = [[function(...) kills process
+Writes all arguments to io.stderr, then newline,
+then calls os.exit with nonzero exit status.]]
 
 --- Die with a fatal error message
 function die(...)
@@ -83,11 +108,12 @@ function die(...)
   os.exit(2)
 end
 
---- Validate arguments.
--- If the first argument is nil, the second is a fatal error message.
--- Otherwise this function passes all its args through as results,
--- so it can be used as an identity function.  (Provided it gets at
--- list one arg.)
+__doc.validate = [[function(...) returns ... or kills process
+Used in place of 'assert' where a function might return nil, error
+but we expect this never to happen.  If first arg is nil, calls
+util.die() with the remaining arguments.  Otherwise, just acts like
+the identity function, passing all arguments through as results.]]
+
 function validate(first, ...)
   if first == nil then
     die((...)) -- only second arg goes to die()
@@ -95,44 +121,31 @@ function validate(first, ...)
     return first, ...
   end
 end
-
-
 ----------------------------------------------------------------
-
-function contents_of_file(path)  --- returns contents as string or nil, error
-  local f, err = io.open(path, 'r')
-  if f then
-    local s = f:read '*a'
-    return s
-  else
-    return nil, err
-  end
-end
-
-----------------------------------------------------------------
-
-
-
 -- local definition requires because util must load before cfg
 
 local slash = assert(string.match(package.path, [=[[\/]]=]))
 
+__doc.append_slash = [[function(pathname) returns pathname
+If the pathname does not already end with a slash, add a slash
+to the end and return the result.  A slash is considered to be either 
+/ or \, whichever occurs first in package.path.]]
+
 -- append slash if missing
 function append_slash(path)
-  if path then
-    if string.sub(path, -1) ~= slash then
-      return path .. slash
-    else
-      return path
-    end
-  else
-    return nil
-  end
+  assert(type(path) == 'string')
+  return string.sub(path, -1) ~= slash and path .. slash or path
 end
+
+--[===[   not used!
+__doc.append_to_path = [[function(pathname, name)
+Return pathname formed by pathame/name, only using whatever
+the local slash convention is.]]
 
 function append_to_path(path, file)
   return append_slash(path) .. file
 end
+]===]
 
 ----------------------------------------------------------------
 
