@@ -353,7 +353,8 @@ function html_sfid_rows(sfids, ready) -- declared local above
     local function htmlify(s, n)
       -- strip RFC2822 quotation from s and make sure it contains no word
       -- longer than n characters (by inserting spaces if necessary), then
-      -- escape special characters using html.of_ascii
+      -- escape special characters using html.of_ascii.  The length limit
+      -- prevents the HTML browser from showing overwide columns.
       s = string.gsub(s, "=%?[Ii][Ss][Oo]%-8859%-1%?[Qq]%?(.-)%?=", "%1")
       s = string.gsub(s, "(" .. string.rep("%S", n) ..")(%S)", "%1 %2")
       s = html.of_ascii(s)
