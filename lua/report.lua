@@ -383,7 +383,7 @@ function html_sfid_rows(sfids, ready) -- declared local above
 end
 
 do
-  local default_selections = { ['-'] = 'spam', S = spam, ['+'] = ham, H = ham }
+  local default_selections = { ['-'] = 'spam', S = 'spam', ['+'] = 'ham', H = 'ham' }
 
   local menu_items = { -- menu possibilities per each message
     "none", "recover", "remove", "whitelist_from", "whitelist_subject", 
