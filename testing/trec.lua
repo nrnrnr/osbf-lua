@@ -23,7 +23,7 @@ end
 trecdir = util.append_slash(trecdir)
 
 local test_dir = '/tmp/osbf-lua'
-os.execute('/bin/rm -r ' .. test_dir)
+os.execute('/bin/rm -rf ' .. test_dir)
 os.execute('/bin/mkdir ' .. test_dir)
 
 opts['udir'] = test_dir
