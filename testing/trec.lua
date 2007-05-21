@@ -1,14 +1,16 @@
 #! /usr/bin/env lua5.1
-local osbf = require 'osbf3'
-local util = osbf.util
-local msg = osbf.msg
-local cache = osbf.cache
-local commands = osbf.commands
-local cfg = osbf.cfg
 
-local options, args = util.getopt(arg, osbf.std_opts)
+local osbf         = require 'osbf3'
+local command_line = require 'osbf3.command_line'
+local options      = require 'osbf3.options'
+local util         = require 'osbf3.util'
+local commands     = require 'osbf3.commands'
+local msg          = require 'osbf3.msg'
+local cfg          = require 'osbf3.cfg'
+local cache        = require 'osbf3.cache'
 
-if not options then
+local opts, args   = util.validate(options.parse(arg))
+if not opts then
   io.stderr:write(args, '\n')
   os.exit(1)
 end
@@ -20,19 +22,29 @@ if not trecdir then
 end
 trecdir = util.append_slash(trecdir)
 
-options['udir'] = '/tmp/osbf-lua'
+local test_dir = '/tmp/osbf-lua'
+os.execute('/bin/rm -r ' .. test_dir)
+os.execute('/bin/mkdir ' .. test_dir)
 
-osbf.init(options, true)
-local num_buckets = 4000037
-commands.init(num_buckets)
+opts['udir'] = test_dir
+
+osbf.init(opts, true)
+-- local db_total_size = 96009072 -- 4000037 buckets/database, used in TREC2006
+commands.init(db_total_size)
 
 cfg.min_pR_success = 0
 cfg.limit = 500000
 local th, ts = 20, -20
 local sfid_tags = { H = 'ham', ['+'] = 'ham', S = 'spam', ['-'] = 'spam' }
 
-
-for l in io.lines(trecdir .. 'index') do
+local result = assert(io.open('result', 'w'))
+local max_lines = 5000
+local num_lines = 0
+for l in assert(io.lines(trecdir .. 'index')) do
+  num_lines = num_lines + 1
+  if num_lines > max_lines then
+    break
+  end
   local class, file = string.match(l, '^(%w+)%s+(.*)')
   local m = util.validate(msg.of_any(trecdir .. file))
   local pR, tag = commands.classify(m)
@@ -41,6 +53,8 @@ for l in io.lines(trecdir .. 'index') do
     cache.store(sfid, msg.to_orig_string(m))
     _, _, _, new_pR = commands.learn(sfid, class)
   end
-  io.write(string.format("%s %s %s %s%.4f\n",
+
+  result:write(string.format("%s %s %s %s%.4f\n",
 	 file, 'judge=' .. class, 'class=' .. sfid_tags[tag], 'score=', -pR))
 end
+result:close()
