@@ -12,8 +12,8 @@ __doc = __doc or { }
 
 __doc.__order = {
   'create_db', 'header_size', 'bucket_size',
-  'classify', 'learn', 'unlearn', 'stats', 'config', 'dump', 'restore',
-  'import', 'chdir', 'getdir', 'dir', 'isdir',
+  'classify', 'learn', 'unlearn', 'train', 'stats', 'config', 'dump',
+  'restore', 'import', 'chdir', 'getdir', 'dir', 'isdir',
 }
 
 
@@ -133,6 +133,24 @@ function(text, dbset, class_index, flags)
 
 Undoes the effect of core.learn.  Arguments are as for core.learn.
 ]]
+
+__doc.train = [=[
+function(sense, text, dbname, [flags, [delimiters]])
+ returns true or nil, error
+
+If sense = 1 it's equivalent to core.learn, differing on how args
+are passed.
+
+  text and flags are as for core.learn
+
+  dbname: class to be trained with text
+
+  delimiters: string with additional token delimiters. Each char
+              in string is an additional delimiter
+
+If sense = -1 it's equivalent to core.unlearn.
+
+]=]
 
 __doc.config = [[function(option_table)
 Configures internal parameters. This function is intended for

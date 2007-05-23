@@ -90,10 +90,24 @@ option after you have well trained databases. Defaults to false,
 no body removal.
 ]],
 
+  report_locale = [[Language to use in the cache-report training message.
+  Default of true uses the user's locale; otherwise we understand
+  'en_US' and 'pt_BR'.
+]],
+
   mail_cmd = [[Command to send pre-formatted command messages.
 Defaults to  "/usr/lib/sendmail -it < %s".  The %s in the command
 will be replaced with the name of a file containing the pre-formatted
 message to be sent.
+]],
+
+  cache_report_limit = [[Limit on the number of messages in a single
+ cache report. Defaults to 50.
+]],
+
+  cache_report_order = [[Sets the order of messages in cache report.
+  '<' => older to newer; '>' => newer to older.
+  Defauts to '<'.
 ]],
 
 }
