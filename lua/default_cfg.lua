@@ -84,5 +84,8 @@ return {
   -- Limit on the number of messages in a single cache report.
   cache_report_limit = 50,
 
+  -- Order of messages in cache report.
+  -- '<' => older to newer; '>' => newer to older
+  cache_report_order = '<',
 }
 

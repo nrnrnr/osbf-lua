@@ -1,8 +1,8 @@
 local require, print, ipairs, pairs, type, assert, tostring =
       require, print, ipairs, pairs, type, assert, tostring
 
-local io, string, table, os, coroutine =
-      io, string, table, os, coroutine
+local io, string, table, os, coroutine, math, tonumber =
+      io, string, table, os, coroutine, math, tonumber
 
 module(...)
 
@@ -180,6 +180,76 @@ end
 
 ----------------------------------------------------------------
 
+__doc.sfid_score = [[function(sfid) returns sfid score]]
+
+function sfid_score(sfid)
+  local score = string.match(sfid, 'sfid%-.%d-%-%d-%-([-+]%d+.%d+)')
+  return score and tonumber(score) or nil, 'not a valid sfid'
+end
+
+----------------------------------------------------------------
+
+__doc.sfid_creation_time = [[function(sfid) returns a string with
+the creation time of sfid in the format 'YYYYMMDD-HHMMSS'. In case
+of error, retursn false if arg is not string or nil if date and time
+is not found.]]
+
+function sfid_creation_time(sfid)
+  return type(sfid) == 'string'
+           and
+         string.match(sfid, '^sfid%-.(........%-......)')
+end
+
+----------------------------------------------------------------
+
+__doc.sfid_is_learnable = [[function(sfid) returns true if sfid is
+learnable, that is, it's unlearned and its tag is not 'W',
+'B' or 'E'.]]
+
+function sfid_is_learnable(sfid)
+  return is_sfid(sfid) and string.find(sfid, '^sfid%-[^WBE].*[^%-][^sh]$')
+end
+
+----------------------------------------------------------------
+
+__doc.sfid_is_in_reinforcement_zone = [[function(sfid) returns true if sfid is
+in user reinforcement zone.]]
+
+function sfid_is_in_reinforcement_zone(sfid)
+  return math.abs(sfid_score(sfid) - cfg.min_pR_success) < cfg.threshold
+end
+
+----------------------------------------------------------------
+
+local valid_cmp_op = { ['>'] = true, ['<'] = true }
+  -- used to validate sfid comparison operators
+
+__doc.cmp_sfids = [[function(op) returns a function that compares
+creation dates of two sfids using operator op.
+op is string and valid values are: 
+  '<' => first sfid is older that second
+  '>' => second sfid is older that first.
+]]
+
+function cmp_sfids(op)
+  assert(valid_cmp_op[op], 'unknown operator')
+  if op == '<' then
+    return function(s1, s2)
+             return sfid_creation_time(s1) < sfid_creation_time(s2)
+           end
+  else
+    return function(s1, s2)
+             return sfid_creation_time(s1) > sfid_creation_time(s2)
+           end
+  end
+end
+
+----------------------------------------------------------------
+
+__doc.yield_two_days_sfids = [[function() yields sfids in cache in the
+order specified by cfg.cache_report_order.
+If subdir is in use, yields only sfids from last two days.]]
+
 local function yield_two_days_sfids()
   local sfid_subdirs = 
     cfg.use_sfid_subdir and
@@ -188,13 +258,22 @@ local function yield_two_days_sfids()
     or {""}
 
   --- shouldn't sfids be sorted by time or something?
+  local sfids = {}
   for _, subdir in ipairs(sfid_subdirs) do
     for f in core.dir(cfg.dirs.cache .. subdir) do
       if string.find(f, "^sfid%-") then
-        coroutine.yield(f)
+        table.insert(sfids, f)
       end
     end
   end
+  table.sort(sfids, cmp_sfids(cfg.cache_report_order))
+  for _, f in ipairs(sfids) do
+    coroutine.yield(f)
+  end
 end
+
+__doc.two_days_sfids = [[function() returns iterator
+Iterator successively yields a sfid from cache, in the oreder
+specified by cfg.cache_report_order.]]
 
 function two_days_sfids() return coroutine.wrap(yield_two_days_sfids) end

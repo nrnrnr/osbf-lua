@@ -3,8 +3,8 @@
 local require, print, pairs, ipairs, type, assert, setmetatable =
       require, print, pairs, ipairs, type, assert, setmetatable
 
-local os, string, table =
-      os, string, table
+local os, string, table, math =
+      os, string, table, math
 
 local modname = ...
 local modname = string.gsub(modname, '[^%.]+$', 'commands')
@@ -483,23 +483,47 @@ function write_training_message(outfile, email, temail, opt_locale)
 
   if not ready then language.title = language.title_nready end
 
-  local sfids = {}
+  -- Experimental - to be moved to a funtion in a better place.
+  -- Calculates half the width of reinforcement zone based on
+  -- number of learnings. Initial width is larger than the max
+  -- possible value (307) and decreases exponentially down to
+  -- the minimum value specified by the user in cfg.threshold.
+  local min_learnings = math.min(hstats.learnings, sstats.learnings)
+  local threshold = 350 / math.sqrt(2*min_learnings+0.1)
+  if threshold < cfg.threshold then
+    threshold = cfg.threshold
+  end
+
+  if not ready then language.title = language.title_nready end
 
   local max_sfids = cfg.cache_report_limit
 
-  local function add_sfids_matching(pat)
-    for sfid in cache.two_days_sfids() do
-      if string.find(sfid, pat) then
+  -- Adds all learnable sfids in cache and within reinforcement
+  -- zone, up to max_sfids.
+  local sfids = {}
+  local outside_minimum = {}
+  for sfid in cache.two_days_sfids() do
+    if cache.sfid_is_learnable(sfid) then
+      if cache.sfid_is_in_reinforcement_zone(sfid) then
         table.insert(sfids, sfid)
         if #sfids >= max_sfids then
-          return
+          break
         end
+      elseif math.abs(cache.sfid_score(sfid)) < threshold then
+        table.insert(outside_minimum, sfid)
       end
     end
   end
+  -- If still less than max_sfids, ompletes with sfids outside
+  -- of user reinforcement zone.
+  for _, s in ipairs(outside_minimum) do
+    if #sfids < max_sfids then
+      table.insert(sfids, s)
+    else
+      break
+    end
+  end
 
-  add_sfids_matching("sfid%-[-+].+[^-][^sh]$") 
-  add_sfids_matching("sfid%-[^BW]-[-+]0[01].[%.,]..%-%d-@.+[^-][^sh]$") 
-
+  table.sort(sfids, cache.cmp_sfids(cfg.cache_report_order))
   outfile:write(message(sfids, email, temail, ready))
 end
