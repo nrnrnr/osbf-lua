@@ -224,24 +224,42 @@ end
 local valid_cmp_op = { ['>'] = true, ['<'] = true }
   -- used to validate sfid comparison operators
 
+local valid_order_by = { date = true, score = true }
+  -- used to validate option to order sfids by
+
+-- functions for sifd comparison
+local cmp_func =
+  { ['<'] =
+    { date  = function(s1, s2)
+                return sfid_creation_time(s1) < sfid_creation_time(s2)
+              end,
+      score = function(s1, s2)
+                return math.abs(sfid_score(s1)) < math.abs(sfid_score(s2))
+              end
+    },
+    ['>'] =
+    { date  = function(s1, s2)
+                return sfid_creation_time(s1) > sfid_creation_time(s2)
+              end,
+      score = function(s1, s2)
+                return math.abs(sfid_score(s1)) > math.abs(sfid_score(s2))
+              end
+    }
+}
+ 
 __doc.cmp_sfids = [[function(op) returns a function that compares
-creation dates of two sfids using operator op.
-op is string and valid values are: 
-  '<' => first sfid is older that second
-  '>' => second sfid is older that first.
+creation dates or scores of two sfids, depending on the value of
+cfg.cache_report_order_by, using comparison operator op.
+
+op is a string and valid values are: 
+  '<' => first sfid comes before the second.
+  '>' => second sfid comes before the first.
 ]]
 
 function cmp_sfids(op)
   assert(valid_cmp_op[op], 'unknown operator')
-  if op == '<' then
-    return function(s1, s2)
-             return sfid_creation_time(s1) < sfid_creation_time(s2)
-           end
-  else
-    return function(s1, s2)
-             return sfid_creation_time(s1) > sfid_creation_time(s2)
-           end
-  end
+  assert(valid_order_by[cfg.cache_report_order_by], 'unknown option to order by')
+  return cmp_func[op][cfg.cache_report_order_by]
 end
 
 ----------------------------------------------------------------

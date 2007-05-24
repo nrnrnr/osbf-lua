@@ -84,8 +84,12 @@ return {
   -- Limit on the number of messages in a single cache report.
   cache_report_limit = 50,
 
+  -- Option to set what to order sfids by in cache report
+  -- Valid values are 'date' and 'score' (absolute value)
+  cache_report_order_by = 'score',
+
   -- Order of messages in cache report.
-  -- '<' => older to newer; '>' => newer to older
+  -- '<' => ascending; '>' => descending
   cache_report_order = '<',
 }
 

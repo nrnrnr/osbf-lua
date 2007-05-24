@@ -105,6 +105,11 @@ message to be sent.
  cache report. Defaults to 50.
 ]],
 
+  cache_report_order_by =[[Option to set what to order sfids by in cache
+report. Valid values are 'date' and 'score' (absolute value). Defaults to
+'score'.
+]],
+
   cache_report_order = [[Sets the order of messages in cache report.
   '<' => older to newer; '>' => newer to older.
   Defauts to '<'.
