@@ -30,7 +30,9 @@ install: $(LIBNAME)
 	cp lua/osbf.lua $(LUAMODULE_DIR)/$(MODNAME).lua
 	cp lua/*.lua $(LUAMODULE_DIR)/$(MODNAME)
 	rm -f $(LUAMODULE_DIR)/$(MODNAME)/osbf.lua # ugly, but so what
-	sed "s/osbf/$(MODNAME)/g;s@/usr/bin/lua5.1@$(LUABIN)@" lua/osbf > $(BINDIR)/$(BINNAME)
+	# sed, at least on Solaris 5.6, eats last line if it doesn't end with '\n'
+	#sed "s/osbf/$(MODNAME)/g;s@/usr/bin/lua5.1@$(LUABIN)@" lua/osbf > $(BINDIR)/$(BINNAME)
+	lua -e "x=string.gsub(io.read('*a'),'osbf','$(MODNAME)') io.write(x)" < lua/osbf > $(BINDIR)/$(BINNAME)
 	chmod +x $(BINDIR)/$(BINNAME)
 
 uninstall: 
