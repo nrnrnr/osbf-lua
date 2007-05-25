@@ -254,6 +254,20 @@ do
     return string.gsub(s, '[%&%<%>%"]', quote)
   end
 
+  -- '=%x%x' => '&#%d%d%d;'
+  function qp_to_html(qp)
+    return
+     qp and string.format('&#%d;', tonumber('0x' .. qp))
+       or
+     nil
+  end
+
+  function html.of_iso_8859_1(s)
+    s = string.gsub(s, '=(%x%x)', qp_to_html)
+    s = string.gsub(s, '_', '&nbsp;')
+    return s
+  end
+
   local function html_atts(t)
     if t then
       local s = { }

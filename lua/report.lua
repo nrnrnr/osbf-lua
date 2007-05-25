@@ -350,14 +350,22 @@ function html_sfid_rows(sfids, ready) -- declared local above
     local function header(tag)
       return msg.header_tagged(m, tag) or string.format('(no %s)', tag)
     end
+    local function hex_to_char(h)
+      return string.format('%c', string.gsub(h, '=', '0x'))
+    end
     local function htmlify(s, n)
       -- strip RFC2822 quotation from s and make sure it contains no word
       -- longer than n characters (by inserting spaces if necessary), then
-      -- escape special characters using html.of_ascii.  The length limit
-      -- prevents the HTML browser from showing overwide columns.
-      s = string.gsub(s, "=%?[Ii][Ss][Oo]%-8859%-1%?[Qq]%?(.-)%?=", "%1")
+      -- escape special characters using html.of_ascii and convert
+      -- iso-8859-1 encoded chars to html with html.of_iso_8859_1. The length
+      -- limit prevents the HTML browser from showing overwide columns.
+      local ns
+      s, ns = string.gsub(s, "=%?[Ii][Ss][Oo]%-8859%-1%?[Qq]%?(.-)%?=", "%1")
       s = string.gsub(s, "(" .. string.rep("%S", n) ..")(%S)", "%1 %2")
       s = html.of_ascii(s)
+      if ns > 0 then
+        s = util.html.of_iso_8859_1(s)
+      end
       return s
     end
 
