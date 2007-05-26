@@ -149,7 +149,8 @@ end
 
 ----------------------------------------------------------------
 
---- Return sorted list of keys in a table.
+__doc.table_sorted_keys = [[Return sorted list of keys in a table.]]
+
 function table.sorted_keys(t, lt)
   local l = { }
   for k in pairs(t) do
@@ -165,7 +166,10 @@ function case_lt(s1, s2)
 end
 
   
---- Put string into typical form for RFC 822 header.
+__doc.capitalize = [[function(s) puts string into typical form for RFC 822 header.]]
+
+-- XXX changes some usual forms: Message-ID, MIME-Version, X-UIDL, ...
+
 function capitalize(s)
   s = '_' .. string.lower(s)
   s = string.gsub(s, '(%A)(%a)', function(nl, let) return nl .. string.upper(let) end)
@@ -175,8 +179,7 @@ end
 
 ----------------------------------------------------------------
 
---- return a string as number of bytes
-
+__doc.bytes_of_human = [[function(s) returns a string as number of bytes.]]
 
 local mult = { [''] = 1, K = 1024, M = 1024 * 1024, G = 1024 * 1024 * 1024 }
 
@@ -193,6 +196,9 @@ local smallest_mantissa = .9999 -- I hate roundoff error
 --- we choose to show, e.g. 1.1MB instead of 1109KB.
 
 
+__doc.human_of_bytes = [[function(n) returns the number of bytes as a
+ string readable by humans, using the proper prefix: K, M or G.]]
+
 function human_of_bytes(n)
   assert(tonumber(n))
   local suff = ''
@@ -206,6 +212,10 @@ function human_of_bytes(n)
   return string.format(fmt, digits, suff, 'B')
 end
 ----------------------------------------------------------------
+
+__doc.encode_quoted_printable = [[function(s, max_width) returns s in
+quoted-printable format. Limits lines to max_width chars.]]
+
 -- PIL, section 21.1
 local split_qp_at -- returns prefix, suffix; defined below
 
@@ -225,7 +235,9 @@ function encode_quoted_printable(s, max_width)
   return table.concat(lines, '\n')
 end
 
--- splits a line that's too long, quoting the newline with =
+__doc.split_qp_at = [[function(l, width) splits a line that's too long,
+ quoting the newline with '='.]]
+
 split_qp_at = function(l, width)    
   width = width or 65
   if width < 5 then width = 5 end
@@ -250,11 +262,14 @@ html = { }
 do
   local quote = { ['&'] = '&amp;', ['<'] = '&lt;', ['>'] = '&gt;', ['"'] = '&quot;' }
 
+  __doc.html_of_ascii = [[function(s) quotes special html chars.]]
   function html.of_ascii(s)
     return string.gsub(s, '[%&%<%>%"]', quote)
   end
 
-  -- '=%x%x' => '&#%d%d%d;'
+  __doc.qp_to_html = [[function(qp) converts qp char to html numeric
+representation: '=%x%x' => '&#%d%d%d;'.]]
+
   function qp_to_html(qp)
     return
      qp and string.format('&#%d;', tonumber('0x' .. qp))
@@ -262,11 +277,17 @@ do
      nil
   end
 
+  __doc.html_of_iso_8859_1 = [[function(s) encodes ISO 8859-1 strings into
+html.]]
   function html.of_iso_8859_1(s)
     s = string.gsub(s, '=(%x%x)', qp_to_html)
     s = string.gsub(s, '_', '&nbsp;')
     return s
   end
+
+  __doc.html_atts = [[function(t) concatenates keys and values in table t
+as a series of html attributes: " att1=v1 att2=v2 ...".
+If t is nil or false, returns the empty string.]]
 
   local function html_atts(t)
     if t then
@@ -279,6 +300,9 @@ do
       return ''
     end
   end
+
+  __doc.tag = [[function(t) meta function to apply attributes in table t to
+an html tag.]]
 
   local function tag(t)
     return function(atts, s)
@@ -297,3 +321,29 @@ do
   setmetatable(html, meta)
 end
 ----------------------------------------------------------------
+
+__doc.generate_pwd = [[function() retunrs a random password with 32 hex
+chars. The password is generated from random bytes read from /dev/urandom.
+If /dev/urandom is not readable, random bytes are produced with math.random,
+after seeding math.randomseed with current time.]] 
+
+local pwd_length = 16
+function generate_pwd()
+  local fh = io.open('/dev/urandom', 'r')
+  local pwd
+  if fh then
+    pwd = fh:read(pwd_length)
+    fh:close()
+  end
+  if not pwd then
+    math.randomseed(os.time())
+    pwd = string.gsub(string.rep(' ', pwd_length), '.',
+                        function(c)
+                          return string.char(math.random(256)-1)
+                        end)
+  end
+  pwd = string.gsub(pwd, '.', function(c)
+                                return string.format('%02x', string.byte(c))
+                              end)
+  return pwd
+end

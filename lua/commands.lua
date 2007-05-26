@@ -94,7 +94,10 @@ function init(totalsize)
     local default = util.validate(util.submodule_path 'default_cfg')
     local f = util.validate(io.open(default, 'r'))
     local u = util.validate(io.open(config, 'w'))
-    u:write(f:read '*a')
+    -- sets initial password to a random string
+    local x = f:read '*a'
+    x = (string.gsub(x, '(pwd%s*=%s*")[^"]*', '%1' .. util.generate_pwd()))
+    u:write(x)
     f:close()
     u:close()
   end

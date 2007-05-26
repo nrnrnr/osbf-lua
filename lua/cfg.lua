@@ -1,5 +1,5 @@
-local assert, ipairs, pairs, require, tostring
-    = assert, ipairs, pairs, require, tostring
+local assert, ipairs, pairs, require, tostring, type
+    = assert, ipairs, pairs, require, tostring, type
 
 local package, string, os, table
     = package, string, os, table
@@ -159,7 +159,9 @@ Loads a config file.
 
 function load(filename)
   local config, err = util.protected_dofile(filename)
-  if not config then return nil, err end
+  if not config or type(config) ~= 'table' then
+    return nil, err or filename .. ' is not a valid config file.'
+  end
   for k, v in pairs(config) do
     if d[k] == nil then
       util.die(prog, ': fatal error - configuration "', tostring(k),
