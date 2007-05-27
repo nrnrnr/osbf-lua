@@ -25,7 +25,11 @@ $(LIBNAME): $(OBJS)
 
 install: $(LIBNAME)
 	mkdir -p $(LUAMODULE_DIR)/$(MODNAME)
+ifeq ($(STRIP),no)
+	cp $(LIBNAME) $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT)
+else
 	strip -o $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT) $(LIBNAME)
+endif
 	cp lua/*.lua $(LUAMODULE_DIR)/$(MODNAME)
 	mv $(LUAMODULE_DIR)/$(MODNAME)/osbf.lua $(LUAMODULE_DIR)/$(MODNAME).lua
 	lua -e "x=string.gsub(io.read('*a'),'osbf','$(MODNAME)') io.write(x)" < lua/osbf > $(BINDIR)/$(BINNAME)
