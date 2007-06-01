@@ -400,7 +400,7 @@ do
 
   function sfid_menu(sfid, tag, ready) -- declared local above
     local selected = { }
-    selected[default_selections[tag] or 'none'] = true
+    selected[ready and default_selections[tag] or 'none'] = true
 
     local function menu_item(choice)
       return string.format([[<option class="menu" value="%s"%s>%s]],

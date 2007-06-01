@@ -70,9 +70,15 @@ end
 demand_fields.header_index = function(t, k)
   local index = util.table_tab { }
   local hs = t.headers
-  for i = 1, #hs do
+  local start_idx = 1
+  -- handle envelope 'From ' header
+  if string.find(hs[1], '^From ') then
+    table.insert(index['from '], 1)
+    start_idx = 2
+  end
+  for i = start_idx, #hs do
     -- io.stderr:write(string.format('Header is %q\n', hs[i]))
-    local h = string.match(hs[i], '^(.-):')
+    local h = string.match(hs[i], '^(%S-)%s*:')
     if h then
       table.insert(index[string.lower(h)], i)
     else
@@ -345,6 +351,7 @@ Case is not significant.
 do
   local valid_tag = { references = true, ['message-id'] = true }
   local function valid_header_set(l)
+    assert(type(l) == 'table', 'Expecting a table with valid header names')
     local t = { }
     for _, h in ipairs(l) do
       h = string.lower(h)
@@ -354,6 +361,7 @@ do
         util.die([[I don't know how to insert a sfid into a ']] .. h [[' header.]])
       end
     end
+    return t
   end
 
   local function remove_old_sfids(msg)
@@ -436,7 +444,7 @@ function find_subject_command(msg)
     local cmd, pwd, args = string.match(h, '^(%S+)%s+(%S+)(.*)') 
     -- FIXME: should validate cmd too (against explicit list?
     --        subject_command table with functions, in command_line?)
-    if pwd and pwd == cfg.pwd and util.password_ok(pwd) then
+    if pwd and pwd == cfg.pwd and cfg.password_ok(pwd) then
       local cmd_table = { cmd }
       string.gsub(args, '%S+', function (a)
                                  table.insert(cmd_table, a)

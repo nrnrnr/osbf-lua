@@ -37,7 +37,7 @@ function run(cmd, ...)
     usage()
   end
 end
-    
+
 __doc.usage = [[function(usage)
 Prints command syntax to stderr and exits with error code 1.
 ]] 
@@ -189,6 +189,28 @@ end
 
 table.insert(usage_lines, 'sfid [<sfid|filename> ...]')
 
+__doc.recover = [[function(sfid)
+Recovers sfid from cache and prints message contents to stdout.
+]]
+
+function recover(sfid)
+  local msg, err = cache.recover(sfid)
+  msg = msg or err
+  io.stdout:write(msg)
+end
+
+table.insert(usage_lines, 'recover <sfid>')
+
+__doc.remove = [[function(sfid) Removes sfid from cache.]]
+
+function remove(sfid)
+  local msg, err = cache.remove(sfid)
+  msg = msg or err
+  io.stdout:write(msg)
+end
+
+table.insert(usage_lines, 'remove <sfid>')
+
 __doc.classify = [[function(...)
 Reads a message from a file, sfid or stdin, classifies it
 and prints the classification to stdout.
@@ -224,6 +246,65 @@ end
 
 table.insert(usage_lines, 'classify [-tag] [-cache] [<sfid|filename> ...]')
 
+local function whitelist_from(msgspec)
+  io.stdout:write('whitelist from not implemented yet.')
+end
+  
+local function whitelist_subject(msgspec)
+  io.stdout:write('whitelist subject not implemented yet.')
+end
+
+local valid_batch_cmds = {
+  spam = {'learn', 'spam'}, ham = {'learn', 'ham'}, undo = {'unlearn'},
+  recover = {'recover'}, remove = {'remove'}, whitelist_from = whitelist_from,
+  whitelist_subject = whitelist_subject, none = true } 
+ 
+local function run_cmd(sfid, cmd)
+  local args = valid_batch_cmd[cmd]
+  if args then
+    if type(args) == 'table' then
+      table.insert(args, sfid)
+      run(unpack(args))
+      if cmd == 'ham' and cache.sfid_score(sfid) < cfg.threshold then
+        -- resend message
+      end
+    elseif type(args) == 'function' then
+      args(sfid)
+    else
+      -- do nothing
+    end
+  else
+    io.stdout:write('Unknown command: ', cmd or 'nil')
+  end
+end
+
+__doc.batch_train = [[function(...)
+Reads a message from a file, sfid or stdin, searches commands
+in the body, one per line, and executes them. The commands must have
+the format:
+<sfid>=<command>
+<sfid>=<command>
+...
+
+Valid commands are: 
+ham               => train <sfid> as ham;
+spam              => traim <sfid> as spam;
+undo              => undo previous training on sfid;
+whitelist_from    => add From: line of <sfid> to whitelist;
+whitelist_subject => add Subject: line of <sfid> to whitelist;
+recover           => recover message associated with <sfid> from
+                     cache and send it attached;
+remove            => remove <sfid> from cache.
+]]
+
+function batch_train(...)
+  for msgspec, what in ipairs{...} do
+    local m = util.validate(msg.of_any(msgspec))
+    string.gsub(m.body, '(sfid.-)=(%S)', run_cmd)
+  end
+end
+
+
 __doc.filter = [[function(...)
 Reads a message from a file, sfid or stdin, searches for a command
 in the subject line and either executes the command, if found, or
@@ -233,6 +314,8 @@ Valid options: -notag   => disables subject tagging
                -nosfid  => disables sfid (implies -nocache)
 ]]
 
+local require_sfid = { classify = true, learn = true, unlearn = true,
+                       sfid = true, filter = true }
 function filter(...)
   local options, argv =
     util.validate(options.parse({...},
@@ -240,15 +323,35 @@ function filter(...)
        nosfid = options.std.bool}))
 
   for msgspec, what in msgspecs(unpack(argv)) do
-    local m = util.validate(msg.of_any(msgspec))
+    local m, err = util.validate(msg.of_any(msgspec))
     local subject_command = msg.find_subject_command(m)
     if subject_command then
       -- print cmd and args for testing
-      for i, v in pairs(subject_command) do
-        print(v)
+      --for i, v in pairs(subject_command) do
+       -- print(v)
+      --end
+      if require_sfid[sfid_command] then
+         local sfid = msg.sfid(msgspec)
+         if sfid then
+           table.insert(subject_command, sfid)
+         end
       end
+      -- remove mime header
+      -- io.write(msgspec.headers)
+      for i in msg.header_indices(m, 'from ', 'received', 'date',
+                                  'from', 'to', 'message-id') do
+        if i then
+          io.stdout:write(m['headers'][i], m.eol)
+        end
+      end
+      io.stdout:write('Subject: Result of filter command - ',
+        subject_command[1], m.eol, m.eol)
+      run(unpack(subject_command))
     else
       local pR, sfid_tag, subj_tag = commands.classify(m)
+      if pR == nil then
+        util.log(cfg.dirs.log .. '/osbf_log', sfid_tag)
+      end
       if not options.nosfid and cfg.use_sfid then
         local sfid = cache.generate_sfid(sfid_tag, pR)
         if not options.nocache and cfg.save_for_training then
@@ -261,7 +364,7 @@ function filter(...)
       end
       local score_header = string.format(
         '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
-        pR, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
+        pR or 0, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
       msg.add_header(m, 'X-OSBF-Lua-Score', score_header)
       io.stdout:write(msg.to_string(m))
     end

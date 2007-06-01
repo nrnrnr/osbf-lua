@@ -320,6 +320,7 @@ Sets OSBF-Lua directories, databases and loads user's config file.
 __doc.dbset = "Table with database info."
 local function init(options, no_dirs_ok)
   set_dirs(options, no_dirs_ok)
+  util.validate(load_if_readable(configfile))
   dbset = {
     classes = {dirs.database .. ham_db,
                dirs.database .. spam_db},
@@ -329,7 +330,6 @@ local function init(options, no_dirs_ok)
     ham_index = 1,
     spam_index    = 2,
   }
-  util.validate(load_if_readable(configfile))
 end
 
 boot.initializer(init)

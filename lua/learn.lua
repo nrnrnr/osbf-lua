@@ -317,7 +317,7 @@ function classify(msg)
 
   if pR == nil then
      -- log error message
-     -- util.log(class_probs, true)
+     util.log(cfg.dirs.log .. '/osbf_log', class_probs)
   end
 
   if not sfid_tag then

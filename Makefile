@@ -25,14 +25,14 @@ $(LIBNAME): $(OBJS)
 
 install: $(LIBNAME)
 	mkdir -p $(LUAMODULE_DIR)/$(MODNAME)
-ifeq ($(STRIP),no)
 	cp $(LIBNAME) $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT)
-else
-	strip -o $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT) $(LIBNAME)
+ifneq ($(STRIP),no)
+	strip $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT)
 endif
 	cp lua/*.lua $(LUAMODULE_DIR)/$(MODNAME)
 	mv $(LUAMODULE_DIR)/$(MODNAME)/osbf.lua $(LUAMODULE_DIR)/$(MODNAME).lua
-	lua -e "x=string.gsub(io.read('*a'),'osbf','$(MODNAME)') io.write(x)" < lua/osbf > $(BINDIR)/$(BINNAME)
+	echo "#! $(LUABIN)" > $(BINDIR)/$(BINNAME)
+	lua -e "x=string.gsub(io.read('*a'),'osbf','$(MODNAME)') io.write(x)" < lua/osbf >> $(BINDIR)/$(BINNAME)
 	chmod +x $(BINDIR)/$(BINNAME)
 
 uninstall: 
@@ -40,9 +40,9 @@ uninstall:
 	rm -rf $(BINDIR)/$(BINNAME)
 
 test: install
-	lua5.1 -l$(MODNAME) ./print-contents $(MODNAME)
-	lua5.1 ./test-headers $(MODNAME) $(MAILFILE)
-	lua5.1 -l$(MODNAME) -e "m = $(MODNAME).msg.of_file '$(MAILFILE)'" -i
+	$(LUABIN) -l$(MODNAME) ./print-contents $(MODNAME)
+	$(LUABIN) ./test-headers $(MODNAME) $(MAILFILE)
+	$(LUABIN) -l$(MODNAME) -e "m = $(MODNAME).msg.of_file '$(MAILFILE)'" -i
 
 clean:
 	rm -f $(LIBNAME) $(OBJS) *.so *~

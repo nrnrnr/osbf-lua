@@ -97,6 +97,38 @@ function mkdir(path)
   end
 end
 ----------------------------------------------------------------
+
+__doc.log = [[function(file, first, ...) log args to osbf_log in log dir.
+Prepends date and time.]]
+
+function log(file, first, ...)
+  local log = io.open(file, 'a+')
+  if log then
+    log:write(os.date("%c - "))
+    if type(first) == 'string' then
+      log:write(first)
+    elseif type(first) == 'table' then
+        log:write('{\n')
+        for k, v in pairs(first) do
+          log:write('  ', k, ' = ', v, '\n')
+        end
+        log:write('}\n')
+    elseif first == nil then
+      log:write('nil')
+    else
+      log:write(first)
+    end
+    log:write('\n')
+    log:close()
+    if ... and select('#', ...) > 0 then
+      log(...)
+    end
+    return true
+  else
+    return nil
+  end
+end
+
 __doc.die = [[function(...) kills process
 Writes all arguments to io.stderr, then newline,
 then calls os.exit with nonzero exit status.]]

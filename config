@@ -4,9 +4,25 @@ LIB_VERSION= 2.0.4
 # Installation directories: Adjust these for your distro and Lua version
 # Where Lua modules are installed
 LUAMODULE_DIR=/usr/local/lib/lua/5.1
-LUA_CFLAGS=$(shell pkg-config --cflags lua5.1)
+PKG_CONFIG=$(firstword $(shell which pkg-config))
+ifeq (pkg-config,$(findstring pkg-config,$(PKG_CONFIG)))
+  LUA_CFLAGS=$(shell pkg-config --cflags lua5.1)
+else
+  LUA_CFLAGS=-I /usr/local/include -I/usr/local/include/lua
+endif
 LUA_LIBS=
 LUABIN=$(shell which lua5.1)
+ifeq (,$(findstring lua5.1,$(firstword $(LUABIN))))
+ LUABIN=$(shell which lua)
+endif
+ifeq (,$(findstring lua,$(firstword $(LUABIN))))
+ $(error lua executable not found.)
+endif
+LUA_VERSION=$(word 2, $(shell $(LUABIN) -v 2>&1))
+# Rethink when Lua 5.2 is out
+ifeq (,$(findstring 5.1,$(LUA_VERSION)))
+ $(error Lua 5.1 or greater required)
+endif
 # Where to install the osbf binary
 BINDIR=/usr/local/bin
 # OS dependent
