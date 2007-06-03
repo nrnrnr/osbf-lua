@@ -54,7 +54,8 @@ Returns the subdirectory of the cache in which that sfid should be stored,
 or if subdirectories are not used, returns the empty string.]]
                
 function subdir(sfid)
-  assert(is_sfid(sfid), 'invalid sfid: ' .. sfid)
+  assert(is_sfid(sfid), 'invalid sfid: ' ..
+    type(sfid) == 'string' and sfid or 'not string')
   if cfg.use_sfid_subdir then
     return
       table.concat { string.sub(sfid, 13, 14), slash, string.sub(sfid, 16, 17), slash }
@@ -79,6 +80,9 @@ file == nil if and only if status == 'missing']]
 
 -- secretly, for internal use only, also returns the filename
 function file_and_status(sfid)
+ if not is_sfid(sfid) then
+   return nil, 'Invalid sfid passed to file_and_status'
+ end
   for status in pairs(suffixes) do
     local fname = filename(sfid, status)
     local f = io.open(fname, 'r')
@@ -158,6 +162,13 @@ function remove(sfid)
   if f then
     f:close()
     return os.remove(fname)
+  else
+    return nil,
+      type(sfid) == 'string'
+        and
+      sfid .. ': not found in cache.'
+        or
+      'Invalid sfid.'
   end
 end
  
@@ -174,7 +185,11 @@ function recover(sfid)
     f:close()
     return msg
   else
-    return f, 'Message ' .. sfid .. ' is not in the cache'
+    if is_sfid(sfid) then
+      return f, sfid .. ': not found in cache.'
+    else
+      return f, 'Invalid sfid.'
+    end
   end
 end
 

@@ -1,8 +1,8 @@
 local require, print, pairs, type, assert, loadfile, setmetatable, tonumber =
       require, print, pairs, type, assert, loadfile, setmetatable, tonumber
 
-local io, string, table, os, package =
-      io, string, table, os, package
+local io, string, table, os, package, select =
+      io, string, table, os, package, select
 
 module(...)
 
@@ -102,24 +102,24 @@ __doc.log = [[function(file, first, ...) log args to osbf_log in log dir.
 Prepends date and time.]]
 
 function log(file, first, ...)
-  local log = io.open(file, 'a+')
-  if log then
-    log:write(os.date("%c - "))
+  local fh = io.open(file, 'a+')
+  if fh then
+    fh:write(os.date("%c - "))
     if type(first) == 'string' then
-      log:write(first)
+      fh:write(first)
     elseif type(first) == 'table' then
-        log:write('{\n')
+        fh:write('{\n')
         for k, v in pairs(first) do
-          log:write('  ', k, ' = ', v, '\n')
+          fh:write('  ', k, ' = ', v, '\n')
         end
-        log:write('}\n')
+        fh:write('}\n')
     elseif first == nil then
-      log:write('nil')
+      fh:write('nil')
     else
-      log:write(first)
+      fh:write(first)
     end
-    log:write('\n')
-    log:close()
+    fh:write('\n')
+    fh:close()
     if ... and select('#', ...) > 0 then
       log(...)
     end

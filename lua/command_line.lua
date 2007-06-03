@@ -23,6 +23,10 @@ __doc = __doc or { }
 
 local usage_lines = { }
 
+local function log(...)
+  return util.log(cfg.dirs.log .. '/osbf_log', ...)
+end
+
 __doc.run = [[function(cmd, ...)
 Runs command cmd calling it with arguments received.
 ]] 
@@ -189,22 +193,43 @@ end
 
 table.insert(usage_lines, 'sfid [<sfid|filename> ...]')
 
-__doc.recover = [[function(sfid)
-Recovers sfid from cache and prints message contents to stdout.
+__doc.recover = [[function(sfid, ...)
+Recovers message with sfid from cache and prints it to stdout.
+Valid option: -attach <mime_boundary>.
 ]]
 
-function recover(sfid)
-  local msg, err = cache.recover(sfid)
-  msg = msg or err
-  io.stdout:write(msg)
+function recover(...)
+  local nargs = select('#', ...)
+  assert(nargs > 0 and nargs < 3,
+    'Wrong number of args to msg.recover: Got ' .. tostring(nargs))
+  local options, argv =
+    util.validate(options.parse({...}, {attach = options.std.bool}))
+  assert(#argv == 1)
+  local sfid = argv[1]
+  -- recovered message should be attached?
+  if options.attach then 
+    io.stdout:write(msg.attach_message(sfid))
+  else
+    local msg, err = cache.recover(sfid)
+    msg = msg or err
+    io.stdout:write(msg)
+  end
 end
 
 table.insert(usage_lines, 'recover <sfid>')
+
+__doc.recover_attached = [[function(sfid)
+Recovers message with sfid from cache and and prints it wrapped
+with MIME boundaries to stdout.
+]]
 
 __doc.remove = [[function(sfid) Removes sfid from cache.]]
 
 function remove(sfid)
   local msg, err = cache.remove(sfid)
+  if msg == true then
+    msg = sfid .. ': removed.'
+  end
   msg = msg or err
   io.stdout:write(msg)
 end
@@ -264,9 +289,14 @@ local function run_cmd(sfid, cmd)
   if args then
     if type(args) == 'table' then
       table.insert(args, sfid)
-      run(unpack(args))
-      if cmd == 'ham' and cache.sfid_score(sfid) < cfg.threshold then
-        -- resend message
+      if cmd == 'recover' then
+        -- send a separate mail with subject-line command
+        -- say recover command has been issued
+      else
+        run(unpack(args))
+        if cmd == 'ham' and cache.sfid_score(sfid) < cfg.threshold then
+          -- resend message with right classification
+        end
       end
     elseif type(args) == 'function' then
       args(sfid)
@@ -304,6 +334,45 @@ function batch_train(...)
   end
 end
 
+-- valid subject-line commands for filter command.
+-- commands with value 1 require sfid. 
+local subject_line_commands = { classify = 1, learn = 1, unlearn = 1,
+  recover = 1, remove = 1, sfid = 1, help = 0, whitelist = 0, blacklist = 0,
+  ['cache-report'] = 0 }
+
+local function exec_subject_line_command(cmd, m)
+    assert(type(cmd) == 'table' and type(m) == 'table')
+    if cmd then
+      local sfid, err = msg.sfid(m)
+      if subject_line_commands[cmd[1]] == 1 then
+        if sfid then
+          table.insert(cmd, sfid)
+        else
+          io.stdout:write(err)
+          return
+        end
+      end
+      for i in msg.header_indices(m, 'from ', 'received', 'date',
+        'from', 'to', 'message-id') do
+        if i then
+          io.stdout:write(m['headers'][i], m.eol)
+        end
+      end
+      io.stdout:write('Subject: Subject-line command result - ', cmd[1], m.eol)
+      local boundary
+      if cmd[1] == 'recover' then
+        table.insert(cmd, 2, '-attach')
+        -- make boundary from sfid
+        boundary = string.gsub(sfid, "@.*", "=-=-=")
+        io.stdout:write('MIME-Version: 1.0', m.eol,
+          'Content-Type: multipart/mixed;', m.eol,
+          ' boundary="' .. boundary .. '"', m.eol, m.eol)
+      else
+        io.stdout:write(m.eol)
+      end
+      run(unpack(cmd))
+  end
+end
 
 __doc.filter = [[function(...)
 Reads a message from a file, sfid or stdin, searches for a command
@@ -314,8 +383,6 @@ Valid options: -notag   => disables subject tagging
                -nosfid  => disables sfid (implies -nocache)
 ]]
 
-local require_sfid = { classify = true, learn = true, unlearn = true,
-                       sfid = true, filter = true }
 function filter(...)
   local options, argv =
     util.validate(options.parse({...},
@@ -324,33 +391,13 @@ function filter(...)
 
   for msgspec, what in msgspecs(unpack(argv)) do
     local m, err = util.validate(msg.of_any(msgspec))
-    local subject_command = msg.find_subject_command(m)
-    if subject_command then
-      -- print cmd and args for testing
-      --for i, v in pairs(subject_command) do
-       -- print(v)
-      --end
-      if require_sfid[sfid_command] then
-         local sfid = msg.sfid(msgspec)
-         if sfid then
-           table.insert(subject_command, sfid)
-         end
-      end
-      -- remove mime header
-      -- io.write(msgspec.headers)
-      for i in msg.header_indices(m, 'from ', 'received', 'date',
-                                  'from', 'to', 'message-id') do
-        if i then
-          io.stdout:write(m['headers'][i], m.eol)
-        end
-      end
-      io.stdout:write('Subject: Result of filter command - ',
-        subject_command[1], m.eol, m.eol)
-      run(unpack(subject_command))
+    local cmd = msg.find_subject_command(m)
+    if type(cmd) == 'table' and subject_line_commands[cmd[1]] then
+      exec_subject_line_command(cmd, m)
     else
       local pR, sfid_tag, subj_tag = commands.classify(m)
       if pR == nil then
-        util.log(cfg.dirs.log .. '/osbf_log', sfid_tag)
+        log(sfid_tag)
       end
       if not options.nosfid and cfg.use_sfid then
         local sfid = cache.generate_sfid(sfid_tag, pR)

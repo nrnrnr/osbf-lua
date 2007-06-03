@@ -549,3 +549,72 @@ function rfc2822_to_localtime(date)
 
   return ts - (tz - off_utc)
 end
+
+__doc.valid_boundary = [[function(boundary) Returns boundary if boundary
+is a valid RFC2046 MIME boundary or false otherwise.
+]]
+
+-- RFC2046
+local bcharnospace = "[%d%a'()+_,-./:=?]"
+local bcharspace = "[ %d%a'()+_,-./:=?]"
+local bpattern = '^' .. bcharspace .. '*' .. bcharnospace .. '$'
+function valid_boundary(boundary)
+  return
+    type(boundary) == 'string'
+      and
+    string.len(boundary) <= 70 and string.match(boundary, bpattern)
+      and
+    boundary
+      or
+    false
+end
+
+__doc.attach_message = [[function(sfid, boundary)
+Recovers message associated with sfid from cache and returns it wrapped
+in MIME boundaries. boundary is optional string. If ommited, it is
+derived from sfid.
+If sfid is not found in cache, an error message is returned wrapped
+in MIME boundaries.
+]]
+
+function attach_message(sfid, boundary)
+  boundary = assert(boundary == nil or valid_boundary(boundary),
+   'Invalid boundary to attach_message')
+  if boundary == true then
+    boundary =
+      cache.is_sfid(sfid)
+        and
+      string.gsub(sfid, "@.*", "=-=-=", 1)
+        or
+      'error-boundary=_=_='
+  end
+    
+  local msg_content, err = cache.recover(sfid)
+  if msg_content then
+    local m = of_string(msg_content)
+    -- protect and keep the original envelope-from line
+    local xooef =
+      string.find(msg_content, '^From ')
+        and 'X-OSBF-Original-Envelope-From: '
+      or ''
+
+    msg_content = table.concat({'--' .. boundary,
+       'Content-Type: message/rfc822;',
+       ' name="Recovered Message"',
+       'Content-Transfer-Encoding: 8bit',
+       'Content-Disposition: inline;',
+       ' filename="Recovered Message"', '',
+       xooef .. msg_content,
+       '--' .. boundary .. '--', ''}, m.eol)
+  else
+    msg_content = table.concat({'--' .. boundary,
+       'Content-Type: text/plain;',
+       ' name="Error message"',
+       'Content-Transfer-Encoding: 8bit',
+       'Content-Disposition: inline;', '',
+       err,
+       '--' .. boundary .. '--', ''}, '\r\n')
+  end
+
+  return msg_content
+end

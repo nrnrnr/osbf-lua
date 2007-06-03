@@ -203,7 +203,7 @@ function learn(sfid, classification)
     orig == new and string.format(cfg.training_not_necessary,
                                   new, max_learn_threshold,
                                   max_learn_threshold)
-    or string.format('%s: %.2f -> %.2f', parms.trained_as, orig, new)
+    or string.format('%s: %s - %.2f -> %.2f', sfid, parms.trained_as, orig, new)
   return comment, classification, orig, new
 end  
 
@@ -241,8 +241,8 @@ but %s.]], classification, errmsgs.unlearn[status])
   end
   cache.change_file_status(sfid, classification, 'unlearned')
   local comment =
-    string.format('Message unlearned (was %s): %.2f -> %.2f', classification,
-                  old_pR, pR)
+    string.format('%s: Message unlearned (was %s): %.2f -> %.2f', sfid,
+                  classification, old_pR, pR)
   return comment, 'unlearned', old_pR, pR
 end
 
