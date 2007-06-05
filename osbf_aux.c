@@ -1126,7 +1126,7 @@ osbf_import (const char *cfcfile_to, const char *cfcfile_from, char *errmsg)
 
 int
 osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
-	    char *errmsg, int full)
+	    char *errmsg, int verbose)
 {
 
   FILE *fp_cfc;
@@ -1196,7 +1196,7 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
 		}
 	    }
 
-	  if (full == 1) {
+	  if (verbose == 1) {
 	  while (error == 0 && buckets_in_buffer > 0)
 	    {
 	      j++;		/* number of reads */
@@ -1314,20 +1314,23 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
       stats->version = header.version;
       stats->total_buckets = header.num_buckets;
       stats->bucket_size = sizeof (OSBF_BUCKET_STRUCT);
-      stats->used_buckets = used_buckets;
       stats->header_size = header.buckets_start * sizeof (OSBF_BUCKET_STRUCT);
       stats->learnings = header.learnings;
       stats->extra_learnings = header.extra_learnings;
       stats->mistakes = header.mistakes;
       stats->classifications = header.classifications;
-      stats->num_chains = num_chains;
-      stats->max_chain = max_chain;
-      if (num_chains > 0)
-	stats->avg_chain = (double) chain_len_sum / num_chains;
-      else
-	stats->avg_chain = 0;
-      stats->max_displacement = max_displacement;
-      stats->unreachable = unreachable;
+      if (verbose == 1)
+        {
+          stats->used_buckets = used_buckets;
+          stats->num_chains = num_chains;
+          stats->max_chain = max_chain;
+          if (num_chains > 0)
+	    stats->avg_chain = (double) chain_len_sum / num_chains;
+          else
+	    stats->avg_chain = 0;
+          stats->max_displacement = max_displacement;
+          stats->unreachable = unreachable;
+        }
     }
 
   return error;

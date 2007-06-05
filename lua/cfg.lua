@@ -284,6 +284,7 @@ function set_dirs(options, no_dirs_ok)
       end
     end
   end
+  util.set_log_file(dirs.log .. 'osbf_log')
 end
 
 

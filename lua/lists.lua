@@ -7,6 +7,7 @@ local util = require(_PACKAGE .. 'util')
 local cfg  = require(_PACKAGE .. 'cfg')
 local msg  = require(_PACKAGE .. 'msg')
 
+__doc = { }
 
 --------------------------------------------
 --- Lists.
@@ -23,9 +24,10 @@ local msg  = require(_PACKAGE .. 'msg')
 
 local cache = { }
 
---- Internal function for loading a list by name.
--- @param name Basename of the file in the lists dir holding this list.
--- @return The internal representation of the list (to be kept private).
+__doc.load = [[function(name) Internal function for loading a list by name.
+name: Basename of the file in the lists dir holding this list.
+Returns the internal representation of the list (to be kept private).
+]]
 local function load(name)
   if cache[name] then
     return cache[name]
@@ -42,12 +44,14 @@ local function load(name)
   end
 end
 
---- Internal function for saving a list by name.
--- Actually works with any table in which keys are strings and values 
--- are strings or similar tables.  Updates the cache.
--- @param name Basename of the file in the lists dir holding this list.
--- @param l List to be saved.
--- @return true on success; nil, msg on failure.
+__doc.save = [[function(nname, l) Internal function for saving a list by name.
+Actually works with any table in which keys are strings and values 
+are strings or similar tables.  Updates the cache.
+name: Basename of the file in the lists dir holding this list.
+l: List to be saved.
+Returns true on success; nil, msg on failure.
+]]
+
 local function save(name, l)
   cache[name] = assert(l, 'Tried to save nil as a list?!')
   local f, err = io.open(cfg.dirfilename('lists', name), 'w')
@@ -77,12 +81,14 @@ local function save(name, l)
   return true
 end
 
---- Add a pair to a list.
--- @param listname Name of the list to be added to.
--- @param part Either strings or pats.
--- @param tag Header tag.
--- @param string String or pattern to be added.
--- @return boolean saying if it was already there.
+__doc.add = [[function(listname, part, tag, string) Adds a pair to a list.
+listname: Name of the list to be added to.
+part: Either strings or pats.
+tag: Header tag.
+string: String or pattern to be added.
+Returns boolean saying if it was already there.
+]]
+
 function add(listname, part, tag, string)
   local l = load(listname)
   local t = assert(l[part], 'Table is not a list')
@@ -94,12 +100,13 @@ function add(listname, part, tag, string)
   return already_there
 end
 
---- Remove a pair from a list.
--- @param listname Name of the list to be removed from.
--- @param part Either strings or pats.
--- @param tag Header tag.
--- @param string String or pattern to be added.
--- @return boolean saying if it was already there.
+__doc.del = [[function(listname, part, tag, string) Removes a pair from a list.
+listname: Name of the list to be removed from.
+part: Either strings or pats.
+tag: Header tag.
+string: String or pattern to be added.
+Returns boolean saying if it was already there.
+]]
 
 function del(listname, part, tag, string)
   local l = load(listname)
@@ -114,6 +121,11 @@ end
 
 ----------------------------------------------------------------
 
+__doc.show = [[function(file, listname) prints the contents of the list
+to file, in a human readable format.
+file: file handle.
+listname: Name of the list to be removed from.
+]]
 function show(file, listname)
   local l = load(listname)
   local stags = table.sorted_keys(l.strings, util.case_lt)

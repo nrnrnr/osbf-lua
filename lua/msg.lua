@@ -297,15 +297,15 @@ end
 
 ----------------------------------------------------------------
 
-__doc.add_header = [[function(T, tag, contents)
-Adds a new header to the message with the given tag and contents.i
-]]
-
 local function is_rfc2822_field_name(name)
   return type(name) == 'string'
          and string.len(name) > 0
          and not string.find(name, '[^\33-\57\59-\126]') -- '[^!-9;-~]'
 end
+
+__doc.add_header = [[function(T, tag, contents)
+Adds a new header to the message with the given tag and contents.i
+]]
 
 function add_header(msg, tag, contents)
   assert(is_rfc2822_field_name(tag), 'Not a valid RFC2822 field name')
@@ -456,6 +456,10 @@ function find_subject_command(msg)
   return nil, 'No commands found'
 end
 
+__doc.rfc2822_to_localtime = [[function(date) returns string
+Converts RFC2822 date to local time in the format "YYYY/MM/DD HH:MM".
+]]
+
 local tmonth = {jan=1, feb=2, mar=3, apr=4, may=5, jun=6,
                 jul=7, aug=8, sep=9, oct=10, nov=11, dec=12}
 
@@ -531,11 +535,7 @@ function rfc2822_to_localtime(date)
                       day=day, hour=hh, min=mm, sec=ss}
 
   if not ts then
---[[
-    local h = io.open(log_dir .. "log_cache.txt", "a")
-    h:write(date, "\n")
-    h:close()
---]]
+    util.log(date)
     return nil
   end
 
@@ -618,3 +618,18 @@ function attach_message(sfid, boundary)
 
   return msg_content
 end
+
+__doc.send_message = [[function(message) Sends string message using
+a tmp file and the OS mail command configured in cfg.mail_cmd.]]
+-- os.popen may not be available
+function send_message(message)
+  local tmpfile = os.tmpname()
+  local tmp = io.open(tmpfile, "w")
+  if tmp then
+    tmp:write(message)
+    tmp:close()
+    os.execute(string.format(cfg.mail_cmd, tmpfile))
+    --os.remove(tmpfile)
+  end
+end
+

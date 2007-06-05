@@ -316,8 +316,7 @@ function classify(msg)
                   count_classifications_flag + k.classify_flags)
 
   if pR == nil then
-     -- log error message
-     util.log(cfg.dirs.log .. '/osbf_log', class_probs)
+     util.log(class_probs)
   end
 
   if not sfid_tag then
@@ -331,7 +330,7 @@ end
 -----------------------------------------------------------------------------
 -- calculate statistics
 
-__doc.stats = [[function() returns hstats, sstats, herr, rerr, srate, gerr
+__doc.stats = [[function(full) returns hstats, sstats, herr, rerr, srate, gerr
 where
   hstats = core ham  statistics
   sstats = core spam statistics
@@ -339,13 +338,16 @@ where
   serr   = spam error rate
   srate  = spam rate
   gerr   = global error rate
+
+full is optional boolean. If it's not false nor nil, detailed statistics of
+the databases usage is also calculated and included in hstats and sstats.
 ]]
 
-function stats()
+function stats(full)
   local ham_db  = cfg.dbset.classes[cfg.dbset.ham_index]
   local spam_db = cfg.dbset.classes[cfg.dbset.spam_index]
-  local stats1 = util.validate(core.stats(ham_db))
-  local stats2 = util.validate(core.stats(spam_db))
+  local stats1 = util.validate(core.stats(ham_db, full))
+  local stats2 = util.validate(core.stats(spam_db, full))
 
   ---------- compute derived statistics
   local error_rate1, error_rate2, spam_rate, global_error_rate = 0, 0, 0, 0
@@ -377,7 +379,7 @@ If verbose is true, writes even more statistics.
 
 function write_stats(outfile, verbose)
   local stats1, stats2, error_rate1, error_rate2, spam_rate, global_error_rate =
-    stats()
+    stats(verbose)
 
   -------------- utility functions and values for writing reports
 

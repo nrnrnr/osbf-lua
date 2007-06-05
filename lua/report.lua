@@ -424,7 +424,8 @@ end
 
 -- return an HTML table with statistics
 function html_stat_table() -- declared local above
-  local hstats, sstats, herr, serr, spam_rate, gerr = stats()
+  local verbose = false
+  local hstats, sstats, herr, serr, spam_rate, gerr = stats(verbose)
   local stats = language.stats
   stats.bcolor = colors.border --- what a hack!
 
@@ -474,15 +475,15 @@ end
 
 --=============== END OF MESSAGE SUPPORT =========================
 
-__doc.write_training_message = [[function(outfile, email, temail, [locale]) 
-Writes an RFC822-compliant email message on 'outfile'.
+__doc.generate_training_message = [[function(email, temail, [locale]) 
+Returns an RFC822-compliant email message.
 The message contains a training form and is sent to 'email'.  
 When the training form is filled out and posted, the results
 are sent to 'temail', which may be omitted and defaults to 'email'.
 The optional 'locale' determines the language used in the form.
 ]]
 
-function write_training_message(outfile, email, temail, opt_locale)
+function generate_training_message(email, temail, opt_locale)
   set_language(opt_locale)
   temail = temail or email
 
@@ -533,5 +534,17 @@ function write_training_message(outfile, email, temail, opt_locale)
   end
 
   table.sort(sfids, cache.cmp_sfids(cfg.cache_report_order))
-  outfile:write(message(sfids, email, temail, ready))
+  return(message(sfids, email, temail, ready))
+end
+
+__doc.write_training_message = [[function(outfile, email, temail, [locale]) 
+Writes an RFC822-compliant email message on 'outfile'.
+The message contains a training form and is sent to 'email'.  
+When the training form is filled out and posted, the results
+are sent to 'temail', which may be omitted and defaults to 'email'.
+The optional 'locale' determines the language used in the form.
+]]
+
+function write_training_message(outfile, ...)
+  outfile:write(generate_training_message(...))
 end

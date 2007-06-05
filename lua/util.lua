@@ -12,7 +12,10 @@ __doc = { }
 
 ----------------------------------------------------------------
 --- Special tables.
--- Metafunction used to create a table on demand.
+
+__doc.table_tab = [[function(t) Metafunction used to create a table
+on demand.]]
+
 local function table__index(t, k) local u = { }; t[k] = u; return u end
 function table_tab(t)
   setmetatable(t, { __index = table__index })
@@ -98,13 +101,37 @@ function mkdir(path)
 end
 ----------------------------------------------------------------
 
-__doc.log = [[function(file, first, ...) log args to osbf_log in log dir.
+__doc.set_log_file = [[function(...) set log file.
 Prepends date and time.]]
 
-function log(file, first, ...)
-  local fh = io.open(file, 'a+')
-  if fh then
-    fh:write(os.date("%c - "))
+__doc.log = [[function(...) log args to logfile.
+Prepends date and time.]]
+
+do
+  -- holds default log filename
+  local logfile
+
+  function set_log_file(file)
+    assert(type(file) == 'string')
+    logfile = file
+  end
+
+  function log(...)
+    local fh, err = io.open(logfile, 'a+')
+    if fh then
+      local current_stdout = io.output()
+      io.output(fh)
+      print(os.date("%c - "), ...)
+      io.output(current_stdout)
+      fh:close()
+      return true
+    else
+      return nil, err
+    end
+  end
+end
+
+--[[
     if type(first) == 'string' then
       fh:write(first)
     elseif type(first) == 'table' then
@@ -120,14 +147,15 @@ function log(file, first, ...)
     end
     fh:write('\n')
     fh:close()
-    if ... and select('#', ...) > 0 then
-      log(...)
+    if select('#', ...) > 0 then
+      log(file, ...)
     end
     return true
   else
     return nil
   end
 end
+--]]
 
 __doc.die = [[function(...) kills process
 Writes all arguments to io.stderr, then newline,
@@ -192,6 +220,11 @@ function table.sorted_keys(t, lt)
   return l
 end
 
+__doc.case_lt = [[function(s1, s2) returns boolean.
+Performs a caseless comparison between s1 and s2. If they are equal,
+compares again, now taking case into account.
+The last result is returned: true if s1 < s2 or false otherwise.
+]]
 function case_lt(s1, s2)
   local l1, l2 = string.lower(s1), string.lower(s2)
   return l1 == l2 and s1 < s2 or l1 < l2
@@ -289,30 +322,31 @@ end
 
 ----------------------------------------------------------------
 --- html support
+__doc.html = [[html support functions.]]
 
 html = { }
 do
   local quote = { ['&'] = '&amp;', ['<'] = '&lt;', ['>'] = '&gt;', ['"'] = '&quot;' }
 
-  __doc.html_of_ascii = [[function(s) quotes special html chars.]]
+  __doc['html.of_ascii'] = [[function(s) quotes special html chars.]]
   function html.of_ascii(s)
     return string.gsub(s, '[%&%<%>%"]', quote)
   end
 
-  __doc.qp_to_html = [[function(qp) converts qp char to html numeric
+  __doc['html.qp_to_html'] = [[function(qp) converts qp char to html numeric
 representation: '=%x%x' => '&#%d%d%d;'.]]
 
-  function qp_to_html(qp)
+  function html.qp_to_html(qp)
     return
      qp and string.format('&#%d;', tonumber('0x' .. qp))
        or
      nil
   end
 
-  __doc.html_of_iso_8859_1 = [[function(s) encodes ISO 8859-1 strings into
+  __doc['html.of_iso_8859_1'] = [[function(s) encodes ISO 8859-1 strings into
 html.]]
   function html.of_iso_8859_1(s)
-    s = string.gsub(s, '=(%x%x)', qp_to_html)
+    s = string.gsub(s, '=(%x%x)', html.qp_to_html)
     s = string.gsub(s, '_', '&nbsp;')
     return s
   end
