@@ -1,8 +1,8 @@
 local require, print, pairs, type, assert, loadfile, setmetatable, tonumber =
       require, print, pairs, type, assert, loadfile, setmetatable, tonumber
 
-local io, string, table, os, package, select =
-      io, string, table, os, package, select
+local io, string, table, os, package, select, tostring =
+      io, string, table, os, package, select, tostring
 
 module(...)
 
@@ -101,8 +101,7 @@ function mkdir(path)
 end
 ----------------------------------------------------------------
 
-__doc.set_log_file = [[function(...) set log file.
-Prepends date and time.]]
+__doc.set_log_file = [[function(logfile) sets log file to logfile.]]
 
 __doc.log = [[function(...) log args to logfile.
 Prepends date and time.]]
@@ -110,52 +109,55 @@ Prepends date and time.]]
 do
   -- holds default log filename
   local logfile
+  local fh
 
   function set_log_file(file)
     assert(type(file) == 'string')
     logfile = file
   end
 
+  local function print_table(t)
+    fh:write('{')
+    for k, v in pairs(t) do
+      fh:write(' ', tostring(k), ' = ')
+      if type(v) == 'table' then
+        print_table(v)
+      else
+        fh:write(tostring(v))
+      end
+      fh:write( ', ')
+    end
+    fh:write('}')
+  end
+
+  local function log_aux(first, ...)
+    if type(first) == 'table' then
+      print_table(first)
+    else
+      fh:write(tostring(first))
+    end
+    if select('#', ...) > 0 then
+      fh:write(', ')
+      log_aux(...)
+    else
+      fh:write('\n')
+    end
+  end
+
   function log(...)
-    local fh, err = io.open(logfile, 'a+')
+    local err
+    fh, err = io.open(logfile, 'a+')
     if fh then
-      local current_stdout = io.output()
-      io.output(fh)
-      print(os.date("%c - "), ...)
-      io.output(current_stdout)
+      fh:write(os.date("%c - "))
+      log_aux(...)
       fh:close()
       return true
     else
       return nil, err
     end
   end
-end
 
---[[
-    if type(first) == 'string' then
-      fh:write(first)
-    elseif type(first) == 'table' then
-        fh:write('{\n')
-        for k, v in pairs(first) do
-          fh:write('  ', k, ' = ', v, '\n')
-        end
-        fh:write('}\n')
-    elseif first == nil then
-      fh:write('nil')
-    else
-      fh:write(first)
-    end
-    fh:write('\n')
-    fh:close()
-    if select('#', ...) > 0 then
-      log(file, ...)
-    end
-    return true
-  else
-    return nil
-  end
 end
---]]
 
 __doc.die = [[function(...) kills process
 Writes all arguments to io.stderr, then newline,

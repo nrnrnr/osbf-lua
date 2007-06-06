@@ -629,7 +629,9 @@ function send_message(message)
     tmp:write(message)
     tmp:close()
     os.execute(string.format(cfg.mail_cmd, tmpfile))
-    --os.remove(tmpfile)
+    os.remove(tmpfile)
+  else
+    util.log('Error sending message:\n', message)
   end
 end
 

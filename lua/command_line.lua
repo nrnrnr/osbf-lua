@@ -328,13 +328,18 @@ local function run_batch_cmd(sfid, cmd, m)
       if cmd == 'recover' then
         -- send a separate mail with subject-line command
         local train_msg = train_headers(m, 'recover ' .. cfg.pwd ..
-          ' -attach ' ..  sfid)
+          ' -attach ' .. sfid)
         msg.send_message(train_msg)
         io.stdout.write(sfid, ': recover command was issued.\n')
       else
         run(unpack(args))
         if cmd == 'ham' and cache.sfid_score(sfid) < cfg.threshold then
-          -- resend message with right classification
+          local message, err = cache.recover(sfid)
+          if message then
+            msg.send_message(message)
+          else
+            util.log('Could not resend ', sfid, ': ', err)
+          end
         end
       end
     elseif type(args) == 'function' then
@@ -415,13 +420,13 @@ local function exec_subject_line_command(cmd, m)
         -- ends header
         io.stdout:write(m.eol)
         if cmd[1] == 'batch_train' then
-          pcall(batch_train, m)
-          return -- don't do normal run
+          batch_train(m)
+          return -- prevent executing 'run'
         elseif cmd[1] == 'train_form' or cmd[1] == 'cache-report' then
            cmd = {'cache-report', '-send', msg.header_tagged(m, 'to')}
         end
-        pcall(run, unpack(cmd))
       end
+      run(unpack(cmd))
   end
 end
 
