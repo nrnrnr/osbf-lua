@@ -147,7 +147,8 @@ of an unlearned message.  Also changes the message's status in the cache.
 function learn(sfid, classification)
   if type(classification) ~= 'string'
   or classification ~= 'ham' and classification ~= 'spam' then
-    return nil, 'learn command requires a class: "spam" or "ham".' -- error
+    return nil,
+      sfid .. ': learn command requires a class: "spam" or "ham".' -- error
   end 
   local msg, status = msg.of_sfid(sfid)
   if status ~= 'unlearned' then
@@ -158,7 +159,7 @@ function learn(sfid, classification)
 
   local parms = learn_parms(classification)
   if not parms then return
-    nil, 'Unknown classification ' .. classification -- error
+    nil, sfid .. ': Unknown classification ' .. classification -- error
   end
 
   -- This function implements TONE-HR, a training protocol described in
@@ -203,7 +204,7 @@ function learn(sfid, classification)
     orig == new and string.format(cfg.training_not_necessary,
                                   new, max_learn_threshold,
                                   max_learn_threshold)
-    or string.format('%s: %s - %.2f -> %.2f', sfid, parms.trained_as, orig, new)
+    or string.format('%s - %.2f -> %.2f', parms.trained_as, orig, new)
   return comment, classification, orig, new
 end  
 
@@ -218,7 +219,7 @@ function unlearn(sfid, classification)
   local msg, status = util.validate(msg.of_sfid(sfid))
   classification = classification or status -- unlearn parm now optional
   if status == 'unlearned' then
-    return nil, errmsgs.unlearn['unlearned']
+    return nil, sfid .. ': ' .. errmsgs.unlearn['unlearned']
   end
   if status ~= classification then
     return nil, string.format([[
@@ -241,7 +242,7 @@ but %s.]], classification, errmsgs.unlearn[status])
   end
   cache.change_file_status(sfid, classification, 'unlearned')
   local comment =
-    string.format('%s: Message unlearned (was %s): %.2f -> %.2f', sfid,
+    string.format('Message unlearned (was %s): %.2f -> %.2f',
                   classification, old_pR, pR)
   return comment, 'unlearned', old_pR, pR
 end
@@ -372,18 +373,18 @@ end
 -----------------------------------------------------------------------------
 -- write statistics of the databases
 
-__doc.write_stats = [[function(outfile, verbose)
-Writes statistics using outfile:write.
-If verbose is true, writes even more statistics.
+__doc.write_stats = [[function(verbose)
+Writes statistics of the database. If verbose is true, writes even
+more statistics.
 ]]
 
-function write_stats(outfile, verbose)
+function write_stats(verbose)
   local stats1, stats2, error_rate1, error_rate2, spam_rate, global_error_rate =
     stats(verbose)
 
   -------------- utility functions and values for writing reports
 
-  local function writef(...) return outfile:write(string.format(...)) end
+  local function writef(...) return util.write(string.format(...)) end
 
   local hline = string.rep('-', 54)       -- line of width 54
   local sfmt  = '%-30s%12s%12s\n'         -- string report, width 54
@@ -393,7 +394,7 @@ function write_stats(outfile, verbose)
   local p2fmt  ='%-30s%11.2f%%%11.2f%%\n' -- percentage report, width 54, 2 digits
   local gsfmt  = '%-15s%7.2f%%%22s%7.2f%%\n'  -- global accuracy & spam rate
 
-  local hline = function() return outfile:write(hline, '\n') end -- tricky binding
+  local hline = function() return util.write(hline, '\n') end -- tricky binding
   local function report(what, key, fmt)
     return writef(fmt or dfmt, what, stats1[key], stats2[key])
   end

@@ -433,27 +433,43 @@ function extract_sfid(msg)
   return nil, 'Could not extract sfid from message'
 end
 
-__doc.find_subject_command = [[function(msg)
+-- Used to check iand parse subject-line commands
+local subject_cmd_pattern = {
+  classify = '(%S+)',
+  learn = '(%S+)%s+(%S)',
+  unlearn = '(%S+)%s*(%S*)',
+  whitelist = '(%S+)%s*(%S*)%s*(.*)',
+  blacklist = '(%S+)%s*(%S*)%s*(.*)',
+  recover = '(%S+)',
+  remove = '(%S+)',
+  help = '^%$',
+  stats = '^$',
+  ['cache-report'] = '^$',
+  train_form = '^$',
+  batch_train = '^$',
+  help = '^$',
+}
+
+__doc.parse_subject_command = [[function(msg) searches first Subject: line
+in msg for a filter command.
 Returns a table with command and args or nil, errmsg
-Searches Subject: lines in msg for a filter command.
 ]]
 
-function find_subject_command(msg)
+function parse_subject_command(msg)
   msg = of_any(msg)
-  for h in headers_tagged(msg, 'subject') do
-    local cmd, pwd, args = string.match(h, '^(%S+)%s+(%S+)(.*)') 
-    -- FIXME: should validate cmd too (against explicit list?
-    --        subject_command table with functions, in command_line?)
-    if pwd and pwd == cfg.pwd and cfg.password_ok(pwd) then
-      local cmd_table = { cmd }
-      string.gsub(args, '%S+', function (a)
-                                 table.insert(cmd_table, a)
-                                 return nil
-                               end)
-      return cmd_table
+  local h = header_tagged(msg, 'subject')
+  local cmd, pwd, args = string.match(h, '^(%S+)%s+(%S+)%s*(.*)')
+  local cmd_pat = subject_cmd_pattern[cmd]
+  if cmd_pat and pwd == cfg.pwd and cfg.password_ok(pwd) then
+    local cmd_table = { cmd }
+    for _, v in ipairs{string.match(args, cmd_pat)} do
+      if v and v ~= '' then
+        table.insert(cmd_table, v)
+      end
     end
+    return cmd_table
   end
-  return nil, 'No commands found'
+  return nil, 'No commands found.'
 end
 
 __doc.rfc2822_to_localtime = [[function(date) returns string
@@ -535,7 +551,7 @@ function rfc2822_to_localtime(date)
                       day=day, hour=hh, min=mm, sec=ss}
 
   if not ts then
-    util.log(date)
+    --util.log(date)
     return nil
   end
 
@@ -633,5 +649,31 @@ function send_message(message)
   else
     util.log('Error sending message:\n', message)
   end
+end
+
+__doc.set_output_to_message = [[function(m, subject) Sends a message header
+do standard output, reusing some headers of m and making subject equal
+to arg subject. It also adds MIME headers to prepare for a multipart/mixed
+body. This permits that folowing writes to standard output be interpreted
+as the body of a message.
+The MIME boundary generated is comunicated to util.set_output_to_message
+so util.write uses the same boundary for next parts.
+]]
+
+function set_output_to_message(m, subject)
+  m = util.validate(of_any(m))
+  assert(type(subject) == 'string')
+  local boundary = util.generate_hex_string(40) .. "=-=-="
+  util.set_output_to_message(boundary, m.eol)
+  -- reuse some headers
+  for i in header_indices(m, 'from ', 'date', 'from', 'to') do
+    if i then
+      io.stdout:write(m.headers[i], m.eol)
+    end
+  end
+  io.stdout:write('Subject: ', subject, m.eol,
+    'MIME-Version: 1.0', m.eol,
+    'Content-Type: multipart/mixed;', m.eol,
+    ' boundary="' .. boundary .. '"', m.eol, m.eol)
 end
 

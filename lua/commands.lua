@@ -89,7 +89,7 @@ function init(totalsize)
   end
   local config = cfg.configfile
   if util.file_is_readable(config) then
-    io.stderr:write('Warning: not overwriting existing ', config, '\n')
+    util.write_error('Warning: not overwriting existing ', config, '\n')
   else
     local default = util.validate(util.submodule_path 'default_cfg')
     local f = util.validate(io.open(default, 'r'))

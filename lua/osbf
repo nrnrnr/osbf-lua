@@ -13,3 +13,4 @@ local options, args = osbf.util.validate(osbf.options.parse(arg))
 osbf.init(options, args[1] == 'init')
 
 osbf.command_line.run(unpack(args))
+osbf.util.close_mime_multipart()

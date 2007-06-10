@@ -113,6 +113,12 @@ function del(listname, part, tag, string)
   local t = assert(l[part], 'Table is not a list')
   local already_there = t[tag][string]
   t[tag][string] = nil
+  local not_empty = false -- assume t[tag] is empty
+  for k in pairs(t[tag]) do
+    not_empty = true
+    break
+  end
+  t[tag] = not_empty and t[tag] or nil
   if already_there then
     save(listname, l)
   end
@@ -121,33 +127,32 @@ end
 
 ----------------------------------------------------------------
 
-__doc.show = [[function(file, listname) prints the contents of the list
-to file, in a human readable format.
-file: file handle.
-listname: Name of the list to be removed from.
+__doc.show = [[function(listname) prints the contents of the list
+in a human readable format.
+listname: Name of the list to be printed.
 ]]
-function show(file, listname)
+function show(listname)
   local l = load(listname)
   local stags = table.sorted_keys(l.strings, util.case_lt)
   local ptags = table.sorted_keys(l.pats, util.case_lt)
   if #stags == 0 and #ptags == 0 then
-    file:write('======= ', listname, ' is empty ==========\n')
+    util.write('======= ', listname, ' is empty ==========\n')
   else
-    file:write('======= ', listname, ' ==========\n')
+    util.write('======= ', listname, ' ==========\n')
     if #stags > 0 then
-      file:write('Strings:\n')
+      util.write('Strings:\n')
       for _, tag in ipairs(stags) do
         for s in pairs(l.strings[tag]) do
-          file:write('  ', util.capitalize(tag), ': ', s, '\n')
+          util.write('  ', util.capitalize(tag), ': ', s, '\n')
         end
       end        
-      if #ptags > 0 then file:write '\n' end
+      if #ptags > 0 then util.write '\n' end
     end
     if #ptags > 0 then
-      file:write('Patterns:\n')
+      util.write('Patterns:\n')
       for _, tag in ipairs(ptags) do
         for s in pairs(l.pats[tag]) do
-          file:write('  ', util.capitalize(tag), ': ', s, '\n')
+          util.write('  ', util.capitalize(tag), ': ', s, '\n')
         end
       end        
     end
@@ -156,26 +161,42 @@ end
 
 local progname = _G.arg and string.gsub(_G.arg[0], '.*' .. cfg.slash, '') or 'osbf'
 
+__doc.show_op = [[function(op) returns a function that prints the necessary
+commands to rebuild the list, if op == 'add', or to delete its elements if
+op == 'del'.
+op: name of operator. 
+The returned function requires one argument:
+listname: the name of the list to operate on.
+]]
+
 function show_op(op)
-  return function (file, listname)
+  return function (listname)
            local l = load(listname)
            local stags = table.sorted_keys(l.strings, util.case_lt)
            local ptags = table.sorted_keys(l.pats, util.case_lt)
            for _, tag in ipairs(stags) do
              for s in pairs(l.strings[tag]) do
                local cmd = { progname, listname, op, tag, util.os_quote(s) }
-               file:write(table.concat(cmd, ' '), '\n')
+               util.write(table.concat(cmd, ' '), '\n')
              end
            end
            for _, tag in ipairs(ptags) do
              for s in pairs(l.pats[tag]) do
                local cmd = { progname, listname, op..'-pat', tag, util.os_quote(s) }
-               file:write(table.concat(cmd, ' '), '\n')
+               util.write(table.concat(cmd, ' '), '\n')
              end
            end
          end
 end
+
+__doc.show_add = [[function(listname) shows thei necessary commands to
+rebuild the list.]]
+
 show_add = show_op 'add'
+
+__doc.show_del = [[function(listname) shows the necessary commands to
+deletes all elements of listname.]]
+
 show_del = show_op 'del'
 
 --- still missing: function print(file, listname)
@@ -186,9 +207,11 @@ show_del = show_op 'del'
 
 --- Evaluating a command from a string.
 
---- Table that shows what arguments should be passed to list commands
---- Used to check and to enumerate show commands and their names.
--- Commands should not be called directly but only through 'run'.
+__doc.show_cmd = [[Table that shows what arguments should be passed to list
+commands. Used to check and to enumerate show commands and their names.
+Commands should not be called directly but only through 'run'.
+]]
+
 show_cmd = { show = show, ['show-add'] = show_add, ['show-del'] = show_del }
 
 local list_cmd  = { add = add, ['add-pat'] = add,
@@ -196,15 +219,17 @@ local list_cmd  = { add = add, ['add-pat'] = add,
 local list_part = { add = 'strings', ['add-pat'] = 'pats',
                     del = 'strings', ['del-pat'] = 'pats' }
 
---- Function to implement list commands.
--- @param listname Name of the list.
--- @param cmd Command.
--- @param tag Tag, if needed by command.
--- @param arg Argument, if needed by command.
--- @return Non-nil on success; nil, errmsg on failure.
+__doc.run = [[function(listname, cmd, tag, arg) implements list commands.
+listname: Name of the list.
+cmd: Command.
+tag: Tag, if needed by command.
+arg: Argument, if needed by command.
+Return Non-nil on success; nil, errmsg on failure.
+]]
+
 function run(listname, cmd, tag, arg)
   if show_cmd[cmd] then
-    return show_cmd[cmd](io.stdout, listname)
+    return show_cmd[cmd](listname)
   elseif not list_cmd[cmd] then
     return nil, 'Unrecognized command ' .. cmd
   elseif not tag or not arg or arg == '' then
@@ -215,10 +240,12 @@ function run(listname, cmd, tag, arg)
 end
 
 
---- Function to implement list commands as strings.
--- @param listname Name of the list.
--- @param s Command string: add[-pat] <tag> <string>.
--- @return Non-nil on success; nil, errmsg on failure.
+__doc.runstring = [[function(listname, s) implements list commands as strings.
+listname: Name of the list.
+s: Command string: add[-pat] <tag> <string>.
+Return Non-nil on success; nil, errmsg on failure.
+]]
+
 function runstring(listname, s)
   local cmd, tag, arg = string.match(s, '^(%S+)%s+(%S+)%s+(.*)$')
   if not cmd then
@@ -228,11 +255,12 @@ function runstring(listname, s)
 end
 
 
-
---- Tells whether a message matches the list.
--- @param listname Name of the list.
--- @param m Message in table format.
--- @return true if the message matches the list.
+__doc.match = [[ function(listname, m) tells whether a message matches
+the list.
+listname: Name of the list.
+m: Message in table format.
+return true if the message matches the list.
+]]
 function match(listname, m)
   assert(type(m) == 'table')
   local l = load(listname)

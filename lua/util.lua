@@ -1,8 +1,8 @@
 local require, print, pairs, type, assert, loadfile, setmetatable, tonumber =
       require, print, pairs, type, assert, loadfile, setmetatable, tonumber
 
-local io, string, table, os, package, select, tostring =
-      io, string, table, os, package, select, tostring
+local io, string, table, os, package, select, tostring, math =
+      io, string, table, os, package, select, tostring, math
 
 module(...)
 
@@ -103,8 +103,7 @@ end
 
 __doc.set_log_file = [[function(logfile) sets log file to logfile.]]
 
-__doc.log = [[function(...) log args to logfile.
-Prepends date and time.]]
+__doc.log = [[function(...) log args to logfile, prepending date and time.]]
 
 do
   -- holds default log filename
@@ -159,15 +158,25 @@ do
 
 end
 
-__doc.die = [[function(...) kills process
-Writes all arguments to io.stderr, then newline,
-then calls os.exit with nonzero exit status.]]
+__doc.die = [[function(...) If output is not set to message, kills process
+Writes all arguments to io.stderr, then newline, then calls os.exit with
+nonzero exit status.
+If output is set to message, uses util.write_error to write all arguments,
+doesn't kill proccess and returns normally so that procmail, or similar,
+doesn't ignore filter result messages.
+]]
 
 --- Die with a fatal error message
 function die(...)
-  io.stderr:write(...)
-  io.stderr:write('\n')
-  os.exit(2)
+  if is_output_set_to_message() then
+    writenl_error(...)
+    close_mime_multipart()
+    return -- don't exit
+  else
+    io.stderr:write(...)
+    io.stderr:write('\n')
+    os.exit(2)
+  end
 end
 
 __doc.validate = [[function(...) returns ... or kills process
@@ -390,28 +399,183 @@ an html tag.]]
 end
 ----------------------------------------------------------------
 
-__doc.generate_pwd = [[function() retunrs a random password with 32 hex
-chars. The password is generated from random bytes read from /dev/urandom.
-If /dev/urandom is not readable, random bytes are produced with math.random,
-after seeding math.randomseed with current time.]] 
+__doc.generate_hex_string = [[function(len) returns a string of random hex
+chars, with size len. The string is generated from random bytes read from
+/dev/urandom. If /dev/urandom is not readable, random bytes are produced
+with math.random, after seeding math.randomseed with current time.]] 
 
-local pwd_length = 16
-function generate_pwd()
+function generate_hex_string(len)
+  assert (type(len) == 'number')
+  local bytes = math.floor(len / 2) + 1
   local fh = io.open('/dev/urandom', 'r')
-  local pwd
+  local s
   if fh then
-    pwd = fh:read(pwd_length)
+    s = fh:read(bytes)
     fh:close()
   end
-  if not pwd then
+  if not s then
     math.randomseed(os.time())
-    pwd = string.gsub(string.rep(' ', pwd_length), '.',
-                        function(c)
-                          return string.char(math.random(256)-1)
-                        end)
+    s = string.gsub(string.rep(' ', bytes), '.',
+                      function(c)
+                        return string.char(math.random(256)-1)
+                      end)
   end
-  pwd = string.gsub(pwd, '.', function(c)
-                                return string.format('%02x', string.byte(c))
-                              end)
-  return pwd
+  s = string.gsub(s, '.', function(c)
+                            return string.format('%02x', string.byte(c))
+                          end)
+  return string.sub(s,1, len)
 end
+
+__doc.generate_pwd = [[function() returns a random password with 32 hex
+chars. The password is generated using util.generate_hex_string.]]
+
+function generate_pwd()
+  return generate_hex_string(32)
+end
+
+
+-- Support to output to message or normal stdout.
+__doc.set_output_to_message = [[function(boundary, eol) Changes state
+so that all util.write calls prepends a MIME part header if necessary.
+]]
+
+__doc.is_output_set_to_message = [[function() Returns not nil if output
+is set to message or nil otherwise.
+]]
+__doc.write = [[function(...) Writes its args to standard output, like
+normal io.stdout:write, but prepends a MIME header of type text/plain
+for the first write in a MIME part, if output is set to message.
+]]
+
+__doc.writenl = [[function(...) Same as util.write, but appends the EOL
+detected in the filter-command message.
+]]
+
+__doc.write_message = [[function(message) Writes message to standard
+output, like normal io.stdout:write, but wraps it in a MIME part of
+type message/rfc822, if output is set to message.
+]]
+
+__doc.write_error = [[function(...) Calls util.write if output is set to
+message, or writes its args to standard error.
+]]
+
+__doc.writenl_error = [[function(...) Same as util.writenl, but appends
+the EOL detected in the filter-command message.
+]]
+
+__doc.close_mime_part = [[function() Closes a MIME part writing the
+proper boundary to standard output.
+]]
+
+__doc.close_mime_multipart = [[function() Closes a MIME multipart writing
+the proper boundary to standard output.
+]]
+
+__doc.exit = [[function(n) terminates execution with os.exit(n), but
+replaces n with 0 if output is set to message.
+Used to stop procmail, or similar, from ignoring filter result messages
+which will show up in the body of the command result, in case of error.
+]]
+
+do
+  local mime_boundary
+  local in_part = false
+  local msg_eol = '\n'
+
+  function set_output_to_message(boundary, eol)
+    mime_boundary = '--' .. boundary
+    -- use eol of the message (should be of the system instead?)
+    msg_eol = eol or '\n'
+    in_part = false
+  end
+
+  function is_output_set_to_message()
+    return mime_boundary
+  end
+
+  function write_message(message)
+    assert(type(message) == 'string')
+    if mime_boundary then
+      -- protect and keep the original envelope-from line
+      local xooef =
+        string.find(message, '^From ')
+          and 'X-OSBF-Original-Envelope-From: '
+        or ''
+      io.stdout:write(table.concat({msg_eol, mime_boundary,
+       'Content-Type: message/rfc822;',
+       ' name="Attached Message"',
+       'Content-Transfer-Encoding: 8bit',
+       'Content-Disposition: inline;',
+       ' filename="Attached Message"', '',
+       --xooef .. message, mime_boundary, ''}, msg_eol))
+       xooef .. message, ''}, msg_eol))
+       in_part = false
+    else
+      io.stdout:write(message)
+    end
+  end
+
+  function write(...)
+    if mime_boundary and not in_part then
+      io.stdout:write(table.concat({msg_eol, mime_boundary,
+        'Content-Type: text/plain;',
+        'Content-Transfer-Encoding: 8bit', '',''}, msg_eol))
+      in_part = true
+    end
+    io.stdout:write(...)
+  end
+
+  function writenl(...)
+    if mime_boundary then
+      write(...)
+      io.stdout:write(msg_eol)
+    else
+      io.stdout:write(...)
+      io.stdout:write('\n')
+    end
+  end
+
+  function write_error(...)
+    if mime_boundary then
+      write(...)
+    else
+      io.stderr:write(...)
+    end
+  end
+
+  function writenl_error(...)
+    if mime_boundary then
+      writenl(...)
+    else
+      io.stderr:write(...)
+      io.stderr:write('\n')
+    end
+  end
+
+  function close_mime_part()
+    if in_part then
+      io.stdout:write(msg_eol, mime_boundary, msg_eol)
+      in_part = false
+    end
+  end
+
+  function close_mime_multipart()
+    if mime_boundary then
+      io.stdout:write(msg_eol, mime_boundary, '--', msg_eol)
+      in_part = false
+      mime_boundary = nil
+    end
+  end
+
+  function exit(n)
+    if not mime_boundary then
+      os.exit(n)
+    else
+      close_mime_multipart()
+      os.exit(0)
+    end
+  end
+
+end
+
