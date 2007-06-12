@@ -29,24 +29,28 @@ local cache = require(_PACKAGE .. 'cache')
 __doc = __doc or { }
 
 
-local to_unlearn = [[To unlearn it, 
-try ']] .. prog .. [[ unlearn [<sfid|filename>]'.]]
+-- we need more generic messages because of the email interface
+-- local to_unlearn = [[To unlearn it, 
+-- try ']] .. prog .. [[ unlearn [<sfid|filename>]'.]]
+
 
 local errmsgs = {
   learn = {
-    spam = [[This message has already been learned as spam.  ]] .. to_unlearn,
-    ham = [[This message has already been learned as ham.  ]] .. to_unlearn,
+    spam = [[This message has already been learned as spam.  You'll need
+to unlearn it before another learn operation.]],
+    ham = [[This message has already been learned as ham.  You'll need
+to unlearn it before another learn operation.]],
     missing = [[
 You asked to train on a message that OSBF-Lua does not recognize.  
 In a normal installation, OSBF-Lua keeps a copy of each message, but
-only for a few days.  The message you are trying to train with has
+only for a few days. The message you are trying to train with has
 probably been deleted.]],
   },
   unlearn = {
-    ham = [[the message was learned as ham, not spam]],
-    spam = [[the message was learned as spam, not ham]],
+    ham = [[the message was learned as ham, not spam.]],
+    spam = [[the message was learned as spam, not ham.]],
     missing = nil, -- copied below
-    unlearned = [[the message was never learned to begin with]],
+    unlearned = [[the message was never learned to begin with.]],
   },
 }
 
@@ -147,8 +151,7 @@ of an unlearned message.  Also changes the message's status in the cache.
 function learn(sfid, classification)
   if type(classification) ~= 'string'
   or classification ~= 'ham' and classification ~= 'spam' then
-    return nil,
-      sfid .. ': learn command requires a class: "spam" or "ham".' -- error
+    return nil, 'learn command requires a class: "spam" or "ham".' -- error
   end 
   local msg, status = msg.of_sfid(sfid)
   if status ~= 'unlearned' then
@@ -159,7 +162,7 @@ function learn(sfid, classification)
 
   local parms = learn_parms(classification)
   if not parms then return
-    nil, sfid .. ': Unknown classification ' .. classification -- error
+    nil, 'Unknown classification ' .. classification -- error
   end
 
   -- This function implements TONE-HR, a training protocol described in
@@ -202,9 +205,9 @@ function learn(sfid, classification)
   cache.change_file_status(sfid, status, classification)
   local comment = 
     orig == new and string.format(cfg.training_not_necessary,
-                                  new, max_learn_threshold,
-                                  max_learn_threshold)
-    or string.format('%s - %.2f -> %.2f', parms.trained_as, orig, new)
+                                  new, max_learn_threshold-threshold_offset,
+                                  max_learn_threshold+threshold_offset)
+    or string.format('%s: %.2f -> %.2f', parms.trained_as, orig, new)
   return comment, classification, orig, new
 end  
 
@@ -219,7 +222,7 @@ function unlearn(sfid, classification)
   local msg, status = util.validate(msg.of_sfid(sfid))
   classification = classification or status -- unlearn parm now optional
   if status == 'unlearned' then
-    return nil, sfid .. ': ' .. errmsgs.unlearn['unlearned']
+    return nil, errmsgs.unlearn['unlearned']
   end
   if status ~= classification then
     return nil, string.format([[

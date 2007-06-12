@@ -170,8 +170,7 @@ doesn't ignore filter result messages.
 function die(...)
   if is_output_set_to_message() then
     writenl_error(...)
-    close_mime_multipart()
-    return -- don't exit
+    exit(0)
   else
     io.stderr:write(...)
     io.stderr:write('\n')

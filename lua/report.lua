@@ -537,14 +537,15 @@ function generate_training_message(email, temail, opt_locale)
   return(message(sfids, email, temail, ready))
 end
 
-__doc.write_training_message = [[function(outfile, email, temail, [locale]) 
-Writes an RFC822-compliant email message on 'outfile'.
+__doc.write_training_message = [[function(email, temail, [locale]) 
+Writes an RFC822-compliant email message to stadndard output using
+util.write.
 The message contains a training form and is sent to 'email'.  
 When the training form is filled out and posted, the results
 are sent to 'temail', which may be omitted and defaults to 'email'.
 The optional 'locale' determines the language used in the form.
 ]]
 
-function write_training_message(outfile, ...)
-  outfile:write(generate_training_message(...))
+function write_training_message(...)
+  util.write(generate_training_message(...))
 end

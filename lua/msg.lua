@@ -458,16 +458,18 @@ Returns a table with command and args or nil, errmsg
 function parse_subject_command(msg)
   msg = of_any(msg)
   local h = header_tagged(msg, 'subject')
-  local cmd, pwd, args = string.match(h, '^(%S+)%s+(%S+)%s*(.*)')
-  local cmd_pat = subject_cmd_pattern[cmd]
-  if cmd_pat and pwd == cfg.pwd and cfg.password_ok(pwd) then
-    local cmd_table = { cmd }
-    for _, v in ipairs{string.match(args, cmd_pat)} do
-      if v and v ~= '' then
-        table.insert(cmd_table, v)
+  if h then
+    local cmd, pwd, args = string.match(h, '^(%S+)%s+(%S+)%s*(.*)')
+    local cmd_pat = subject_cmd_pattern[cmd]
+    if cmd_pat and pwd == cfg.pwd and cfg.password_ok(pwd) then
+      local cmd_table = { cmd }
+      for _, v in ipairs{string.match(args, cmd_pat)} do
+        if v and v ~= '' then
+          table.insert(cmd_table, v)
+        end
       end
+      return cmd_table
     end
-    return cmd_table
   end
   return nil, 'No commands found.'
 end

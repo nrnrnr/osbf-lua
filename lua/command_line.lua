@@ -341,16 +341,17 @@ local valid_batch_cmds = {
 } 
  
 local function run_batch_cmd(sfid, cmd, m)
-  local args = valid_batch_cmds[cmd]
-  if type(args) == 'table' then
-    util.write(tostring(sfid), ': ')
+  local args = {}
+  if type(valid_batch_cmds[cmd]) == 'table' then
+    local args = {unpack(valid_batch_cmds[cmd])}
     table.insert(args, sfid)
+    util.write(tostring(sfid), ': ')
     if cmd == 'recover' then
       -- send a separate mail with subject-line command
       local train_msg = train_headers(m, 'recover ' .. cfg.pwd .. ' ' .. sfid)
       msg.send_message(train_msg)
-      util.writenl("Recover command was issued. ",
-        "You'll get a copy of the recovered message attached to a new message.")
+      util.writenl("The recover command was issued. ",
+        "If avaialable in cache, you'll get a copy of the message attached to a result message.")
     else
       run(unpack(args))
       -- resend ham messages that have been tagged
@@ -359,7 +360,7 @@ local function run_batch_cmd(sfid, cmd, m)
         if message then
           msg.send_message(message)
         else
-          util.writenl('Could not resend ', tostring(sfid), ': ', err)
+          util.writenl('Could not resend ', tostring(sfid), ': ', err or 'nil')
         end
       end
     end
@@ -387,10 +388,10 @@ remove            => remove <sfid> from cache.
 ]]
 
 local function batch_train(m)
-  m = util.validate(msg.of_any(m))
-  string.gsub(m.body, '(sfid.-)=(%S+)', function(sfid, cmd)
-                                         run_batch_cmd(sfid, cmd, m)
-                                       end)
+  local m = util.validate(msg.of_any(m))
+  for sfid, cmd in string.gmatch(m.body, '(sfid.-)=(%S+)') do
+    run_batch_cmd(sfid, cmd, m)
+  end
 end
 
 -- valid subject-line commands for filter command.
