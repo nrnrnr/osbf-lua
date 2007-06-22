@@ -167,7 +167,6 @@ function learn(sfid, classification)
 
   -- This function implements TONE-HR, a training protocol described in
   -- http://osbf-lua.luaforge.net/papers/trec2006_osbf_lua.pdf
-  -- (should we rename it to tone_hr?)
 
   local function tone_msg_and_reinforce_header()
     -- train on the whole message if on or near error
