@@ -304,7 +304,7 @@ local function is_rfc2822_field_name(name)
 end
 
 __doc.add_header = [[function(T, tag, contents)
-Adds a new header to the message with the given tag and contents.i
+Adds a new header to the message with the given tag and contents.
 ]]
 
 function add_header(msg, tag, contents)
@@ -313,6 +313,30 @@ function add_header(msg, tag, contents)
   msg = of_any(msg)
   table.insert(msg.headers, tag .. ': ' .. contents)
 end
+
+__doc.del_header = [[function(T, tag, ...)
+Deletes all headers with any of the tags passed in.
+]]
+
+function del_header(msg, ...)
+  msg = of_any(msg)
+  tags = { ... }
+  for _, tag in ipairs(tags) do
+    if is_rfc2822_field_name(tag) then
+      local indices = {}
+      -- collect header indices
+      for i in header_indices(msg, string.lower(tag)) do
+        table.insert(indices, i)
+      end
+      -- remove from last to first
+      for i=#indices, 1, -1 do
+        table.remove(msg.headers, indices[i])
+      end
+    else
+      util.log('del_header - ', 'not a valid tag name: ', tag)
+    end
+  end
+end 
 
 __doc.tag_subject = [[function(msg, tag)
 Prepends tag to all subject lines in msg headers.
@@ -325,7 +349,7 @@ function tag_subject(msg, tag)
   local tagged = false
   -- tag all subject lines
   for i in header_indices(msg, 'subject') do
-    msg.headers[i] = string.gsub(msg.headers[i], '^(.-:)', '%1 ' .. tag)
+    msg.headers[i] = string.gsub(msg.headers[i], '^.-:', '%0' .. tag, 1)
     tagged = true
   end
   -- if msg has no subject, add one
@@ -435,13 +459,13 @@ end
 
 -- Used to check iand parse subject-line commands
 local subject_cmd_pattern = {
-  classify = '(%S+)',
-  learn = '(%S+)%s+(%S)',
-  unlearn = '(%S+)%s*(%S*)',
-  whitelist = '(%S+)%s*(%S*)%s*(.*)',
-  blacklist = '(%S+)%s*(%S*)%s*(.*)',
-  recover = '(%S+)',
-  remove = '(%S+)',
+  classify = '^(%S+)',
+  learn = '^(%S+)',
+  unlearn = '^(%S+)%s*(%S*)',
+  whitelist = '^(%S+)%s*(%S*)%s*(.*)',
+  blacklist = '^(%S+)%s*(%S*)%s*(.*)',
+  recover = '^(%S+)',
+  remove = '^(%S+)',
   help = '^%$',
   stats = '^$',
   ['cache-report'] = '^$',

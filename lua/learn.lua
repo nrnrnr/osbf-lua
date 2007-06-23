@@ -299,10 +299,18 @@ function classify(msg)
   local pR, sfid_tag, subj_tag
 
   msg = msgmod.of_any(msg)
-  -- whitelist the cache report, which is authenticated by our password
-  if msgmod.header_tagged(msg, 'x-spamfilter-lua-whitelist') == cfg.pwd
-  or lists.match('whitelist', msg)
-  then
+  -- whitelist messages with the header 'X-Spamfilter-Lua-Whitelist: <cfg.pwd>'
+  -- Used mainly to whitelist the cache report
+  local pwd_pat = '^.-: *' .. cfg.pwd .. '$'
+  local found_pwd = false
+  for i in msgmod.header_indices(msg, 'x-spamfilter-lua-whitelist') do
+    if string.find(msg.headers[i], pwd_pat) then
+      -- remove password from header
+      msg.headers[i] = string.gsub(msg.headers[i], '^(.-:).*', '%1 Password OK')
+      found_pwd = true
+    end
+  end
+  if found_pwd or lists.match('whitelist', msg) then
     sfid_tag, subj_tag = 'W', cfg.tag_ham
   elseif lists.match('blacklist', msg) then
     sfid_tag, subj_tag = 'B', cfg.tag_spam

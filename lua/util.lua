@@ -170,6 +170,7 @@ doesn't ignore filter result messages.
 function die(...)
   if is_output_set_to_message() then
     writenl_error(...)
+    log(...)
     exit(0)
   else
     io.stderr:write(...)

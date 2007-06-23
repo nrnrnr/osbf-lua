@@ -358,7 +358,13 @@ local function run_batch_cmd(sfid, cmd, m)
       if cmd == 'ham' and cache.sfid_score(sfid) < cfg.threshold then
         local message, err = cache.recover(sfid)
         if message then
-          msg.send_message(message)
+          util.writenl("A new copy will be sent, without subject tags.")
+          local m = msg.of_string(message)
+          -- prevents "mail loop" warning
+          msg.del_header(m, 'delivered-to')
+          -- force whitelist
+          msg.add_header(m, 'X-Spamfilter-Lua-Whitelist', cfg.pwd)
+          msg.send_message(msg.to_string(m))
         else
           util.writenl('Could not resend ', tostring(sfid), ': ', err or 'nil')
         end

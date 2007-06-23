@@ -199,7 +199,11 @@ __doc.sfid_score = [[function(sfid) returns sfid score]]
 
 function sfid_score(sfid)
   local score = string.match(sfid, 'sfid%-.%d-%-%d-%-([-+]%d+.%d+)')
-  return score and tonumber(score) or nil, 'not a valid sfid'
+  if score then
+    return tonumber(score)
+  else
+    return  nil, 'not a valid sfid'
+  end
 end
 
 ----------------------------------------------------------------
