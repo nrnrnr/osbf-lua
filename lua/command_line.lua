@@ -246,7 +246,7 @@ function resend(sfid)
     util.unset_output_to_message()
     io.stdout:write(msg)
   else
-    util.writeln(err)
+    util.writenl(err)
   end
 end
 
