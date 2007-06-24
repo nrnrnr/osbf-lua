@@ -232,8 +232,30 @@ end
 
 table.insert(usage_lines, 'sfid [<sfid|filename> ...]')
 
+__doc.resend = [[function(sfid)
+Recovers message with sfid from cache and writes its contents to stdout.
+If it's a subject-command message, it replaces its contents.
+Used by filter command to resend ham messages after a training, if the
+original message received a subject tag.
+]]
+
+
+function resend(sfid)
+  local msg, err = cache.recover(sfid)
+  if msg then
+    util.unset_output_to_message()
+    io.stdout:write(msg)
+  else
+    util.writeln(err)
+  end
+end
+
+table.insert(usage_lines, 'resend <sfid>')
+
 __doc.recover = [[function(sfid)
 Recovers message with sfid from cache and writes it to stdout.
+If it is a subject-line command, the message is sent as an
+atachment to the command-result message.
 ]]
 
 function recover(sfid)
@@ -350,24 +372,17 @@ local function run_batch_cmd(sfid, cmd, m)
       -- send a separate mail with subject-line command
       local train_msg = train_headers(m, 'recover ' .. cfg.pwd .. ' ' .. sfid)
       msg.send_message(train_msg)
-      util.writenl("The recover command was issued. ",
-        "If avaialable in cache, you'll get a copy of the message attached to a result message.")
+      util.writenl("The recover command was issued.")
+      util.writenl( " The recovered message will be sent attached to the command result, if available.")
     else
       run(unpack(args))
       -- resend ham messages that have been tagged
-      if cmd == 'ham' and cache.sfid_score(sfid) < cfg.threshold then
-        local message, err = cache.recover(sfid)
-        if message then
-          util.writenl("A new copy will be sent, without subject tags.")
-          local m = msg.of_string(message)
-          -- prevents "mail loop" warning
-          msg.del_header(m, 'delivered-to')
-          -- force whitelist
-          msg.add_header(m, 'X-Spamfilter-Lua-Whitelist', cfg.pwd)
-          msg.send_message(msg.to_string(m))
-        else
-          util.writenl('Could not resend ', tostring(sfid), ': ', err or 'nil')
-        end
+      local score = cache.sfid_score(sfid)
+      if cmd == 'ham' and type(score) == 'number' and score < cfg.threshold then
+        -- send a separate command message to resend the original message
+        local train_msg = train_headers(m, 'resend ' .. cfg.pwd .. ' ' .. sfid)
+        msg.send_message(train_msg)
+        util.writenl(" The original message, without subject tags, will be sent to you.")
       end
     end
   else
@@ -400,11 +415,13 @@ local function batch_train(m)
   end
 end
 
+
 -- valid subject-line commands for filter command.
 -- commands with value 1 require sfid. 
 local subject_line_commands = { classify = 1, learn = 1, unlearn = 1,
-  recover = 1, remove = 1, sfid = 1, help = 0, whitelist = 0, blacklist = 0,
-  stats = 0, ['cache-report'] = 0, train_form = 0, batch_train = 0, help = 0}
+  recover = 1, resend = 1, remove = 1, sfid = 1, help = 0, whitelist = 0,
+  blacklist = 0, stats = 0, ['cache-report'] = 0, train_form = 0,
+  batch_train = 0, help = 0}
 
 local function exec_subject_line_command(cmd, m)
   assert(type(cmd) == 'table' and type(m) == 'table')

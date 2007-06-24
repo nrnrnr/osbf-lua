@@ -435,13 +435,22 @@ end
 
 
 -- Support to output to message or normal stdout.
-__doc.set_output_to_message = [[function(boundary, eol) Changes state
-so that all util.write calls prepends a MIME part header if necessary.
+__doc.set_output_to_message = [[function(boundary, header, eol) Changes
+output so that all util.write calls output its args as the body of a
+properly formated message, with headers and necessary MIME part headers.
+]]
+
+__doc.unset_output_to_message = [[function() Undoes set_output_to_message.
 ]]
 
 __doc.is_output_set_to_message = [[function() Returns not nil if output
 is set to message or nil otherwise.
 ]]
+
+__doc.write_header = [[function() Writes the header of the command-result
+message header, if not outputed yet.
+]]
+
 __doc.write = [[function(...) Writes its args to standard output, like
 normal io.stdout:write, but prepends a MIME header of type text/plain
 for the first write in a MIME part, if output is set to message.
@@ -479,20 +488,48 @@ which will show up in the body of the command result, in case of error.
 ]]
 
 do
+  local header
   local mime_boundary
   local in_part = false
   local msg_eol = '\n'
 
-  function set_output_to_message(boundary, eol)
+  function set_output_to_message(boundary, h, eol)
+    header = h
     mime_boundary = '--' .. boundary
     -- use eol of the message (should be of the system instead?)
     msg_eol = eol or '\n'
     in_part = false
   end
 
+  function unset_output_to_message()
+    mime_boundary = nil
+    header = nil
+    in_part = false
+  end
+
   function is_output_set_to_message()
     return mime_boundary
   end
+
+  function write_header()
+    if header then
+      io.stdout:write(header)
+      header = nil
+    end
+  end
+
+  function write(...)
+    if mime_boundary and not in_part then
+      -- output header only once
+      write_header()
+      io.stdout:write(table.concat({msg_eol, mime_boundary,
+        'Content-Type: text/plain;',
+        'Content-Transfer-Encoding: 8bit', '',''}, msg_eol))
+      in_part = true
+    end
+    io.stdout:write(...)
+  end
+
 
   function write_message(message)
     assert(type(message) == 'string')
@@ -502,6 +539,7 @@ do
         string.find(message, '^From ')
           and 'X-OSBF-Original-Envelope-From: '
         or ''
+      write_header()
       io.stdout:write(table.concat({msg_eol, mime_boundary,
        'Content-Type: message/rfc822;',
        ' name="Attached Message"',
@@ -514,16 +552,6 @@ do
     else
       io.stdout:write(message)
     end
-  end
-
-  function write(...)
-    if mime_boundary and not in_part then
-      io.stdout:write(table.concat({msg_eol, mime_boundary,
-        'Content-Type: text/plain;',
-        'Content-Transfer-Encoding: 8bit', '',''}, msg_eol))
-      in_part = true
-    end
-    io.stdout:write(...)
   end
 
   function writenl(...)
@@ -562,6 +590,7 @@ do
 
   function close_mime_multipart()
     if mime_boundary then
+      write_header()
       io.stdout:write(msg_eol, mime_boundary, '--', msg_eol)
       in_part = false
       mime_boundary = nil

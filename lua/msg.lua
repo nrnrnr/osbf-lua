@@ -465,6 +465,7 @@ local subject_cmd_pattern = {
   whitelist = '^(%S+)%s*(%S*)%s*(.*)',
   blacklist = '^(%S+)%s*(%S*)%s*(.*)',
   recover = '^(%S+)',
+  resend = '^(%S+)',
   remove = '^(%S+)',
   help = '^%$',
   stats = '^$',
@@ -677,29 +678,32 @@ function send_message(message)
   end
 end
 
-__doc.set_output_to_message = [[function(m, subject) Sends a message header
-do standard output, reusing some headers of m and making subject equal
-to arg subject. It also adds MIME headers to prepare for a multipart/mixed
-body. This permits that folowing writes to standard output be interpreted
-as the body of a message.
-The MIME boundary generated is comunicated to util.set_output_to_message
-so util.write uses the same boundary for next parts.
+__doc.set_output_to_message = [[function(m, subject) Builds a message
+header reusing some headers of m and making subject equal to arg subject.
+It also adds MIME headers to prepare for a multipart/mixed body.
+This permits that folowing outputs of util.write may be done in a proper
+way to be interpreted as the body of a message.
+The header and boundary generated are comunicated to
+util.set_output_to_message so util.write uses the same boundary for
+next parts.
 ]]
 
 function set_output_to_message(m, subject)
   m = util.validate(of_any(m))
   assert(type(subject) == 'string')
   local boundary = util.generate_hex_string(40) .. "=-=-="
-  util.set_output_to_message(boundary, m.eol)
   -- reuse some headers
+  local headers = {}
   for i in header_indices(m, 'from ', 'date', 'from', 'to') do
     if i then
-      io.stdout:write(m.headers[i], m.eol)
+      table.insert(headers, m.headers[i])
     end
   end
-  io.stdout:write('Subject: ', subject, m.eol,
-    'MIME-Version: 1.0', m.eol,
-    'Content-Type: multipart/mixed;', m.eol,
-    ' boundary="' .. boundary .. '"', m.eol, m.eol)
+  for _, h in ipairs{'Subject: ' .. subject, 'MIME-Version: 1.0',
+               'Content-Type: multipart/mixed;',
+               ' boundary="' .. boundary .. '"', m.eol} do 
+    table.insert(headers, h)
+  end
+  util.set_output_to_message(boundary, table.concat(headers, m.eol), m.eol)
 end
 
