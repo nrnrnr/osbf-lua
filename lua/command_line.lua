@@ -57,6 +57,25 @@ local function help_string(pattern)
   return table.concat(output, '\n')
 end
 
+__doc.train_headers = [[function(m, subject_command) returns an RFC2822
+string message with a command in the subject line. The necessary headers
+are taken from m, a message in our internal format, and  the command is
+taken from the string subject_command.]]
+
+local function train_headers(m, subject_command)
+  local headers = {}
+  for i in msg.header_indices(m, 'from ', 'received', 'date',
+    'from', 'to') do
+    if i then
+      table.insert(headers, m.headers[i])
+    end
+  end
+  local msg_id = cache.generate_sfid('H', 0)
+  --XXX generate message id: table.insert(headers, 'Message-ID: ' .. msg_id))
+  table.insert(headers, 'Subject: ' .. subject_command)
+  return table.concat(headers, m.eol) .. m.eol .. m.eol
+end
+
 __doc.help = [[function(pattern)
 Prints command syntax of commands which contain pattern to stdout and exits.
 If pattern is nil prints syntax of all commands.
@@ -75,7 +94,7 @@ Prints command syntax to stderr and exits with error code 1.
 
 function usage(...)
   if select('#', ...) > 0 then
-    util.writenl_error(...)
+    util.writeln_error(...)
   end
   util.write_error(help_string())
   util.exit(1)
@@ -112,12 +131,12 @@ local function listfun(listname)
                 if header_field then
                   arg = header_field
                 else
-                  util.writenl('header ',
+                  util.writeln('header ',
                     util.capitalize(tostring(tag)), ' not found in SFID.')
                   return
                 end
               else
-                util.writenl(err)
+                util.writeln(err)
                 return
               end
            end
@@ -202,10 +221,24 @@ function learner(cmd)
            for msgspec in
              has_class and msgspecs(...) or msgspecs(classification, ... ) do
              local sfid = util.validate(msg.sfid(msgspec))
-             local r, err = util.validate(cmd(sfid,
+             local r, err, old_pR, new_pR = util.validate(cmd(sfid,
                has_class and classification or nil))
-             util.write(r or err or
-               'Error learning as ' ..  classification or 'nil?!', '\n')
+             if r then
+               util.writeln(r)
+               if cmd == commands.learn and classification == 'ham'
+               and old_pR < cfg.threshold then
+                 -- FIXME create msg.send_command(m, cmd, sfid)
+                 local m = msg.of_any(sfid)
+                 local train_msg = train_headers(m,
+                   'resend ' .. cfg.pwd .. ' ' .. sfid)
+                 msg.send_message(train_msg)
+                 util.writeln(' The original message, without subject tags, ',
+                   'will be sent to you.')
+               end
+             else
+               util.writeln(err or 'Error learning as ' ..
+                 tostring(classification))
+             end
            end
          end
 end
@@ -226,7 +259,7 @@ Searches SFID and prints to stdout for each message spec
 function sfid(...)
   for msgspec, what in msgspecs(...) do
     local sfid = util.validate(msg.sfid(msgspec))
-    util.writenl('SFID of ', what, ' is ', sfid)
+    util.writeln('SFID of ', what, ' is ', sfid)
   end
 end
 
@@ -241,12 +274,24 @@ original message received a subject tag.
 
 
 function resend(sfid)
-  local msg, err = cache.recover(sfid)
-  if msg then
-    util.unset_output_to_message()
-    io.stdout:write(msg)
+  local message, err = cache.recover(sfid)
+  if message then
+    local m = msg.of_string(message)
+    local pR, sfid_tag, subj_tag = commands.classify(m)
+    if pR then
+      sfid_tag = 'R' .. sfid_tag -- prefix tag to indicate a resent message
+      local score_header = string.format(
+        '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
+        pR, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
+      msg.add_header(m, 'X-OSBF-Lua-Score', score_header)
+      msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
+      util.unset_output_to_message()
+      io.stdout:write(msg.to_string(m))
+    else
+      util.writeln(tostring(sfid_tag))
+    end
   else
-    util.writenl(err)
+    util.writeln(err)
   end
 end
 
@@ -274,7 +319,7 @@ __doc.remove = [[function(sfid) Removes sfid from cache.]]
 function remove(sfid)
   local r, err = cache.remove(sfid)
   r = r and 'SFID removed.' or err
-  util.writenl(r)
+  util.writeln(r)
 end
 
 table.insert(usage_lines, 'remove <sfid>')
@@ -317,26 +362,7 @@ table.insert(usage_lines, 'classify [-tag] [-cache] [<sfid|filename> ...]')
 __doc.do_nothing = [[function(sfid) just prints the message "Nothing done.".]]
 
 function do_nothing(sfid)
-  util.writenl('Nothing done.')
-end
-
-__doc.train_headers = [[function(m, subject_command) returns an RFC2822
-string message with a command in the subject line. The necessary headers
-are taken from m, a message in our internal format, and  the command is
-taken from the string subject_command.]]
-
-local function train_headers(m, subject_command)
-  local headers = {}
-  for i in msg.header_indices(m, 'from ', 'received', 'date',
-    'from', 'to') do
-    if i then
-      table.insert(headers, m.headers[i])
-    end
-  end
-  local msg_id = cache.generate_sfid('H', 0)
-  --XXX generate message id: table.insert(headers, 'Message-ID: ' .. msg_id))
-  table.insert(headers, 'Subject: ' .. subject_command)
-  return table.concat(headers, m.eol) .. m.eol .. m.eol
+  util.writeln('Nothing done.')
 end
 
 -- replace sfid (last position of args) with the contents of header tag
@@ -355,6 +381,7 @@ local valid_batch_cmds = {
   ham = {'learn', 'ham'},
   none = {'do_nothing'},
   recover = {'recover'},
+  resend = {'resend'},
   remove = {'remove'},
   spam = {'learn', 'spam'},
   undo = {'unlearn'},
@@ -368,25 +395,17 @@ local function run_batch_cmd(sfid, cmd, m)
     local args = {unpack(valid_batch_cmds[cmd])}
     table.insert(args, sfid)
     util.write(tostring(sfid), ': ')
-    if cmd == 'recover' then
+    if cmd == 'recover' or cmd == 'resend' then
       -- send a separate mail with subject-line command
-      local train_msg = train_headers(m, 'recover ' .. cfg.pwd .. ' ' .. sfid)
+      local train_msg = train_headers(m, cmd .. ' ' .. cfg.pwd .. ' ' .. sfid)
       msg.send_message(train_msg)
-      util.writenl("The recover command was issued.")
-      util.writenl( " The recovered message will be sent attached to the command result, if available.")
+      util.writeln('The ', cmd, ' command was issued.')
+      util.writeln( ' The message will be re-delivered to you if still in cache.')
     else
       run(unpack(args))
-      -- resend ham messages that have been tagged
-      local score = cache.sfid_score(sfid)
-      if cmd == 'ham' and type(score) == 'number' and score < cfg.threshold then
-        -- send a separate command message to resend the original message
-        local train_msg = train_headers(m, 'resend ' .. cfg.pwd .. ' ' .. sfid)
-        msg.send_message(train_msg)
-        util.writenl(" The original message, without subject tags, will be sent to you.")
-      end
     end
   else
-    util.writenl('Unknown batch command: ', tostring(cmd))
+    util.writeln('Unknown batch command: ', tostring(cmd))
   end
 end
 
@@ -405,6 +424,8 @@ whitelist_from    => add From: line of <sfid> to whitelist;
 whitelist_subject => add Subject: line of <sfid> to whitelist;
 recover           => recover message associated with <sfid> from
                      cache and send it attached;
+resend            => recover message associated with <sfid> from
+                     cache and re-delivers it;
 remove            => remove <sfid> from cache.
 ]]
 
@@ -427,19 +448,15 @@ local function exec_subject_line_command(cmd, m)
   assert(type(cmd) == 'table' and type(m) == 'table')
   msg.set_output_to_message(m,
     'OSBF-Lua command result - ' .. cmd[1] or 'nil?!')
-  local sfid, err =
-    cache.is_sfid(cmd[#cmd]) and cmd[#cmd]
-      or
-    msg.sfid(m)
   -- insert sfid if required
-  if subject_line_commands[cmd[1]] == 1
-  and not cache.is_sfid(cmd[#cmd]) then
-    if sfid then
-      table.insert(cmd, sfid)
-    else
-      util.write(err, m.eol)
-      return
-    end
+  if subject_line_commands[cmd[1]] == 1 and not cache.is_sfid(cmd[#cmd]) then
+    local sfid, err = msg.sfid(m)
+      if sfid then
+        table.insert(cmd, sfid)
+      else
+        util.writeln(err)
+        return
+      end
   end
 
   if cmd[1] == 'batch_train' then
@@ -535,7 +552,7 @@ function init(dbsize, ...)
                '  mkdir ', cfg.dirs.user)
     end
     nb = commands.init(nb)
-    io.stdout:writenl('Created directories and databases using a total of ',
+    io.stdout:writeln('Created directories and databases using a total of ',
                     util.human_of_bytes(nb))
   end
 end
@@ -575,7 +592,7 @@ function resize(class, newsize, ...)
     util.validate(core.import(tmpname, dbname))
     util.validate(os.rename(tmpname, dbname))
     class = util.capitalize(class)
-    util.writenl(class, ' database resized to ',
+    util.writeln(class, ' database resized to ',
       util.human_of_bytes(real_bytes))
   end
 end
@@ -617,7 +634,7 @@ do
       if opts.send then
         msg.send_message(
           commands.generate_training_message(email, temail, opts.lang))
-        util.writenl('Training form sent.')
+        util.writeln('Training form sent.')
       else
         commands.write_training_message(email, temail, opts.lang)
       end
@@ -630,7 +647,7 @@ table.insert(usage_lines, 'cache-report [-lang=<locale>] <user-email> [<training
 __doc.homepage = [[function() Shows the project's home page.]]
 
 function homepage()
-  util.writenl(cfg.homepage)
+  util.writeln(cfg.homepage)
 end
 table.insert(usage_lines, 'homepage')
 

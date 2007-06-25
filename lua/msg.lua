@@ -457,10 +457,10 @@ function extract_sfid(msg)
   return nil, 'Could not extract sfid from message'
 end
 
--- Used to check iand parse subject-line commands
+-- Used to check and parse subject-line commands
 local subject_cmd_pattern = {
   classify = '^(%S+)',
-  learn = '^(%S+)',
+  learn = '^(%S+)%s*(%S*)',
   unlearn = '^(%S+)%s*(%S*)',
   whitelist = '^(%S+)%s*(%S*)%s*(.*)',
   blacklist = '^(%S+)%s*(%S*)%s*(.*)',

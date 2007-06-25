@@ -59,7 +59,7 @@ local English = {
             and click "$send_actions"]],
   actions = {
     none        = "None",
-    recover     = "Recover message",
+    resend     = "Recover message",
     remove      = "Remove from cache",
     whitelist_from     = "Add 'From:' to whitelist",
     whitelist_subject = "Add 'Subject:' to whitelist",
@@ -96,7 +96,7 @@ local Brazilian_Portuguese = {
                    adequada para cada mensagem e clique em "$send_actions"]],
   actions = { 
     none        = "Nenhuma",
-    recover     = "Recuperar mensagem",
+    resend     = "Recuperar mensagem",
     remove      = "Remover do cache",
     whitelist_from    = "P&ocirc;r remetente em whitelist",
     whitelist_subject = "P&ocirc;r 'Assunto:' em whitelist",
@@ -394,7 +394,7 @@ do
   local default_selections = { ['-'] = 'spam', S = 'spam', ['+'] = 'ham', H = 'ham' }
 
   local menu_items = { -- menu possibilities per each message
-    "none", "recover", "remove", "whitelist_from", "whitelist_subject", 
+    "none", "resend", "remove", "whitelist_from", "whitelist_subject", 
     "spam", "ham", "undo",
   }
 

@@ -169,7 +169,7 @@ doesn't ignore filter result messages.
 --- Die with a fatal error message
 function die(...)
   if is_output_set_to_message() then
-    writenl_error(...)
+    writeln_error(...)
     log(...)
     exit(0)
   else
@@ -448,7 +448,7 @@ is set to message or nil otherwise.
 ]]
 
 __doc.write_header = [[function() Writes the header of the command-result
-message header, if not outputed yet.
+message, if not yet done.
 ]]
 
 __doc.write = [[function(...) Writes its args to standard output, like
@@ -456,7 +456,7 @@ normal io.stdout:write, but prepends a MIME header of type text/plain
 for the first write in a MIME part, if output is set to message.
 ]]
 
-__doc.writenl = [[function(...) Same as util.write, but appends the EOL
+__doc.writeln = [[function(...) Same as util.write, but appends the EOL
 detected in the filter-command message.
 ]]
 
@@ -469,7 +469,7 @@ __doc.write_error = [[function(...) Calls util.write if output is set to
 message, or writes its args to standard error.
 ]]
 
-__doc.writenl_error = [[function(...) Same as util.writenl, but appends
+__doc.writeln_error = [[function(...) Same as util.writeln, but appends
 the EOL detected in the filter-command message.
 ]]
 
@@ -554,7 +554,7 @@ do
     end
   end
 
-  function writenl(...)
+  function writeln(...)
     if mime_boundary then
       write(...)
       io.stdout:write(msg_eol)
@@ -572,9 +572,9 @@ do
     end
   end
 
-  function writenl_error(...)
+  function writeln_error(...)
     if mime_boundary then
-      writenl(...)
+      writeln(...)
     else
       io.stderr:write(...)
       io.stderr:write('\n')
