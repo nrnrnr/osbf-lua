@@ -67,12 +67,14 @@ function create_single_db(db_path, size_in_bytes)
   return bytes(num_buckets)
 end
 
-__doc.init = [[function(totalsize)
+__doc.init = [[function(email, totalsize, lang)
 The init command creates directories and databases and the default config.
 totalsize is the total size in bytes of all databases to be created.
+email is the address for subject-line commands.
+lang (optional) is a string with the language for report_locale in config.
 ]]
 
-function init(totalsize)
+function init(email, totalsize, lang)
   local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
   for _, d in ipairs(ds) do
     util.mkdir(d)
@@ -80,7 +82,9 @@ function init(totalsize)
 
   local dbcount = #cfg.dbset.classes
   totalsize = totalsize or dbcount * cfg.constants.default_db_megabytes * 1024 * 1024
-  assert(type(totalsize) == 'number') 
+  if type(totalsize) ~= 'number' then
+    util.die('Database size must be a number')
+  end
   local dbsize = totalsize / dbcount
   -- create new, empty databases
   local totalbytes = 0
@@ -94,9 +98,18 @@ function init(totalsize)
     local default = util.validate(util.submodule_path 'default_cfg')
     local f = util.validate(io.open(default, 'r'))
     local u = util.validate(io.open(config, 'w'))
-    -- sets initial password to a random string
     local x = f:read '*a'
-    x = (string.gsub(x, '(pwd%s*=%s*")[^"]*', '%1' .. util.generate_pwd()))
+    -- sets initial password to a random string
+    x = string.gsub(x, '(pwd%s*=%s*)[^\r\n]*',
+      string.format('%%1%q,', util.generate_pwd()))
+    -- sets email address for commands 
+    x = string.gsub(x, '(command_address%s*=%s*)[^\r\n]*',
+      string.format('%%1%q,', email))
+    -- sets report_locale
+    if lang then
+      x = string.gsub(x, '(report_locale%s*=%s*)[^\r\n]*',
+        string.format('%%1%q,', lang))
+    end
     u:write(x)
     f:close()
     u:close()

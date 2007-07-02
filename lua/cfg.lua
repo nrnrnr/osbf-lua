@@ -115,6 +115,10 @@ report. Valid values are 'date' and 'score' (absolute value). Defaults to
   Defauts to '<'.
 ]],
 
+  command_address = [[Email address where command-messages should be
+  sent to. Normally, this is set to user's email address.
+]],
+
 }
 
 ----------------------------------------------------------------

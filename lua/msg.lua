@@ -354,7 +354,7 @@ function tag_subject(msg, tag)
   end
   -- if msg has no subject, add one
   if not tagged then
-    add_header(msg, 'Subject', '(no subject)')
+    add_header(msg, 'Subject', tag .. ' (no subject)')
   end
 end
 
@@ -663,18 +663,44 @@ function attach_message(sfid, boundary)
 end
 
 __doc.send_message = [[function(message) Sends string message using
-a tmp file and the OS mail command configured in cfg.mail_cmd.]]
+a tmp file and the OS mail command configured in cfg.mail_cmd.
+Returns true or nil, error message.
+]]
+
 -- os.popen may not be available
 function send_message(message)
   local tmpfile = os.tmpname()
-  local tmp = io.open(tmpfile, "w")
+  local tmp, err = io.open(tmpfile, "w")
   if tmp then
     tmp:write(message)
     tmp:close()
     os.execute(string.format(cfg.mail_cmd, tmpfile))
     os.remove(tmpfile)
+    return true
   else
-    util.log('Error sending message:\n', message)
+    util.log('Error sending message:\n', err, '\n', message)
+    return nil, err
+  end
+end
+
+__doc.send_cmd_message = [[function(subject_command, eol) Sends a command
+message with From: and To: set to cfg.command_address.
+subject_command - command to be inserted in the subject line
+eol             - end-of-line to be used in the message.
+Returns true or nil, error message.
+]]
+
+function send_cmd_message(subject_command, eol)
+  assert(type(subject_command) == 'string')
+  assert(type(eol) == 'string')
+  if type(cfg.command_address) == 'string' and cfg.command_address ~= '' then 
+    local message = table.concat({
+      'From: ' .. cfg.command_address,
+      'To: ' .. cfg.command_address,
+      'Subject: ' .. subject_command, eol}, eol)
+    return send_message(message)
+  else
+    return nil, 'Invalid or empty cfg.command_address'
   end
 end
 

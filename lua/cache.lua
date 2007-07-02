@@ -144,7 +144,7 @@ function store(sfid, msg)
   -- stores a message in the cache, under the name sfid
   -- msg is a string containing the message
   local f = file_and_status(sfid)
-  if fn then
+  if f then
     f:close()
     return nil, 'sfid ' .. sfid .. ' is already in the cache!'
   end

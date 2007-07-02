@@ -86,10 +86,14 @@ return {
 
   -- Option to set what to order sfids by in cache report
   -- Valid values are 'date' and 'score' (absolute value)
-  cache_report_order_by = 'score',
+  cache_report_order_by = "score",
 
   -- Order of messages in cache report.
   -- '<' => ascending; '>' => descending
-  cache_report_order = '<',
+  cache_report_order = "<",
+
+  -- Address to send command-messages to
+  command_address = "",
+
 }
 

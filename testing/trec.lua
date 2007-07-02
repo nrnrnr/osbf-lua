@@ -30,7 +30,8 @@ opts['udir'] = test_dir
 
 osbf.init(opts, true)
 -- local db_total_size = 96009072 -- 4000037 buckets/database, used in TREC2006
-commands.init(db_total_size)
+local email = 'test@test'
+commands.init(email, db_total_size)
 
 cfg.min_pR_success = 0
 cfg.limit = 500000

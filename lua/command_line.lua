@@ -44,7 +44,7 @@ local function help_string(pattern)
   local prog = string.gsub(_G.arg[0], '.*' .. cfg.slash, '')
   local prefix = 'Usage: '
   for _, u in ipairs(usage_lines) do
-    if string.find(u, pattern) then
+    if string.find(u, '^' .. pattern) then
       table.insert(output, table.concat{prefix, prog, ' [options] ', u})
     end
     prefix = string.gsub(prefix, '.', ' ')
@@ -54,26 +54,8 @@ local function help_string(pattern)
     table.insert(output, table.concat{prefix, '--', u, options.usage[u]})
     prefix = string.gsub(prefix, '.', ' ')
   end
+  table.insert(output, '')
   return table.concat(output, '\n')
-end
-
-__doc.train_headers = [[function(m, subject_command) returns an RFC2822
-string message with a command in the subject line. The necessary headers
-are taken from m, a message in our internal format, and  the command is
-taken from the string subject_command.]]
-
-local function train_headers(m, subject_command)
-  local headers = {}
-  for i in msg.header_indices(m, 'from ', 'received', 'date',
-    'from', 'to') do
-    if i then
-      table.insert(headers, m.headers[i])
-    end
-  end
-  local msg_id = cache.generate_sfid('H', 0)
-  --XXX generate message id: table.insert(headers, 'Message-ID: ' .. msg_id))
-  table.insert(headers, 'Subject: ' .. subject_command)
-  return table.concat(headers, m.eol) .. m.eol .. m.eol
 end
 
 __doc.help = [[function(pattern)
@@ -92,11 +74,11 @@ __doc.usage = [[function(usage)
 Prints command syntax to stderr and exits with error code 1.
 ]] 
 
-function usage(...)
-  if select('#', ...) > 0 then
-    util.writeln_error(...)
+function usage(msg, pattern)
+  if msg then
+    util.writeln_error(msg)
   end
-  util.write_error(help_string())
+  util.write_error(help_string(pattern))
   util.exit(1)
 end
 
@@ -225,15 +207,25 @@ function learner(cmd)
                has_class and classification or nil))
              if r then
                util.writeln(r)
-               if cmd == commands.learn and classification == 'ham'
-               and old_pR < cfg.threshold then
-                 -- FIXME create msg.send_command(m, cmd, sfid)
-                 local m = msg.of_any(sfid)
-                 local train_msg = train_headers(m,
-                   'resend ' .. cfg.pwd .. ' ' .. sfid)
-                 msg.send_message(train_msg)
-                 util.writeln(' The original message, without subject tags, ',
-                   'will be sent to you.')
+               -- redelivers message if it was trained as ham, received any
+               -- subject tag and it was a subject command 
+               -- (is_output_set_to_message())
+               local learned_as_ham =
+                 cmd == commands.learn and classification == 'ham'
+               local tagged_subject =
+                 cfg.tag_subject and cache.sfid_score(sfid) < cfg.threshold
+               if learned_as_ham and tagged_subject
+               and util.is_output_set_to_message() then
+                 local m = msg.of_sfid(sfid)
+                 local subj_cmd = 'resend ' .. cfg.pwd .. ' ' .. sfid
+                 r, err = msg.send_cmd_message(subj_cmd, m.eol)
+                 if r then
+                   util.writeln(' The original message, without subject tags, ',
+                     'will be sent to you.')
+                 else
+                   util.writeln(' Error: unable to resend original message.')
+                   util.log(err)
+                 end
                end
              else
                util.writeln(err or 'Error learning as ' ..
@@ -287,6 +279,7 @@ function resend(sfid)
       msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
       util.unset_output_to_message()
       io.stdout:write(msg.to_string(m))
+      util.log('resend\n', msg.to_string(m))
     else
       util.writeln(tostring(sfid_tag))
     end
@@ -397,10 +390,15 @@ local function run_batch_cmd(sfid, cmd, m)
     util.write(tostring(sfid), ': ')
     if cmd == 'recover' or cmd == 'resend' then
       -- send a separate mail with subject-line command
-      local train_msg = train_headers(m, cmd .. ' ' .. cfg.pwd .. ' ' .. sfid)
-      msg.send_message(train_msg)
-      util.writeln('The ', cmd, ' command was issued.')
-      util.writeln( ' The message will be re-delivered to you if still in cache.')
+      local r, err = msg.send_cmd_message(cmd .. ' ' .. cfg.pwd .. ' ' .. sfid,
+        m.eol)
+      if r then 
+        util.writeln('The ', cmd, ' command was issued.')
+        util.writeln( ' The message will be re-delivered to you if still in cache.')
+      else
+        util.writeln('Error: could not send the ', cmd, ' command.')
+        util.log(err)
+      end
     else
       run(unpack(args))
     end
@@ -538,26 +536,38 @@ end
  
 table.insert(usage_lines, 'stats [-v|-verbose]')
 
-__doc.init = [[function(dbsize, ...)
+
+local valid_locale = { pt_BR = true, en_US = true }
+
+__doc.init = [[function(email, dbsize)
 Initialize OSBF-Lua's state in the filesystem.
+email is the address for subject-line commands.
+dbsize is optional. It is the total size of the databases.
+Accepts option -lang to set report_locale in config.
 ]]
 
-function init(dbsize, ...)
-  local nb = dbsize and util.validate(util.bytes_of_human(dbsize))
-  if select('#', ...) > 0 then
-    usage()
-  else
-    if not core.isdir(cfg.dirs.user) then
-      util.die('You must create the user directory before initializing it:\n',
-               '  mkdir ', cfg.dirs.user)
-    end
-    nb = commands.init(nb)
-    io.stdout:writeln('Created directories and databases using a total of ',
-                    util.human_of_bytes(nb))
+function init(...)
+  local opts = {lang = options.std.val}
+  local opts, args = util.validate(options.parse({...}, opts))
+  if #args > 2 then usage() end
+  local email, dbsize = args[1], args[2]
+  if opts.lang and not valid_locale[opts.lang] then
+    util.die('The locale informed is not valid: ', tostring(opts.lang))
   end
+  if not (type(email) == 'string' and string.find(email, '@')) then
+    usage('Init requires a valid email for subject-line commands.')
+  end
+  local nb = dbsize and util.validate(util.bytes_of_human(dbsize))
+  if not core.isdir(cfg.dirs.user) then
+    util.die('You must create the user directory before initializing it:\n',
+      '  mkdir ', cfg.dirs.user)
+  end
+  nb = commands.init(email, nb, opts.lang)
+  util.writeln('Created directories and databases using a total of ',
+    util.human_of_bytes(nb))
 end
 
-table.insert(usage_lines, 'init [<database size in bytes>]')
+table.insert(usage_lines, 'init [-lang=<locale>] <user-email> [<database size in bytes>]')
 
 __doc.resize = [[function (class, newsize)
 Changes the size of a class database.
@@ -630,7 +640,8 @@ do
     function(...)
       local opts, args = util.validate(options.parse({...}, opts))
       local email, temail = args[1], args[2]
-      if not email or args[3] then usage() end
+      email = email or cfg.command_address
+      --if not email or args[3] then usage() end
       if opts.send then
         msg.send_message(
           commands.generate_training_message(email, temail, opts.lang))

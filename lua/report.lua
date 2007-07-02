@@ -158,7 +158,7 @@ end
 
 local function localize(x)
   if type(x) == 'string' then
-    return replace_dollar(s, language)
+    return replace_dollar(x, language)
   else
     assert(type(x) == 'table')
     setmetatable(x, { __index = language })
