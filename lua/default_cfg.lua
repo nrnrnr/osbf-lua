@@ -33,6 +33,9 @@ return {
   training_not_necessary = "Training not necessary: score = %.2f; " ..
                            "out of learning region: [-%.1f, %.1f]",
 
+  -- name of the header added to the message with OSBF-Lua score
+  score_header_name = "X-OSBF-Lua-Score",
+
   -- To disable sfids, make false.
   use_sfid     = true,
 

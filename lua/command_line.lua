@@ -58,14 +58,61 @@ local function help_string(pattern)
   return table.concat(output, '\n')
 end
 
+local function filter_help()
+  util.write([[
+
+Valid subject-line commands:
+
+- train_form <password>
+  Sends a training form.
+
+- help <password>
+  Sends this help.
+
+- learn <password> ham|spam [<sfid>]
+  Trains message. If <sfid> is not given, it's extracted
+  from the header.
+
+- unlearn <password> [ham|spam] [<sfid>]
+  Undoes a previous learning.
+
+- whitelist <password> add|del <tag> <string>
+  Adds/deletes strings to/from whitelist. <tag> is a header
+  name like From or Subject.  <string> is the string to
+  match the whole <tag> contents.
+
+- blacklist <password> add|del <tag> <string>
+  Idem for blacklists.
+
+- whitelist <password> add-pat|del-pat <tag> <pattern>
+  Adds/deletes patterns to/from whitelist. <pattern> is a
+  Lua pattern [1] to match some part of the <tag> contents.
+
+- blacklist <password> add-pat|del-pat <tag> <pattern>
+  Idem for blacklists.
+
+- whitelist|blacklist <password> show
+  Shows list contents.
+
+- resend <password> <sfid>
+  Resends message with <sfid>
+
+[1] http://www.lua.org/manual/5.1/manual.html#5.4.1
+
+]])
+end
+
 __doc.help = [[function(pattern)
 Prints command syntax of commands which contain pattern to stdout and exits.
 If pattern is nil prints syntax of all commands.
 ]] 
 
 function help(pattern)
-  util.write(help_string(pattern))
-  util.exit(1)
+  if util.is_output_set_to_message() then
+    filter_help()
+  else
+    util.write(help_string(pattern))
+  end
 end
 
 table.insert(usage_lines, 'help')
@@ -78,7 +125,7 @@ function usage(msg, pattern)
   if msg then
     util.writeln_error(msg)
   end
-  util.write_error(help_string(pattern))
+  help(pattern)
   util.exit(1)
 end
 
@@ -275,7 +322,8 @@ function resend(sfid)
       local score_header = string.format(
         '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
         pR, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
-      msg.add_header(m, 'X-OSBF-Lua-Score', score_header)
+      local score_header_name = cfg.score_header_name or 'X-OSBF-Lua-Score'
+      msg.add_header(m, score_header_name, score_header)
       msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
       util.unset_output_to_message()
       io.stdout:write(msg.to_string(m))
@@ -356,17 +404,6 @@ __doc.do_nothing = [[function(sfid) just prints the message "Nothing done.".]]
 
 function do_nothing(sfid)
   util.writeln('Nothing done.')
-end
-
--- replace sfid (last position of args) with the contents of header tag
-local function whitelist_tag(args, tag)
-  local m_sfid, err = cache.recover(args[#args])
-  if m_sfid then
-    args[#args] = msg.header_tagged(m_sfid, tag)
-    return true
-  else
-    return nil, err
-  end
 end
 
 -- checks and maps batch-commands to valid string commands
@@ -503,7 +540,8 @@ function filter(...)
       local score_header = string.format(
         '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
         pR or 0, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
-      msg.add_header(m, 'X-OSBF-Lua-Score', score_header)
+      local score_header_name = cfg.score_header_name or 'X-OSBF-Lua-Score'
+      msg.add_header(m, score_header_name, score_header)
       io.stdout:write(msg.to_string(m))
     end
   end
