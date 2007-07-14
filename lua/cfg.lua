@@ -49,6 +49,9 @@ of low score ham messages]],
   training_not_necessary = [[Result string for messages which don't
  need training]],
 
+  score_header_name = [[Name of the header added to the message with
+ OSBF-Lua score]],
+
   use_sfid     = 'Flag to turn on or off use of SFID',
   rightid      = [[String with SFID's right id. Defaukts to
 spamfilter.osbf.lua.]],
