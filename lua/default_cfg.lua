@@ -15,6 +15,17 @@ return {
   ham_db  = "ham.cfc",
   spam_db = "spam.cfc",
 
+  -- for class
+  -- multi = { classes = { 'spam', 'commercial', 'ham' },
+  --           tags = { sure   = { spam = '--', commercial = '$$' },
+  --                    unsure = { spam = '-', commercial = '$', ham = '+' },
+  --                    sfid   = { spam = 's', commercial = 'c', ham = 'h' },
+  --                  },
+  --           threshold = { spam = 20, commercial = 20, ham = 10 },
+  --         }
+
+  multi = false,  -- tree for multifilter command
+
   min_pR_success    = 0,  -- min pR to be considered as ham
 
 

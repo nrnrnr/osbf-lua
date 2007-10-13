@@ -67,7 +67,7 @@ local function internals(out, s)
       if not exported then
         d = string.gsub(d, '^%s*function', 'local function')
       end
-      out:write('\n', s, exported and '.' or ': ', k, ' = ', d, final_newline(d))
+      out:write('\n', module, exported and '.' or ': ', k, ' = ', d, final_newline(d))
     end
 
     if not doc then

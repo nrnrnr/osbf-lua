@@ -17,17 +17,17 @@ __doc.__order = {
 }
 
 
-__doc.create_db = [[function(filename, num_buckets) returns non-nil or nil, error
+__doc.create_db = [[function(filename, num_buckets) returns nothing or calls lua_error
 Creates an OSBF database with the given filename and
-using the given number of buckets.  On success it returns a
-non-nil value; on failure it returns nil and an error message.
+using the given number of buckets.  On success it returns nothing;
+on failure it calls lua_error.
 Example:
   core.create_db('spam.cfc', 94321)
 ]]
 
 __doc.classify = [=[function(text, dbset, flags, min_p_ratio) 
      returns pR, probs, i_pmax, trainings
-  or returns nil, error
+  or calls lua_error
 
 Classifies the string text using the databases in dbset.
 
@@ -96,7 +96,7 @@ In case of error, core.classify returns 2 values:
 
 __doc.learn = [[
 function(text, dbset, class_index, flags) 
-  returns true or nil, error
+  returns nothing or calls lua_error
 
 Learns the string text as belonging to the single class database
 indicated by the number class_index in dbset.classes.
@@ -129,14 +129,14 @@ Arguments are as follows:
 
 __doc.unlearn = [[
 function(text, dbset, class_index, flags) 
-  returns true or nil, error
+  returns nothing or calls lua_error
 
 Undoes the effect of core.learn.  Arguments are as for core.learn.
 ]]
 
 __doc.train = [=[
 function(sense, text, dbname, [flags, [delimiters]])
- returns true or nil, error
+  calls lua_error or returns nothing
 
 If sense = 1 it's equivalent to core.learn, differing on how args
 are passed.
@@ -149,7 +149,6 @@ are passed.
               in string is an additional delimiter
 
 If sense = -1 it's equivalent to core.unlearn.
-
 ]=]
 
 __doc.config = [[function(option_table)
@@ -212,11 +211,11 @@ Arguments are as follows:
     statistics are returned. For large databases, core.stats is much
     faster when full is equal to false.  
 
-In case of error, core.stats returns nil plus an error message.
+In case of error, core.stats calls lua_error.
 ]]
 
 
-__doc.dump = [[function(dbfile, csvfile) returns true or nil, error
+__doc.dump = [[function(dbfile, csvfile) returns nothing or calls lua_error
 Creates csvfile, a dump of dbfile in CSV format. Its main use is
 to transport dbfiles between different architectures (Intel to
 Sparc for instance). A dbfile in CSV format can be restored in
@@ -226,10 +225,10 @@ Arguments:
    dbfile: string with the database filename.
    csvfile: string with the csv filename.
 
-In case of error, it returns nil plus an error message.
+In case of error, it calls lua_error.
 ]]
 
-__doc.restore = [[function(dbfile, csvfile) returns true or nil, error
+__doc.restore = [[function(dbfile, csvfile) returns nothing or calls lua_error
 Restores dbfile from cvsfile. Be careful, if dbfile exists it'll
 be rewritten. Its main use is to restore a dbfile in CVS format
 dumped in a different architecture.
@@ -237,9 +236,9 @@ dumped in a different architecture.
    dbfile: string with the database filename.
    csvfile: string with the csv filename
 
-In case of error, it returns nil plus an error message.]]
+In case of error, it calls lua_error.]]
 
-__doc.import = [[function(to_dbfile, from_dbfile) returns true or nil, error
+__doc.import = [[function(to_dbfile, from_dbfile) returns nothing or calls lua_error
 Imports the buckets in from_dbfile into to_dbfile. from_dbfile
 must exist. Buckets originally present in to_dbfile will be
 preserved as long as the microgroomer doesn't delete them to make
@@ -252,18 +251,17 @@ larger or smaller empty one.
    to_dbfile: string with the database filename.
    from_dbfile: string with the database filename
 
-In case of error, it returns nil plus an error message.]]
+In case of error, it calls lua_error.]]
 
-__doc.chdir = [[function(dir) returns true or nil, error
+__doc.chdir = [[function(dir) returns returns nothing or calls lua_error
 Change the current working dir to dir.
 
    dir: string with the database filename.
 
-In case of error, it returns nil plus an error message.]]
+In case of error, it calls lua_error.]]
 
-__doc.getdir = [[function() returns string or nil, error
-Returns the current working dir. In case of error, it returns nil
-plus an error message.]]
+__doc.getdir = [[function() returns nothing or calls lua_error
+Returns the current working dir. In case of error, it calls lua_error.]]
 
 __doc.dir = [[function(dir) returns (iterator returns filename)
 Returns a Lua iterator that returns a new entry, in the directory
@@ -324,15 +322,10 @@ stuff.  Here are some example usages:
    -- read entire message into var "text"
    local text = io.read("*all")
    local pR, p_array = osbf.classify(text, dbset, classify_flags)
-   if pR == nil then
-       print(p_array)    -- in case of error, p_array contains
-                         -- the error message
+   io.write(string.format("The message score is %f - ", pR))
+   if (pR >= 0) then
+     io.write("HAM\n")
    else
-     io.write(string.format("The message score is %f - ", pR))
-     if (pR >= 0) then
-       io.write("HAM\n")
-     else
-       io.write("SPAM\n")
-     end
-  end
+     io.write("SPAM\n")
+   end
 ]]

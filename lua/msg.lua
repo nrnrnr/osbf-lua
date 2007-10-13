@@ -168,7 +168,7 @@ filename is the name of a file that contains an RFC 822 message as
 described for 'msg.of_string'.]]
 
 __doc.of_sfid = [[
-function(sfid) returns T, status or returns nil, 'missing'
+function(sfid) returns T, status
 Looks in the cache for the file designated by sfid, which is
 an original, unmodified message.  If found, returns the message
 and its cache status; if not found, returns nil, 'missing'.]]
@@ -423,7 +423,7 @@ do
   end
 end
 
-__doc.sfid = [[function(msgspec) returns string or nil, error-message
+__doc.sfid = [[function(msgspec) returns string or calls error
 Finds the sfid associated with the specified message.]]
 
 function sfid(msgspec)
@@ -434,7 +434,7 @@ function sfid(msgspec)
   end
 end
 
-__doc.extract_sfid = [[function(msgspec) returns string or nil, error-message
+__doc.extract_sfid = [[function(msgspec) returns string or calls error
 Extracts the sfid from the headers of the specified message.]]
 
 function extract_sfid(msg)
@@ -454,7 +454,7 @@ function extract_sfid(msg)
     if sfid then return sfid end
   end
   
-  return nil, 'Could not extract sfid from message'
+  error('Could not extract sfid from message')
 end
 
 -- Used to check and parse subject-line commands
@@ -477,7 +477,7 @@ local subject_cmd_pattern = {
 
 __doc.parse_subject_command = [[function(msg) searches first Subject: line
 in msg for a filter command.
-Returns a table with command and args or nil, errmsg
+Returns a table with command and args or calls error
 ]]
 
 function parse_subject_command(msg)
@@ -496,17 +496,17 @@ function parse_subject_command(msg)
       return cmd_table
     end
   end
-  return nil, 'No commands found.'
+  error('No commands found on the first Subject: line')
 end
 
-__doc.rfc2822_to_localtime = [[function(date) returns string
+__doc.rfc2822_to_localtime_or_nil = [[function(date) returns string or nil
 Converts RFC2822 date to local time in the format "YYYY/MM/DD HH:MM".
 ]]
 
 local tmonth = {jan=1, feb=2, mar=3, apr=4, may=5, jun=6,
                 jul=7, aug=8, sep=9, oct=10, nov=11, dec=12}
 
-function rfc2822_to_localtime(date)
+function rfc2822_to_localtime_or_nil(date)
   -- remove comments (CFWS)
   date = string.gsub(date, "%b()", "")
 
@@ -632,7 +632,7 @@ function attach_message(sfid, boundary)
       'error-boundary=_=_='
   end
     
-  local msg_content, err = cache.recover(sfid)
+  local msg_content, err = cache.try_recover(sfid)
   if msg_content then
     local m = of_string(msg_content)
     -- protect and keep the original envelope-from line
@@ -664,7 +664,7 @@ end
 
 __doc.send_message = [[function(message) Sends string message using
 a tmp file and the OS mail command configured in cfg.mail_cmd.
-Returns true or nil, error message.
+Returns or calls error
 ]]
 
 -- os.popen may not be available
@@ -676,10 +676,9 @@ function send_message(message)
     tmp:close()
     os.execute(string.format(cfg.mail_cmd, tmpfile))
     os.remove(tmpfile)
-    return true
   else
     util.log('Error sending message:\n', err, '\n', message)
-    return nil, err
+    error('Could not open ' .. tmpfile .. ' to send message: ' .. err)
   end
 end
 
@@ -687,7 +686,7 @@ __doc.send_cmd_message = [[function(subject_command, eol) Sends a command
 message with From: and To: set to cfg.command_address.
 subject_command - command to be inserted in the subject line
 eol             - end-of-line to be used in the message.
-Returns true or nil, error message.
+Returns or calls error.
 ]]
 
 function send_cmd_message(subject_command, eol)
@@ -700,7 +699,7 @@ function send_cmd_message(subject_command, eol)
       'Subject: ' .. subject_command, eol}, eol)
     return send_message(message)
   else
-    return nil, 'Invalid or empty cfg.command_address'
+    error('Invalid or empty cfg.command_address')
   end
 end
 

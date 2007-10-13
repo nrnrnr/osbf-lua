@@ -374,7 +374,7 @@ function html_sfid_rows(sfids, ready) -- declared local above
 
     local tag       = string.match(sfid, "sfid%-(.)") or '?'
     local fgcolor   = ready and tag_colors[tag] or colors.default
-    local lts       = msg.rfc2822_to_localtime(date) 
+    local lts       = msg.rfc2822_to_localtime_or_nil(date) 
     local date      = lts and os.date("%Y/%m/%d %H:%M", lts) or date
     local datecolor = lts and fgcolor or colors.invalid
 

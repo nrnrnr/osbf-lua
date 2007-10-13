@@ -140,8 +140,20 @@ __doc.homepage = 'Home page of the OSBF-Lua project.'
 homepage = 'http://osbf-lua.luaforge.net'
 
 
-
-
+__doc.multi = [[Either false, in which case OSBF-Lua classfies as 'ham' or 'spam',
+or a table consisting of the following fields:
+  classes      list of potential classifications (may be nested
+               in order to force OSBF-Lua to group the way the
+               user wants)
+  tags         table consisting of three tables below, each indexed 
+               by class (a 'sure' or 'unsure' tag defaults to empty)
+  tags.unsure  what goes on the subject line when in the reinforcement zone
+  tags.sure    what goes on the subject line outside the reinforcement zone
+  tags.sfid    the class's unique identifier in the SFID cache, which must
+               be a lowercase letter other than 's' or 'h'
+  threshold    table indexed by class that is half the width of the
+               reinforcement zone for that class
+]]
 
 --- XXX could we get rid of this and make all of config read-only
 --- except changeable via 'load'?
@@ -167,7 +179,7 @@ Loads a config file.
 function load(filename)
   local config, err = util.protected_dofile(filename)
   if not config or type(config) ~= 'table' then
-    return nil, err or filename .. ' is not a valid config file.'
+    util.errorf('%s is not a valid config file.', filename)
   end
   for k, v in pairs(config) do
     if d[k] == nil then
@@ -308,14 +320,14 @@ end
 
 ----------------------------------------------------------------
 __doc.password_ok = [[function()
-Returns true if password in user config file is OK or nil, errmsg.
+Returns true if password in user config file is OK or false, errmsg.
 ]]
 
 function password_ok()
   if pwd == default_pwd then
-    return nil, 'Default password still used in ' .. configfile
+    return false, 'Default password still used in ' .. configfile
   elseif string.find(pwd, '%s') then
-    return nil, 'password in ' .. configfile .. ' contains whitespace'
+    return false, 'password in ' .. configfile .. ' contains whitespace'
   else
     return true
   end
@@ -325,19 +337,97 @@ __doc.init = [[function(options, no_dirs_ok)
 Sets OSBF-Lua directories, databases and loads user's config file.
 ]]
 
-__doc.dbset = "Table with database info."
+__doc.dbset = "Table with database info, or 'false' if cfg.multi is a table."
+
+__doc.after_loading_do = [[function(f)
+After the user's config file is loaded, call f passing the cfg table.
+]]
+local postloads = { }
+function after_loading_do(f)
+  table.insert(postloads, f)
+end
+
+__doc.multitree = [[function() returns classfication tree or calls error
+
+A classification tree is a binary tree with a 'classification' at
+each leaf and a database at each child.  With the database go
+a 'dbname' field (where it's found in the file system), a 'parms'
+table (which knows whether it's on the positive or negative side
+of its parent), and a 'threshold' field (which knows whether a ratio 
+lies in the reinforcement zone.  An internal node has a 'children'
+field which is always a list of its two children.]]
+
+do
+  local the_tree
+  function multitree()
+    if not the_tree then
+      if type(multi) ~= 'table' or type(multi.tags) ~= 'table'
+      or type(multi.tags.sfid ~= 'table') then
+        error 'multiclassification without suitable config'
+      end
+      local function walk(prefix, node, index)
+        local t = { }
+        if not node then error 'bad multiclassification config' end
+        if type(node) == 'table' then
+          assert(#node == 2)
+          local n1 = walk(prefix .. '-1', node[1], 1)
+          local n2 = walk(prefix .. '-2', node[2], 2)
+          t.children = { n1, n2 }
+          t.threshold = math.max(n1.threshold, n2.threshold)
+        else
+          t.classification = node
+          t.threshold = assert(multi.train[node],
+                               'No training threshold for ' .. node)
+        end
+        if index then
+          local edge = t.classification and '-' .. t.classification or ''
+          t.dbname = table.concat {dirs.database, prefix, edge, '.cfc'}
+          io.stderr:write('Noted db ', t.dbname, '\n')
+          t.parms = (index == 1 and learn_parms_minus or learn_parms_plus)(t.threshold)
+        end
+        return t
+      end
+      local function make_binary(t, lo, hi)
+        if type(t) == 'string' then
+          return t
+        elseif type(t) == 'table' then
+          lo = lo or 1
+          hi = hi or #t
+          if lo == hi then return make_binary(t[lo])
+          elseif lo > hi then error 'empty category list in cfg.multi.classes'
+          elseif lo + 1 == hi then
+            return { make_binary(t[lo]), make_binary(t[hi]) }
+          else
+            local mid = math.floor((lo + hi) / 2)
+            return { make_binary(t, lo, mid), make_binary(t, mid+1, hi) }
+          end
+        end
+      end
+      the_tree = walk('multi', make_binary(multi.classes))
+    end
+    return the_tree
+  end
+end
+      
 local function init(options, no_dirs_ok)
   set_dirs(options, no_dirs_ok)
   util.validate(load_if_readable(configfile))
-  dbset = {
-    classes = {dirs.database .. ham_db,
-               dirs.database .. spam_db},
-    ncfs    = 1, -- split "classes" in 2 sublists. "ncfs" is
-                 -- the number of classes in the first sublist.
-    delimiters = extra_delimiters or '',
-    ham_index = 1,
-    spam_index    = 2,
-  }
+  if multi then
+    dbset = false
+  else
+    dbset = {
+      classes = {dirs.database .. ham_db,
+                 dirs.database .. spam_db},
+      ncfs    = 1, -- split "classes" in 2 sublists. "ncfs" is
+                   -- the number of classes in the first sublist.
+      delimiters = extra_delimiters or '',
+      ham_index = 1,
+      spam_index    = 2,
+    }
+  end
+  for _, f in ipairs(postloads) do
+    f(_M)
+  end
 end
 
 boot.initializer(init)

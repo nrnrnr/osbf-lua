@@ -169,12 +169,9 @@ lua_osbf_createdb (lua_State * L)
 
   if (osbf_create_cfcfile (cfcname, buckets, OSBF_VERSION,
                            minor, errmsg) == EXIT_SUCCESS) {
-    lua_pushboolean(L, 1);
-    return 1;
+    return 0;
   } else {
-    lua_pushnil (L);
-    lua_pushfstring (L, "%s: %s", cfcname, errmsg);
-    return 2;
+    return luaL_error (L, "%s: %s", cfcname, errmsg);
   }
 }
 
@@ -212,7 +209,8 @@ lua_osbf_classify (lua_State * L)
 
   /* extract the classes */
   /* check if the arg in the top is a table */
-  luaL_checktype (L, -1, LUA_TTABLE);
+  if (!lua_istable(L, -1))
+    luaL_error(L, "Element '%s' of argument 2 is not a table", key_classes);
   lua_pushnil (L);
   num_classes = 0;
   while (num_classes < OSBF_MAX_CLASSES && lua_next (L, -2) != 0)
@@ -251,9 +249,7 @@ lua_osbf_classify (lua_State * L)
 			   flags, min_p_ratio, p_classes, p_trainings,
 			   errmsg) < 0)
     {
-      lua_pushnil (L);
-      lua_pushstring (L, errmsg);
-      return 2;
+      return luaL_error(L, "%s", errmsg);
     }
   else
     {
@@ -294,9 +290,8 @@ lua_osbf_classify (lua_State * L)
 	  lua_pushnumber (L, (lua_Number) p_trainings[i]);
 	  lua_rawseti (L, -2, i + 1);
 	}
+      return 4;
     }
-
-  return 4;
 }
 
 /**********************************************************/
@@ -325,14 +320,11 @@ lua_osbf_train (lua_State * L)
   if (osbf_bayes_train (text, text_len, delimiters, dbname,
 			sense, flags, errmsg) < 0)
     {
-      lua_pushnil (L);
-      lua_pushstring (L, errmsg);
-      return 2;
+      return luaL_error(L, "%s", errmsg);
     }
   else
     {
-      lua_pushboolean (L, 1);
-      return 1;
+      return 0;
     }
 }
 
@@ -392,14 +384,11 @@ old_osbf_train (lua_State * L, int sense)
   if (old_osbf_bayes_learn (text, text_len, delimiters, classes,
 			ctbt, sense, flags, errmsg) < 0)
     {
-      lua_pushnil (L);
-      lua_pushstring (L, errmsg);
-      return 2;
+      return luaL_error(L, "%s", errmsg);
     }
   else
     {
-      lua_pushboolean (L, 1);
-      return 1;
+      return 0;
     }
 }
 
@@ -432,14 +421,11 @@ lua_osbf_dump (lua_State * L)
 
   if (osbf_dump (cfcfile, csvfile, errmsg) == 0)
     {
-      lua_pushboolean (L, 1);
-      return 1;
+      return 0;
     }
   else
     {
-      lua_pushnil (L);
-      lua_pushstring (L, errmsg);
-      return 2;
+      return luaL_error (L, "%s", errmsg);
     }
 }
 
@@ -456,14 +442,11 @@ lua_osbf_restore (lua_State * L)
 
   if (osbf_restore (cfcfile, csvfile, errmsg) == 0)
     {
-      lua_pushboolean (L, 1);
-      return 1;
+      return 0;
     }
   else
     {
-      lua_pushnil (L);
-      lua_pushstring (L, errmsg);
-      return 2;
+      return luaL_error (L, "%s", errmsg);
     }
 }
 
@@ -480,14 +463,11 @@ lua_osbf_import (lua_State * L)
 
   if (osbf_import (cfcfile, csvfile, errmsg) == 0)
     {
-      lua_pushboolean (L, 1);
-      return 1;
+      return 0;
     }
   else
     {
-      lua_pushnil (L);
-      lua_pushstring (L, errmsg);
-      return 2;
+      return luaL_error (L, "%s", errmsg);
     }
 }
 
@@ -587,9 +567,7 @@ lua_osbf_stats (lua_State * L)
     }
   else
     {
-      lua_pushnil (L);
-      lua_pushfstring (L, "%s: %s", cfcfile, errmsg);
-      return 2;
+      return luaL_error (L, "%s: %s", cfcfile, errmsg);
     }
 }
 
@@ -645,14 +623,11 @@ lua_osbf_changedir (lua_State * L)
 
   if (chdir (newdir) != 0)
     {
-      lua_pushboolean (L, 1);
-      return 1;
+      return 0;
     }
   else
     {
-      lua_pushnil (L);
-      lua_pushfstring (L, "can't change dir to '%s'\n", newdir);
-      return 2;
+      return luaL_error (L, "can't change dir to '%s'\n", newdir);
     }
 }
 
@@ -685,9 +660,7 @@ lua_osbf_getdir (lua_State * L)
     }
   else
     {
-      lua_pushnil (L);
-      lua_pushstring (L, "can't get current dir");
-      return 2;
+      return luaL_error(L, "%s","can't get current dir");
     }
 }
 

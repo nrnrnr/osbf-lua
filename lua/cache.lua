@@ -1,5 +1,5 @@
-local require, print, ipairs, pairs, type, assert, tostring =
-      require, print, ipairs, pairs, type, assert, tostring
+local require, print, ipairs, pairs, type, assert, tostring, error =
+      require, print, ipairs, pairs, type, assert, tostring, error
 
 local io, string, table, os, coroutine, math, tonumber =
       io, string, table, os, coroutine, math, tonumber
@@ -22,10 +22,29 @@ local slash = cfg.slash
 __doc.status = [['spam', 'ham', 'unlearned', or 'missing'
 Each message (known by its sfid) has a status, which is
 exactly one of the above.  A 'missing' message is not in 
-the message cache.]]
+the message cache.
+
+If multiclassification is enabled, each classification may be an additional status.
+]]
 
 local suffixes = { spam = '-s', ham = '-h', unlearned = '' }
   -- used to name cache files according to status
+
+cfg.after_loading_do(function()
+  if cfg.multi then
+    assert(cfg.multi.tags and cfg.multi.tags.sfid)
+    for class, tag in pairs(cfg.multi.tags.sfid) do
+      if not suffixes[class] then
+        if not string.match(tag, '^%l$') or string.match(tag, '^[sh]$') then
+          error('sfid tag for class ' .. class ..
+                ' must be lowercase letter other than s or h')
+        else
+          suffixes[class] = '-' .. tag
+        end
+      end
+    end
+  end
+end)
 
 local function generate_rightid()
   -- returns cfg.right id if valid or 'spamfilter.osbf.lua'
@@ -44,7 +63,7 @@ Tells whether 's' represents a sfid (spam filter id).]]
 
 function is_sfid(sfid)
   return type(sfid) == 'string'
-	and not string.find(sfid, '%-[hs]$') -- avoid conflict with renamed sfids
+	and not string.find(sfid, '%-%l$') -- avoid conflict with renamed sfids
 	-- rightid must be a valid domain names: only letters, digits, '-' and '.'
 	and string.find(sfid, '^sfid%-.-@[%a%d%.%-]+$')
 end
@@ -76,13 +95,14 @@ end
 __doc.file_and_status = [[function(sfid) returns file, status
 file is either nil or a descriptor open for read
 status is either 'unlearned', 'spam', 'ham', or 'missing'
+or a classification from cfg.multi.classes.
 file == nil if and only if status == 'missing']]
 
 -- secretly, for internal use only, also returns the filename
 function file_and_status(sfid)
- if not is_sfid(sfid) then
-   return nil, 'Invalid sfid passed to file_and_status'
- end
+  if not is_sfid(sfid) then
+    error('Invalid sfid passed to file_and_status')
+  end
   for status in pairs(suffixes) do
     local fname = filename(sfid, status)
     local f = io.open(fname, 'r')
@@ -99,9 +119,9 @@ The change in status must be the result of learning or unlearning.]]
 function change_file_status(sfid, status, classification)
   if status ~= classification
   and (classification == 'unlearned' or status == 'unlearned') then
-    return os.rename(filename(sfid, status), filename(sfid, classification))
+    util.insist(os.rename(filename(sfid, status), filename(sfid, classification)))
   else
-    return nil, 'invalid to change status from ' .. status .. ' to ' .. classification
+    error('invalid to change status from ' .. status .. ' to ' .. classification)
   end
 end
 
@@ -128,10 +148,10 @@ function generate_sfid(sfid_tag, pR)
       return sfid
     end
   end
-  return nil, 'could not generate sfid'
+  error('could not generate sfid')
 end
 
-__doc.store = [[function(sfid, msg) returns string or nil, error
+__doc.store = [[function(sfid, msg) returns string or calls error
 msg is a string containing the message to which the unique sfid
 has been assigned.  This function writes the message into the cache,
 returning the sfid if successful, and if unsuccessful (because
@@ -146,7 +166,7 @@ function store(sfid, msg)
   local f = file_and_status(sfid)
   if f then
     f:close()
-    return nil, 'sfid ' .. sfid .. ' is already in the cache!'
+    error('sfid ' .. sfid .. ' is already in the cache!')
   end
   local f = assert(io.open(filename(sfid, 'unlearned'), 'w'))
   f:write(msg)
@@ -155,28 +175,28 @@ function store(sfid, msg)
 end
 
 __doc.remove = [[function(sfid)
-Removes message from the cache (if present).]]
+Removes message from the cache (if present); otherwise calls error.]]
 
 function remove(sfid)
   local f, _, fname = file_and_status(sfid)
   if f then
     f:close()
-    return os.remove(fname)
+    util.insist(os.remove(fname))
   else
-    return nil,
+    error(
       type(sfid) == 'string'
         and
       sfid .. ': not found in cache.'
         or
-      'Invalid sfid.'
+      'Invalid sfid.')
   end
 end
  
-__doc.recover = [[function(sfid) returns string or returns nil, error message
+__doc.try_recover = [[function(sfid) returns string or nil, error
 If the message is still in the cache, return the contents as a string.
 Otherwise returns nil with an error message.]]
 
-function recover(sfid)
+function try_recover(sfid)
   -- returns a string containing the message associated with sfid
   -- or nil, err, if sfid is not in cache
   local f, err = file_and_status(sfid)
@@ -186,9 +206,9 @@ function recover(sfid)
     return msg
   else
     if is_sfid(sfid) then
-      return f, sfid .. ': not found in cache.'
+      return nil, sfid .. ': not found in cache.'
     else
-      return f, 'Invalid sfid.'
+      return nil, 'Invalid sfid.'
     end
   end
 end
@@ -202,7 +222,7 @@ function sfid_score(sfid)
   if score then
     return tonumber(score)
   else
-    return  nil, 'not a valid sfid'
+    error('not a valid sfid')
   end
 end
 
@@ -226,13 +246,14 @@ learnable, that is, it's unlearned and its tag is not 'W',
 'B' or 'E'.]]
 
 function sfid_is_learnable(sfid)
-  return is_sfid(sfid) and string.find(sfid, '^sfid%-[^WBE].*[^%-][^sh]$')
+  return is_sfid(sfid) and string.find(sfid, '^sfid%-[^WBE].*[^%-][^%l]$')
 end
 
 ----------------------------------------------------------------
 
 __doc.sfid_is_in_reinforcement_zone = [[function(sfid) returns true if sfid is
-in user reinforcement zone.]]
+in user reinforcement zone.
+Bogus in the presence of multiclassification sfids!]]
 
 function sfid_is_in_reinforcement_zone(sfid)
   return math.abs(sfid_score(sfid) - cfg.min_pR_success) < cfg.threshold

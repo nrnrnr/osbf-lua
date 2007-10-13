@@ -25,13 +25,15 @@ local usage_lines = { }
 
 __doc.run = [[function(cmd, ...)
 Runs command cmd calling it with arguments received.
+Catches all errors and prints message to stderr.
 ]] 
 
 function run(cmd, ...)
   if not cmd then
     usage()
   elseif _M[cmd] then
-    _M[cmd](...)
+    local ok, msg = pcall (_M[cmd], ...)
+    if not ok then util.die(string.gsub(msg, '\n*$', '')) end
   else
     eprintf('Unknown command %s\n', cmd)
     usage()
@@ -154,7 +156,7 @@ local function listfun(listname)
   return function(cmd, tag, arg)
            -- if arg is SFID, replace it with its tag contents
            if cache.is_sfid(arg) then
-              local message, err = cache.recover(arg)
+              local message, err = cache.try_recover(arg)
               if message then
                 local header_field = msg.header_tagged(message, tag)
                 if header_field then
@@ -242,41 +244,50 @@ class and the remaining are message specs.
 
 function learner(cmd)
   return function(classification, ...)
-           local has_class =
-             classification == 'ham' or classification == 'spam'
+           local has_class
+           if cfg.multi then
+             has_class = cfg.multi.tags.sfid[classification]
+             usage('learn command requires a class, ' .. classes)
+           else
+             has_class = classification == 'ham' or classification == 'spam'
+           end
            if not has_class and cmd == commands.learn then
-             usage('learn command requires a class, either "spam" or "ham".')
+             usage('learn command needs a class, either "ham" or "spam"')
+           elseif not has_class and cmd == commands.multilearn then
+             local cs = { }
+             for class in pairs(cfg.multi.tags.sfid) do
+               table.insert(cs, class)
+             end
+             table.sort(cs)
+             cs = table.concat(cs, ', ')
+             usage('multilearn command needs one of these classes: ' .. cs)
            end
            for msgspec in
              has_class and msgspecs(...) or msgspecs(classification, ... ) do
              local sfid = util.validate(msg.sfid(msgspec))
              local r, err, old_pR, new_pR = util.validate(cmd(sfid,
                has_class and classification or nil))
-             if r then
-               util.writeln(r)
-               -- redelivers message if it was trained as ham, received any
-               -- subject tag and it was a subject command 
-               -- (is_output_set_to_message())
-               local learned_as_ham =
-                 cmd == commands.learn and classification == 'ham'
-               local tagged_subject =
-                 cfg.tag_subject and cache.sfid_score(sfid) < cfg.threshold
-               if learned_as_ham and tagged_subject
-               and util.is_output_set_to_message() then
-                 local m = msg.of_sfid(sfid)
-                 local subj_cmd = 'resend ' .. cfg.pwd .. ' ' .. sfid
-                 r, err = msg.send_cmd_message(subj_cmd, m.eol)
-                 if r then
-                   util.writeln(' The original message, without subject tags, ',
-                     'will be sent to you.')
-                 else
-                   util.writeln(' Error: unable to resend original message.')
-                   util.log(err)
-                 end
+             util.writeln(r)
+             -- redelivers message if it was trained as ham, received any
+             -- subject tag and it was a subject command 
+             -- (is_output_set_to_message())
+             local learned_as_ham =
+               (cmd == commands.learn or cmd == commands.multilearn)
+               and classification == 'ham'
+             local tagged_subject =
+               cfg.tag_subject and cache.sfid_score(sfid) < cfg.threshold
+             if learned_as_ham and tagged_subject
+             and util.is_output_set_to_message() then
+               local m = msg.of_sfid(sfid)
+               local subj_cmd = 'resend ' .. cfg.pwd .. ' ' .. sfid
+               r, err = msg.send_cmd_message(subj_cmd, m.eol)
+               if r then
+                 util.writeln(' The original message, without subject tags, ',
+                   'will be sent to you.')
+               else
+                 util.writeln(' Error: unable to resend original message.')
+                 util.log(err)
                end
-             else
-               util.writeln(err or 'Error learning as ' ..
-                 tostring(classification))
              end
            end
          end
@@ -286,9 +297,11 @@ __doc.learn = 'Closure to learn messages as belonging to the specified class.\n'
 learn   = learner(commands.learn)
 __doc.unlearn = 'Closure to unlearn messages as belonging to the specified class.\n'
 unlearn = learner(commands.unlearn)
+multilearn = learner(commands.multilearn)
 
 table.insert(usage_lines, 'learn    <spam|ham>  [<sfid|filename> ...]')
 table.insert(usage_lines, 'unlearn [<spam|ham>] [<sfid|filename> ...]')
+table.insert(usage_lines, 'multilearn <class>   [<sfid|filename> ...]')
 
 
 __doc.sfid = [[function(...)
@@ -313,24 +326,20 @@ original message received a subject tag.
 
 
 function resend(sfid)
-  local message, err = cache.recover(sfid)
+  local message, err = cache.try_recover(sfid)
   if message then
     local m = msg.of_string(message)
     local pR, sfid_tag, subj_tag = commands.classify(m)
-    if pR then
-      sfid_tag = 'R' .. sfid_tag -- prefix tag to indicate a resent message
-      local score_header = string.format(
-        '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
-        pR, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
-      local score_header_name = cfg.score_header_name or 'X-OSBF-Lua-Score'
-      msg.add_header(m, score_header_name, score_header)
-      msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
-      util.unset_output_to_message()
-      io.stdout:write(msg.to_string(m))
-      util.log('resend\n', msg.to_string(m))
-    else
-      util.writeln(tostring(sfid_tag))
-    end
+    sfid_tag = 'R' .. sfid_tag -- prefix tag to indicate a resent message
+    local score_header = string.format(
+      '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
+      pR, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
+    local score_header_name = cfg.score_header_name or 'X-OSBF-Lua-Score'
+    msg.add_header(m, score_header_name, score_header)
+    msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
+    util.unset_output_to_message()
+    io.stdout:write(msg.to_string(m))
+    util.log('resend\n', msg.to_string(m))
   else
     util.writeln(err)
   end
@@ -345,7 +354,7 @@ atachment to the command-result message.
 ]]
 
 function recover(sfid)
-  local msg, err = cache.recover(sfid)
+  local msg, err = cache.try_recover(sfid)
   if msg then
     util.write_message(msg)
   else
@@ -358,9 +367,8 @@ table.insert(usage_lines, 'recover <sfid>')
 __doc.remove = [[function(sfid) Removes sfid from cache.]]
 
 function remove(sfid)
-  local r, err = cache.remove(sfid)
-  r = r and 'SFID removed.' or err
-  util.writeln(r)
+  cache.remove(sfid)
+  util.writeln('SFID removed.')
 end
 
 table.insert(usage_lines, 'remove <sfid>')
@@ -371,34 +379,51 @@ and prints the classification to stdout.
 Valid option: -cache => caches the original message
 ]]
 
-function classify(...)
-  local options, argv =
-    util.validate(options.parse({...},
-      {tag = options.std.bool, cache = options.std.bool}))
-  local show =
-    options.tag 
-      and
-    function(pR, tag) return tag end
-      or
-    function(pR, tag)
-      local what = assert(commands.sfid_tags[tag])
-      if pR then
-        what = what .. string.format(' with score %03.1f', pR)
+function mk_classify(classify)
+  return function(...)
+    local options, argv =
+      util.validate(options.parse({...},
+        {tag = options.std.bool, cache = options.std.bool}))
+    local show =
+      options.tag 
+        and
+      function(pR, tag) return tag end
+        or
+      function(pR, tag, class)
+        local what = commands.sfid_tags[tag] or class
+        if pR then
+          local ess, scores = '', { }
+          if type(pR) == 'table' then
+            for i = 1, #pR do
+              table.insert(scores, string.format('%03.1f', pR[i]))
+            end
+            scores = table.concat(scores, ', ')
+            if #pR > 1 then ess = 's' end
+          else
+            scores = string.format('%03.1f', pR)
+          end
+          what = string.format('%s with score%s %s', what, ess, scores)
+        end
+        return what
+      end 
+    
+    for msgspec, what in msgspecs(unpack(argv)) do
+      local m = util.validate(msg.of_any(msgspec))
+      local train, pR, tag, _, class = classify(m)
+      if options.cache then
+        cache.store(cache.generate_sfid(tag, pR), msg.to_orig_string(m))
       end
-      return what
-    end 
-  
-  for msgspec, what in msgspecs(unpack(argv)) do
-    local m = util.validate(msg.of_any(msgspec))
-    local pR, tag = commands.classify(m)
-    if options.cache then
-      cache.store(cache.generate_sfid(tag, pR), msg.to_orig_string(m))
+      util.write(what, ' is ', show(pR, tag, class),
+                 train and ' [needs training]' or '', m.eol)
     end
-    util.write(what, ' is ', show(pR, tag), m.eol)
   end
 end
 
+classify = mk_classify(commands.classify)
+multiclassify = mk_classify(commands.multiclassify)
+
 table.insert(usage_lines, 'classify [-tag] [-cache] [<sfid|filename> ...]')
+table.insert(usage_lines, 'multiclassify [-tag] [-cache] [<sfid|filename> ...]')
 
 __doc.do_nothing = [[function(sfid) just prints the message "Nothing done.".]]
 
@@ -427,9 +452,9 @@ local function run_batch_cmd(sfid, cmd, m)
     util.write(tostring(sfid), ': ')
     if cmd == 'recover' or cmd == 'resend' then
       -- send a separate mail with subject-line command
-      local r, err = msg.send_cmd_message(cmd .. ' ' .. cfg.pwd .. ' ' .. sfid,
-        m.eol)
-      if r then 
+      local ok, err = pcall(msg.send_cmd_message, cmd .. ' ' .. cfg.pwd .. ' ' .. sfid,
+                            m.eol)
+      if ok then 
         util.writeln('The ', cmd, ' command was issued.')
         util.writeln( ' The message will be re-delivered to you if still in cache.')
       else
@@ -485,20 +510,13 @@ local function exec_subject_line_command(cmd, m)
     'OSBF-Lua command result - ' .. cmd[1] or 'nil?!')
   -- insert sfid if required
   if subject_line_commands[cmd[1]] == 1 and not cache.is_sfid(cmd[#cmd]) then
-    local sfid, err = msg.sfid(m)
-      if sfid then
-        table.insert(cmd, sfid)
-      else
-        util.writeln(err)
-        return
-      end
+    table.insert(cmd, msg.sfid(m))
   end
 
   if cmd[1] == 'batch_train' then
-    batch_train(m)
-    return -- prevents execution of 'run' below
+    return batch_train(m) -- prevents execution of 'run' below
   elseif cmd[1] == 'train_form' or cmd[1] == 'cache-report' then
-     cmd = {'cache-report', '-send', msg.header_tagged(m, 'to')}
+    cmd = {'cache-report', '-send', msg.header_tagged(m, 'to')}
   end
   run(unpack(cmd))
 end
@@ -512,43 +530,60 @@ Valid options: -notag   => disables subject tagging
                -nosfid  => disables sfid (implies -nocache)
 ]]
 
-function filter(...)
-  local options, argv =
-    util.validate(options.parse({...},
-      {nocache = options.std.bool, notag = options.std.bool,
-       nosfid = options.std.bool}))
+local function mk_filter(classify)
+  return function(...)
+    local options, argv =
+      util.validate(options.parse({...},
+        {nocache = options.std.bool, notag = options.std.bool,
+         nosfid = options.std.bool}))
 
-  for msgspec, what in msgspecs(unpack(argv)) do
-    local m, err = util.validate(msg.of_any(msgspec))
-    local cmd = msg.parse_subject_command(m)
-    if type(cmd) == 'table' and subject_line_commands[cmd[1]] then
-      exec_subject_line_command(cmd, m)
-    else
-      local pR, sfid_tag, subj_tag = commands.classify(m)
-      if pR == nil then
-      end
-      if not options.nosfid and cfg.use_sfid then
-        local sfid = cache.generate_sfid(sfid_tag, pR)
-        if not options.nocache and cfg.save_for_training then
-          cache.store(sfid, msg.to_orig_string(m))
+    for msgspec, what in msgspecs(unpack(argv)) do
+      local m, err = util.validate(msg.of_any(msgspec))
+      local cmd = msg.parse_subject_command(m)
+      if type(cmd) == 'table' and subject_line_commands[cmd[1]] then
+        exec_subject_line_command(cmd, m)
+      else
+        local function classify_and_insert() -- protect from errors
+          local train, pR, sfid_tag, subj_tag, classification = classify(m)
+          if not options.nosfid and cfg.use_sfid then
+            local sfid = cache.generate_sfid(sfid_tag, pR)
+            if not options.nocache and cfg.save_for_training then
+              cache.store(sfid, msg.to_orig_string(m))
+            end
+            msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
+          end
+          if not options.notag and cfg.tag_subject then
+            msg.tag_subject(m, subj_tag)
+          end
+          local min_pR
+          if type(pR) == 'number' then
+            min_pR = pR
+          elseif type(pR) == 'table' then
+            min_pR = math.min(unpack(pR))
+          end
+          local score_header = string.format(
+            '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
+            min_pR or 0, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
+          local score_header_name = cfg.score_header_name or 'X-OSBF-Lua-Score'
+          msg.add_header(m, score_header_name, score_header)
+          msg.add_header(m, 'X-OSBF-Lua-Train', train and 'yes' or 'no')
+          msg.add_header(m, 'X-OSBF-Lua-Classification', classification)
         end
-        msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
+        local ok, err = pcall(classify_and_insert)
+        if not ok then
+          msg.add_header(m, 'X-OSBF-Lua-Error', err or 'unknown error')
+        end
+        io.stdout:write(msg.to_string(m))
       end
-      if not options.notag and cfg.tag_subject then
-        msg.tag_subject(m, subj_tag)
-      end
-      local score_header = string.format(
-        '%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
-        pR or 0, cfg.min_pR_success, sfid_tag, core._VERSION, cfg.version)
-      local score_header_name = cfg.score_header_name or 'X-OSBF-Lua-Score'
-      msg.add_header(m, score_header_name, score_header)
-      io.stdout:write(msg.to_string(m))
     end
   end
 end
-
+filter = mk_filter(commands.classify)
+multifilter = mk_filter(commands.multiclassify)
 table.insert(usage_lines,
   'filter [-nosfid] [-nocache] [-notag] [<sfid|filename> ...]')
+table.insert(usage_lines,
+  'multifilter [-nosfid] [-nocache] [-notag] [<sfid|filename> ...]')
  
 __doc.stats = [[function(...)
 Writes classification and database statistics to stdout.
@@ -614,6 +649,7 @@ newsize is the new size in bytes.
 If the new size is lesser than the original size, contents are
 pruned, less significative buckets first, to fit the new size.
 XXX if resized back to 1.1M we get 95778 buckets, not 94321.
+With multiclassification we resize up to the root!
 ]]
 
 function resize(class, newsize, ...)
@@ -622,26 +658,38 @@ function resize(class, newsize, ...)
   or type(class) ~= 'string' then
     usage()
   else
-    local ham_index = cfg.dbset.ham_index
-    local spam_index = cfg.dbset.spam_index
-    local dbname =
-      class == 'ham' and cfg.dbset.classes[ham_index]
-        or
-      class == 'spam' and cfg.dbset.classes[spam_index]
-        or
-      util.die('Unknown class to resize: "', class,
-        '". Valid classes are "ham" or spam"')
-
-    local stats = util.validate(core.stats(dbname))
-    local tmpname = util.validate(os.tmpname())
-    -- XXX non atomic...
-    os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force?)
-    local real_bytes = commands.create_single_db(tmpname, nb)
-    util.validate(core.import(tmpname, dbname))
-    util.validate(os.rename(tmpname, dbname))
-    class = util.capitalize(class)
-    util.writeln(class, ' database resized to ',
-      util.human_of_bytes(real_bytes))
+    local function resize(dbname)
+      local stats = util.validate(core.stats(dbname))
+      local tmpname = util.validate(os.tmpname())
+      -- XXX non atomic...
+      os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force?)
+      local real_bytes = commands.create_single_db(tmpname, nb)
+      util.validate(core.import(tmpname, dbname))
+      util.validate(os.rename(tmpname, dbname))
+      class = util.capitalize(class)
+      util.writeln(class, ' database resized to ', util.human_of_bytes(real_bytes))
+    end
+    if cfg.multi then
+      local function search(node)
+        if node.classification == class then
+          resize(node.dbname)
+          return true
+        elseif node.children then
+          if search(node.chidren[1]) or search(node.children[2]) then
+            if node.dbname then resize(node.dbname) end
+            return true
+          end
+        end
+        return false
+      end
+      search(cfg.multitree())
+    else
+      local indices = { ham = cfg.dbset.ham_index, spam = cfg.dbset.spam_index }
+      local index = indices[class] or
+                       util.die('Unknown class to resize: "', class,
+                                '". Valid classes are "ham" or spam"')
+      resize(cfg.dbset.classes[index])
+    end
   end
 end
 

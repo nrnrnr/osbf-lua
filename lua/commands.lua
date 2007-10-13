@@ -80,7 +80,15 @@ function init(email, totalsize, lang)
     util.mkdir(d)
   end
 
-  local dbcount = #cfg.dbset.classes
+  local dbcount = 0
+  if cfg.dbset then dbcount = dbcount + #cfg.dbset.classes end
+  if cfg.multi then
+    local t = cfg.multitree()
+    local function walk(t)
+      if t.dbname then dbcount = dbcount + 1 end
+      if t.children then for _, c in ipairs(t.children) do walk(c) end end
+    end
+  end
   totalsize = totalsize or dbcount * cfg.constants.default_db_megabytes * 1024 * 1024
   if type(totalsize) ~= 'number' then
     util.die('Database size must be a number')
@@ -88,9 +96,20 @@ function init(email, totalsize, lang)
   local dbsize = totalsize / dbcount
   -- create new, empty databases
   local totalbytes = 0
-  for _, path in ipairs(cfg.dbset.classes) do
-    totalbytes = totalbytes + create_single_db(path, dbsize)
+  if cfg.dbset then
+    for _, path in ipairs(cfg.dbset.classes) do
+      totalbytes = totalbytes + create_single_db(path, dbsize)
+    end
   end
+  if cfg.multi then
+    local function walk(t)
+      if t.dbname then
+        totalbytes = totalbytes + create_single_db(t.dbname, dbsize)
+      end
+      if t.children then walk(t.children[1]); walk(t.children[2]) end
+    end
+    walk(cfg.multitree())
+  end    
   local config = cfg.configfile
   if util.file_is_readable(config) then
     util.write_error('Warning: not overwriting existing ', config, '\n')

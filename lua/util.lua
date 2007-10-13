@@ -1,8 +1,8 @@
-local require, print, pairs, type, assert, loadfile, setmetatable, tonumber =
-      require, print, pairs, type, assert, loadfile, setmetatable, tonumber
+local require, print, pairs, type, assert, loadfile, setmetatable, tonumber, error =
+      require, print, pairs, type, assert, loadfile, setmetatable, tonumber, error
 
-local io, string, table, os, package, select, tostring, math =
-      io, string, table, os, package, select, tostring, math
+local io, string, table, os, package, select, tostring, math, coroutine =
+      io, string, table, os, package, select, tostring, math, coroutine
 
 module(...)
 
@@ -47,7 +47,7 @@ function protected_dofile(file)
   end
 end
 ----------------------------------------------------------------
-__doc.submodule_path = [[function(name) returns pathname or nil, error
+__doc.submodule_path = [[function(name) returns pathname or calls lua_error
 Given the name of a submodule of the osbf module, returns the
 location in the filesystem from which that module would be loaded.
 This is used to find the default_cfg.lua file used to create the 
@@ -61,7 +61,7 @@ function submodule_path(subname)
       return path
     end
   end
-  return nil, 'Submodule ' .. subname .. ' not found'
+  error('Submodule ' .. subname .. ' not found')
 end
 
 ----------------------------------------------------------------
@@ -152,7 +152,7 @@ do
       fh:close()
       return true
     else
-      return nil, err
+      error('Cannot open logfile ' .. logfile .. ': err')
     end
   end
 
@@ -177,6 +177,21 @@ function die(...)
     io.stderr:write('\n')
     os.exit(2)
   end
+end
+
+__doc.errorf = [[function(...) applies string.format and then error]]
+function errorf(...)
+  error(string.format(...), 2)
+end
+
+__doc.insist = [[function(v, msg) if v == nil calls error(msg)]]
+function insist(v, msg)
+  if v == nil then error(msg, 2) end
+end
+
+__doc.insistf = [[function(bool, ...) if bool is false, calls util.errorf(...)]]
+function insistf(p, ...)
+  if not p then return errorf(...) end
 end
 
 __doc.validate = [[function(...) returns ... or kills process
@@ -264,7 +279,7 @@ function bytes_of_human(s)
   if n and mult[suff] then
     return assert(tonumber(n)) * mult[suff]
   else
-    return nil, s .. ' does not represent a number of bytes'
+    error(s .. ' does not represent a number of bytes')
   end
 end
 

@@ -1,5 +1,5 @@
-local io, string, table, print, assert, pairs, ipairs, type, require, _G
-    = io, string, table, print, assert, pairs, ipairs, type, require, _G
+local io, string, table, error, print, assert, pairs, ipairs, type, require, _G
+    = io, string, table, error, print, assert, pairs, ipairs, type, require, _G
 
 module (...)
 
@@ -49,13 +49,15 @@ Actually works with any table in which keys are strings and values
 are strings or similar tables.  Updates the cache.
 name: Basename of the file in the lists dir holding this list.
 l: List to be saved.
-Returns true on success; nil, msg on failure.
+Returns on success; calls error on failure.
 ]]
 
 local function save(name, l)
   cache[name] = assert(l, 'Tried to save nil as a list?!')
   local f, err = io.open(cfg.dirfilename('lists', name), 'w')
-  if not f then return f, err end
+  if not f then
+    error('Writing to ' .. cfg.dirfilename('lists', name) .. ': ' .. err)
+  end
   local function writeval(v, indent)
     if type(v) == 'table' then
       local nextindent = indent .. '    '
@@ -78,7 +80,6 @@ local function save(name, l)
   end
   f:write('return ')
   writeval(l, '')
-  return true
 end
 
 __doc.add = [[function(listname, part, tag, string) Adds a pair to a list.
@@ -224,16 +225,16 @@ listname: Name of the list.
 cmd: Command.
 tag: Tag, if needed by command.
 arg: Argument, if needed by command.
-Return Non-nil on success; nil, errmsg on failure.
+Calls error on failure.
 ]]
 
 function run(listname, cmd, tag, arg)
   if show_cmd[cmd] then
     return show_cmd[cmd](listname)
   elseif not list_cmd[cmd] then
-    return nil, 'Unrecognized command ' .. cmd
+    error('Unrecognized command ' .. cmd)
   elseif not tag or not arg or arg == '' then
-    return nil, 'Command "' .. cmd .. '" expects a tag and an argument'
+    error('Command "' .. cmd .. '" expects a tag and an argument')
   else
     return list_cmd[cmd](listname, list_part[cmd], string.lower(tag), arg)
   end
@@ -243,7 +244,7 @@ end
 __doc.runstring = [[function(listname, s) implements list commands as strings.
 listname: Name of the list.
 s: Command string: add[-pat] <tag> <string>.
-Return Non-nil on success; nil, errmsg on failure.
+Calls error on failure.
 ]]
 
 function runstring(listname, s)

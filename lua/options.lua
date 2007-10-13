@@ -1,7 +1,7 @@
 -- registration of options and their parsing
 
-local table, string, require, assert, ipairs =
-      table, string, require, assert, ipairs
+local table, string, require, assert, ipairs, error =
+      table, string, require, assert, ipairs, error
 
 module(...)
 local core = require (_PACKAGE .. 'core')
@@ -39,7 +39,7 @@ function std.val(key, value, args)
   elseif #args > 0 then
     return table.remove(args, 1)
   else
-    return nil, 'missing argument for option ' .. key
+    error('missing argument for option ' .. key)
   end
 end
 function std.dir(key, value, args)
@@ -49,21 +49,21 @@ function std.dir(key, value, args)
   elseif core.isdir(v) then
     return v
   else
-    return nil, 'Path ' .. v .. ' given for option --' .. key .. ' is not a directory'
+    error('Path ' .. v .. ' given for option --' .. key .. ' is not a directory')
   end
 end
 function std.bool(key, value, args)
   if value ~= '' then
-    return nil, 'Option ' .. key .. ' takes no argument'
+    error('Option ' .. key .. ' takes no argument')
   else
     return true
   end
 end
 local function no_such_option(key, value, args)
     if key == '' and value then
-      return nil, 'Missing option name before "="'
+      error('Missing option name before "="')
     end
-    return nil, 'Unknown option: ' .. key
+    error('Unknown option: ' .. key)
 end
 
 local default = std.bool -- default type if not specified at registration
@@ -115,15 +115,13 @@ function parse(args, options)
     -- changed + to * to allow forced end of options with "--" or "-"
     local key, eq, value = string.match(args[1], '^%-%-?([^=]*)(=?)(.*)')
     if eq == '=' and value == '' then
-        return nil, 'option ' .. args[1] .. ' is ambiguous'
+      error('option ' .. args[1] .. ' is ambiguous')
     end
     if not key or key == '' and value == '' and table.remove(args, 1) then
       break -- no more options
     else
       table.remove(args, 1)
-      local val, err = (options[key] or no_such_option)(key, value, args)
-      if err then return nil, err end
-      found[key] = val
+      found[key] = (options[key] or no_such_option)(key, value, args)
     end
   end
   return found, args
