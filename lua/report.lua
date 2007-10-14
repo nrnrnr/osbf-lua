@@ -499,8 +499,8 @@ function generate_training_message(email, temail, opt_locale)
   -- the minimum value specified by the user in cfg.threshold.
   local min_learnings = math.min(hstats.learnings, sstats.learnings)
   local threshold = 350 / math.sqrt(2*min_learnings+0.1)
-  if threshold < cfg.threshold then
-    threshold = cfg.threshold
+  if threshold < cfg.multitree.threshold then
+    threshold = cfg.multitree.threshold
   end
 
   if not ready then language.title = language.title_nready end

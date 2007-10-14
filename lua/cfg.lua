@@ -1,14 +1,14 @@
 local assert, ipairs, pairs, require, tostring, type
     = assert, ipairs, pairs, require, tostring, type
 
-local package, string, os, table
-    = package, string, os, table
+local package, string, os, math, table, io
+    = package, string, os, math, table, io
 
 local prog = _G.arg and _G.arg[0] or 'OSBF'
 
 module (...)
 
-version = '0.99'
+version = '3.0rc1'
 
 local d       = require (_PACKAGE .. 'default_cfg')
 local util    = require (_PACKAGE .. 'util')
@@ -16,45 +16,86 @@ local options = require (_PACKAGE .. 'options')
 local boot    = require (_PACKAGE .. 'boot')
 local core    = require (_PACKAGE .. 'core')
 
+default_threshold = 20
 
 --- put default configuration in my configuration
 for k, v in pairs(d) do
   _M[k] = v
 end
 
+
 ----------------------------------------------------------------
 -------- documentation for values set in default_cfg
 
 __doc = {
   pwd = 'Password for subject-line commands',
-  ham_db = 'Ham database filename',
-  spam_db = 'Spam database filename',
-  min_pR_success = 'Minimum pR value to be considered as ham',
-  threshold = [[
-Low score range, or reinforcement zone, around min_pR_success.
-Use 20 during the pre-training phase for better accuracy and
-reduce to 10 or less later, for less burden with daily trainings.
+  classes = [[Classes of email to be identified.
+
+This value is a table with two parts: a list part and a keyword part.
+The list part is a list of all the classes of interest.  A default list
+might be
+   'spam', 'ham'
+a longer list might be
+   'spam', 'work', 'ecommerce', 'entertainment', 'sports', 'personal'
+and a list might be subdivided to group related messages:
+   { 'spam', 'ecommerce' }, { 'entertainment', 'sports' }, 'work', 'personal'
+
+The table part contains a table for each named class.  The only
+required entry in this table is 'sfid', which must be a lowercase
+letter that is unique to the class.  (This letter is used to tag the
+class of learned messages.)  The list of all possible entries is:
+  sfid      -- unique lowercase letter to identify class (required)
+  sure      -- Subject: tag when mail definitely classified (defaults empty)
+  unsure    -- Subject: tag when mail in reinforcement zone (defaults '?')
+  threshold -- half width of reinforcement zone (defaults 20)
+  dbnames   -- list of databases for this class (defaults { class .. '.cfc' })
+  min_pR    -- minimum absolute ratio of probabilities to choose class (default 0)
+
+Sfids 's' and 'h' must be for 'spam' and 'ham', and sfids 'w', 'b',
+and 'e' are reserved for whitelisting, blacklisting, and errors.
+
+Once the filter is well trained, thresholds should be reduced from the 
+default value of 20 to something like 10, to reduce the burden of training.
+(We'd love to have an automatic reduction, but we don't have an algorithm.)
+
+If dbnames is given, each name should be relative to the user's database 
+directory (normally the 'udir').  It is pointless to give dbnames unless
+there is more than one name on the list.
 ]],
+
   tag_subject     = 'Flag to turn on of off subject tagging',
-  tag_spam        = [[Tag to be prepended to the subject line 
-of spam messages]],
-  tag_unsure_spam = [[Tag to be prepended to the subject line
-of low abs score spam messages]],
-  tag_unsure_ham = [[Tag to be prepended to the subject line of
-of low score ham messages]],
-  tag_ham = 'Tag to be prepended to the subject line of ham messages',
 
-  trained_as_spam    = 'Result string for messages trained as spam',
-  trained_as_ham     = 'Result string for messages trained as ham',
-  training_not_necessary = [[Result string for messages which don't
- need training]],
+  trained_as_subject = [[
+Table mapping class to format string for trained messages.
+There can be an entry for each class name; the string is made by
+calling string.format with the entry and the name of the class.
+If there is no entry, OSBF-Lua uses the entry 'default'.]],
 
-  score_header_name = [[Name of the header added to the message with
- OSBF-Lua score]],
+  training_not_necessary_single = [[
+Result format string for messages which don't need training and 
+which use a single classification (i.e., exactly two classes).
+It expects two arguments: string representations of the score and
+the reinforcement zone.
+]],
+
+  training_not_necessary_multi = [[
+Result format string for messages which don't need training and 
+which use a multiple classifications (more than two classes).
+It expects two arguments: string representations of the scores and
+the reinforcement zones.
+]],
+
+  header_prefix = [[Prefix of every header inserted by OSBF-Lua.]],
+  header_suffixes = [[Table of suffixes used in different headers;
+  Key      Suffix   Content
+  score    Score    score(s) of the message
+  class    Class    ultimate classification
+  train    Train    'yes' if the message should be trained; 'no' otherwise
+]],
 
   use_sfid     = 'Flag to turn on or off use of SFID',
-  rightid      = [[String with SFID's right id. Defaukts to
-spamfilter.osbf.lua.]],
+  rightid      = [[
+String with SFID's right id. Defaults to spamfilter.osbf.lua.]],
 
   insert_sfid_in  = [[Specifies where SFID must be inserted.
 Valid values are:
@@ -81,10 +122,10 @@ this option.
   count_classifications = [[Flag to turn on or off classification
 counting.]],
 
-  output  = [[If output is set to 'message', the original message
+  training_output  = [[If training_output is set to 'message', the original message
 will be written to stdout after a training, with the correct tag.
 To have the original behavior, that is, just a report message, comment
-this option out.
+this option out or set it to false.
 ]],
 
   remove_body_threshold = [[Set remove_body_threshold to the score
@@ -140,21 +181,6 @@ __doc.homepage = 'Home page of the OSBF-Lua project.'
 homepage = 'http://osbf-lua.luaforge.net'
 
 
-__doc.multi = [[Either false, in which case OSBF-Lua classfies as 'ham' or 'spam',
-or a table consisting of the following fields:
-  classes      list of potential classifications (may be nested
-               in order to force OSBF-Lua to group the way the
-               user wants)
-  tags         table consisting of three tables below, each indexed 
-               by class (a 'sure' or 'unsure' tag defaults to empty)
-  tags.unsure  what goes on the subject line when in the reinforcement zone
-  tags.sure    what goes on the subject line outside the reinforcement zone
-  tags.sfid    the class's unique identifier in the SFID cache, which must
-               be a lowercase letter other than 's' or 'h'
-  threshold    table indexed by class that is half the width of the
-               reinforcement zone for that class
-]]
-
 --- XXX could we get rid of this and make all of config read-only
 --- except changeable via 'load'?
 
@@ -189,7 +215,6 @@ function load(filename)
       _M[k] = v
     end
   end
-  return true
 end
 
 __doc.load_if_readable = [[function(filename)
@@ -337,8 +362,6 @@ __doc.init = [[function(options, no_dirs_ok)
 Sets OSBF-Lua directories, databases and loads user's config file.
 ]]
 
-__doc.dbset = "Table with database info, or 'false' if cfg.multi is a table."
-
 __doc.after_loading_do = [[function(f)
 After the user's config file is loaded, call f passing the cfg table.
 ]]
@@ -347,84 +370,93 @@ function after_loading_do(f)
   table.insert(postloads, f)
 end
 
-__doc.multitree = [[function() returns classfication tree or calls error
+dbnames = { }
 
-A classification tree is a binary tree with a 'classification' at
-each leaf and a database at each child.  With the database go
-a 'dbname' field (where it's found in the file system), a 'parms'
-table (which knows whether it's on the positive or negative side
-of its parent), and a 'threshold' field (which knows whether a ratio 
-lies in the reinforcement zone.  An internal node has a 'children'
-field which is always a list of its two children.]]
+__doc.multitree = [[The classification tree built from cfg.classes
 
-do
-  local the_tree
-  function multitree()
-    if not the_tree then
-      if type(multi) ~= 'table' or type(multi.tags) ~= 'table'
-      or type(multi.tags.sfid ~= 'table') then
-        error 'multiclassification without suitable config'
-      end
-      local function walk(prefix, node, index)
-        local t = { }
-        if not node then error 'bad multiclassification config' end
-        if type(node) == 'table' then
-          assert(#node == 2)
-          local n1 = walk(prefix .. '-1', node[1], 1)
-          local n2 = walk(prefix .. '-2', node[2], 2)
-          t.children = { n1, n2 }
-          t.threshold = math.max(n1.threshold, n2.threshold)
-        else
-          t.classification = node
-          t.threshold = assert(multi.train[node],
-                               'No training threshold for ' .. node)
-        end
-        if index then
-          local edge = t.classification and '-' .. t.classification or ''
-          t.dbname = table.concat {dirs.database, prefix, edge, '.cfc'}
-          io.stderr:write('Noted db ', t.dbname, '\n')
-          t.parms = (index == 1 and learn_parms_minus or learn_parms_plus)(t.threshold)
-        end
-        return t
-      end
-      local function make_binary(t, lo, hi)
-        if type(t) == 'string' then
-          return t
-        elseif type(t) == 'table' then
-          lo = lo or 1
-          hi = hi or #t
-          if lo == hi then return make_binary(t[lo])
-          elseif lo > hi then error 'empty category list in cfg.multi.classes'
-          elseif lo + 1 == hi then
-            return { make_binary(t[lo]), make_binary(t[hi]) }
-          else
-            local mid = math.floor((lo + hi) / 2)
-            return { make_binary(t, lo, mid), make_binary(t, mid+1, hi) }
-          end
-        end
-      end
-      the_tree = walk('multi', make_binary(multi.classes))
+A classification tree is a binary tree with a 'classification' at each
+leaf and a database at each child.  With the database go a 'dbnames'
+field (where it's databases are found in the file system), a 'parms'
+table (which knows whether it's on the positive or negative side of
+its parent), and a 'threshold' field (which knows whether a ratio lies
+in the reinforcement zone.  An internal node has a 'children' field
+which is always a list of its two children.]]
+
+local function mk_multitree()
+  local function walk(prefix, node, index)
+    local t = { }
+    if not node then error 'bad multiclassification config' end
+    if type(node) == 'table' then
+      assert(#node == 2)
+      local n1 = walk(prefix .. '-1', node[1], 1)
+      local n2 = walk(prefix .. '-2', node[2], 2)
+      t.children = { n1, n2 }
+      t.threshold = math.max(n1.threshold, n2.threshold)
+      t.min_pR = (n2.min_pR - n1.min_pR) / 2
+    else
+      t.classification = node
+      t.min_pR = classes[node].min_pR or 0
+      if index == 1 then t.min_pR = -t.min_pR end
+      t.threshold = classes[node].threshold or default_threshold
+      classes[node].threshold = t.threshold -- set to default
     end
-    return the_tree
+    if index then
+      if t.classification and classes[t.classification].dbnames then
+        t.dbnames = { }
+        for _, name in ipairs(classes[t.classification].dbnames) do
+          table.insert(t.dbnames, dirs.database .. name)
+        end
+      else
+        local edge = t.classification and '-' .. t.classification or ''
+        t.dbnames = { table.concat {dirs.database, prefix, edge, '.cfc'} }
+          -- for a more readable name, could use only t.classification
+      end
+      if t.classification then dbnames[t.classification] = t.dbnames end
+      io.stderr:write('Noted dbs ', table.concat(t.dbnames, ', '), '\n')
+    end
+    return t
+  end
+  local function make_binary(t, lo, hi)
+    if type(t) == 'string' then
+      return t
+    elseif type(t) == 'table' then
+      lo = lo or 1
+      hi = hi or #t
+      if lo == hi then return make_binary(t[lo])
+      elseif lo > hi then error 'empty category list in cfg.classes'
+      elseif lo + 1 == hi then
+        return { make_binary(t[lo]), make_binary(t[hi]) }
+      else
+        local mid = math.floor((lo + hi) / 2)
+        return { make_binary(t, lo, mid), make_binary(t, mid+1, hi) }
+      end
+    end
+  end
+  multitree = walk('class', make_binary(classes))
+end
+
+__doc.classlist = [[function() returns sorted list of class names]]
+do
+  local the_classes
+  function classlist()
+    if not the_classes then
+      the_classes = { }
+      for c, v in pairs(classes) do
+        if type(c) == 'string' and v.sfid then
+          table.insert(the_classes, c)
+        end
+      end
+      table.sort(the_classes)
+    end
+    return the_classes
   end
 end
+
       
 local function init(options, no_dirs_ok)
   set_dirs(options, no_dirs_ok)
-  util.validate(load_if_readable(configfile))
-  if multi then
-    dbset = false
-  else
-    dbset = {
-      classes = {dirs.database .. ham_db,
-                 dirs.database .. spam_db},
-      ncfs    = 1, -- split "classes" in 2 sublists. "ncfs" is
-                   -- the number of classes in the first sublist.
-      delimiters = extra_delimiters or '',
-      ham_index = 1,
-      spam_index    = 2,
-    }
-  end
+  load_if_readable(configfile)
+  mk_multitree()
   for _, f in ipairs(postloads) do
     f(_M)
   end

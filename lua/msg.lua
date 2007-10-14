@@ -210,7 +210,8 @@ function of_any(v)
   if type(v) == 'table' then
     return v
   elseif cache.is_sfid(v) then
-    return of_sfid(v)
+    local m = of_sfid(v)
+    if not m then error('sfid ' .. v .. ' is missing from the cache') end
   else
     assert(type(v) == 'string')
     local f = io.open(v, 'r')
@@ -312,6 +313,13 @@ function add_header(msg, tag, contents)
   assert(type(contents) == 'string', 'Header contents must be string')
   msg = of_any(msg)
   table.insert(msg.headers, tag .. ': ' .. contents)
+end
+
+__doc.add_osbf_header = [[function(T, tag, contents)
+Adds a new OSBF-Lua header to the message with the given suffix and contents.
+]]
+function add_osbf_header(msg, suffix, contents)
+  return add_header(msg, cfg.header_prefix .. '-' .. suffix, contents)
 end
 
 __doc.del_header = [[function(T, tag, ...)
@@ -714,7 +722,7 @@ next parts.
 ]]
 
 function set_output_to_message(m, subject)
-  m = util.validate(of_any(m))
+  m = of_any(m)
   assert(type(subject) == 'string')
   local boundary = util.generate_hex_string(40) .. "=-=-="
   -- reuse some headers

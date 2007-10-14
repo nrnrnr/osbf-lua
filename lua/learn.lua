@@ -3,9 +3,8 @@ local threshold_offset			= 2
 local max_learn_threshold		= 20 -- overtraining protection
 local header_learn_threshold            = 14 -- header overtraining protection
 local reinforcement_degree              = 0.6
-local ham_reinforcement_limit           = 4
-local spam_reinforcement_limit          = 4
-local other_reinforcement_limit         = 4
+local plus_reinforcement_limit          = 4
+local minus_reinforcement_limit         = 4
 local threshold_reinforcement_degree    = 1.5
 
 local require, print, pairs, type, assert, loadfile, setmetatable, tostring, unpack =
@@ -44,71 +43,43 @@ to unlearn it before another learn operation.]]
   return string.format(fmt, classification)
 end
 
-local function cannot_unlearn_msg(old, new)
-  local fmt = [[The message was learned as %s, not %s.]]
-  return string.format(fmt, old, new)
-end
-
-local errmsgs = {
-  learn = {
-    spam = learned_as_msg 'spam',
-    ham = learned_as_msg 'ham',
-    missing = [[
+local missing_msg = [[
 You asked to train on a message that OSBF-Lua does not recognize.  
 In a normal installation, OSBF-Lua keeps a copy of each message, but
 only for a few days. The message you are trying to train with has
-probably been deleted.]],
-  },
-  unlearn = {
-    ham =  cannot_unlearn_msg('ham', 'spam'),
-    spam = cannot_unlearn_msg('spam', 'ham'),
-    missing = nil, -- copied below
-    unlearned = [[The message was never learned to begin with.]],
-  },
-}
+probably been deleted.]]
 
-errmsgs.unlearn.missing = errmsgs.learn.missing
-
-
-local learn_parms, learn_parms_minus, learn_parms_plus
-  -- function given classification, returns table so that
-  -- learning and unlearning code can be reused for spam and ham
+  -- functions given threshold, returns table so that
+  -- learning and unlearning code can be reused.  One such
+  -- table is stored in every child node of the multitree.
 do
-  local pcache -- parameter cache
-    -- cache results, but don't compute initially because
-    -- at this point cfg table may not be fully initialized
-  function learn_parms_minus(threshold)
+  local function learn_parms_minus(threshold)
     return {
       index = 1,  -- left child in multi tree
       threshold  = threshold_offset - threshold,
       bigger     = function(x, y) return x < y end, -- more negative
       offset_max_threshold = threshold_offset - max_learn_threshold,
-      reinforcement_limit  = other_reinforcement_limit,
+      reinforcement_limit  = minus_reinforcement_limit,
     }
   end
-  function learn_parms_plus(threshold)
+  local function learn_parms_plus(threshold)
     return {
       index = 2,  -- left child in multi tree
       threshold  = threshold_offset + threshold,
       bigger     = function(x, y) return x > y end, -- more positive
       offset_max_threshold = threshold_offset + max_learn_threshold,
-      reinforcement_limit  = other_reinforcement_limit,
+      reinforcement_limit  = plus_reinforcement_limit,
     }
   end
-  function learn_parms(classification)
-    if not pcache then
-      local spam, ham =
-        learn_parms_minus(cfg.threshold), learn_parms_plus(cfg.threshold)
-      spam.index = cfg.dbset.spam_index
-      ham.index  = cfg.dbset.ham_index
-      spam.trained_as = cfg.trained_as_spam
-      ham.trained_as  = cfg.trained_as_ham
-      pcache = { spam = spam, ham = ham }
+  local function set_parms(node, parms)
+    if parms then node.parms = parms(node.threshold) end
+    local cs = node.children
+    if cs then
+      set_parms(cs[1], learn_parms_minus)
+      set_parms(cs[2], learn_parms_plus)
     end
-    local parms = pcache[classification]
-    if not parms then error('Unknown classification ' .. classification) end
-    return parms
   end
+  cfg.after_loading_do(function () set_parms(cfg.multitree) end)
 end
 
 local msgmod = msg
@@ -118,10 +89,15 @@ Given a multitree node, returns a dbset suitable for
 core classification and learning.
 ]]
 local function dbset(node)
-  local t = assert(node.children)
-  assert(#t == 2)
-  return { classes = { t[1].dbname, t[2].dbname },
-           ncfs = 1, delimiters = cfg.extra_delimiters or '' }
+  if not node.dbset then 
+    local t = assert(node.children)
+    assert(#t == 2)
+    local classes = { unpack(t[1].dbnames) }
+    for _, d in ipairs(t[2].dbnames) do table.insert(classes, d) end
+    node.dbset = { classes = classes, ncfs = #t[1].dbnames,
+                   delimiters = cfg.extra_delimiters or '' }
+  end
+  return node.dbset
 end
 
 
@@ -159,13 +135,6 @@ end
 
 
 
-__doc.learn = [[function(sfid, classification)
-Returns comment, status, old pR, new pR or calls error
-
-Updates the database to reflect human classification (ham or spam)
-of an unlearned message.  Also changes the message's status in the cache.
-]]
-
 -- This function implements TONE-HR, a training protocol described in
 -- http://osbf-lua.luaforge.net/papers/trec2006_osbf_lua.pdf
 
@@ -200,37 +169,43 @@ local function tone_msg_and_reinforce_header(lim_orig_msg, lim_orig_header, parm
 end
 
 
+__doc.learn = [[function(sfid, classification)
+Returns comment, training-list or calls error, where
+training-list is list of { orig = pR, new = pR, class = name }.
+
+Updates databases to reflect human classification of an unlearned
+message.  Also changes the message's status in the cache.
+]]
+
+local function training_string(trainings)
+  local s = { }
+  for _, r in ipairs(trainings) do
+    table.insert(s, string.format('%.2f -> %.2f%s', r.orig, r.new,
+                                  r.class and ' [' .. r.class .. ']' or ''))
+  end
+  return table.concat(s, ', ')
+end
+
+local function new_scores(trainings)
+  local s = { }
+  for _, r in ipairs(trainings) do
+    table.insert(s, string.format('%.2f', r.new))
+  end
+  return table.concat(s, ', ')
+end
+
 function learn(sfid, classification)
-  if type(classification) ~= 'string'
-  or classification ~= 'ham' and classification ~= 'spam' then
-    error('learn command requires a class: "spam" or "ham".')
+  if type(classification) ~= 'string' or not cfg.multitree[classification].sfid then
+    error('learn command requires one of these classes: ' .. cfg.classlist())
   end 
+
   local msg, status = msg.of_sfid(sfid)
   if status ~= 'unlearned' then
-    error(errmsgs.learn[status])
-  end -- set up tables so we can use one training procedure for either ham or spam
-
-  local parms = learn_parms(classification)
-  local orig, new =
-    tone_msg_and_reinforce_header(msg.lim.header, msg.lim.msg, parms, cfg.dbset)
-  cache.change_file_status(sfid, status, classification)
-  local comment = 
-    orig == new and string.format(cfg.training_not_necessary,
-                                  new, max_learn_threshold-threshold_offset,
-                                  max_learn_threshold+threshold_offset)
-    or string.format('%s: %.2f -> %.2f', parms.trained_as, orig, new)
-  return comment, classification, orig, new
-end  
-
-function multilearn(sfid, classification)
-  local msg, status = msg.of_sfid(sfid)
-  if status ~= 'unlearned' then
-    error(errmsgs.learn[status] or learned_as_message(status))
+    error(learned_as_message(status))
   end
   local lim = msg.lim
 
   local trainings = { }
-  local new_scores = { }
   local actually_trained = false
   local function learn(node)
     if node.classification == classification then
@@ -240,71 +215,80 @@ function multilearn(sfid, classification)
       local l1, l2 = learn(c1), learn(c2)
       if l1 or l2 then
         local parms = l1 and c1.parms or c2.parms
-        local orig, new = tone_msg_and_reinforce_header(lim.header, lim.msg, parms,
-                                                        dbset(node))
-        table.insert(trainings, string.format('%.2f -> %.2f', orig, new))
-        table.insert(new_scores, string.format('%.2f', new))
+        local orig, new =
+          tone_msg_and_reinforce_header(lim.header, lim.msg, parms, dbset(node))
+        table.insert(trainings, { orig = orig, new = new, class = node.classification })
         actually_trained = actually_trained or orig ~= new 
         return true
-      else
-        return false
       end
     end
   end
-  learn(cfg.multitree())
+  learn(cfg.multitree)
 
   cache.change_file_status(sfid, status, classification)
-  local comment
+
   if actually_trained then
-    comment = string.format('Trained as %s: %s', classification,
-                            table.concat(trainings, '; '))
+    return string.format('Trained as %s: %s', classification,
+                         training_string(trainings)), trainings
   else
-    comment =
-      string.format('Training not needed; all scores (%s) out of learning region',
-                    table.concat(new_scores, ', '))
+    return string.format('Training not needed; all scores (%s) out of learning region',
+                         new_scores(trainings)), trainings
   end
-  return comment, classification
 end  
 
 __doc.unlearn = [[function(sfid, classification)
-Returns comment, status, old pR, new pR
-  or calls error
+Returns comment, trainings or calls error
+
 Undoes the effect of the learn command.  The classification is optional
 but if present must be equal to the classification originally learned.
 ]]
 
 function unlearn(sfid, classification)
-  local msg, status = util.validate(msg.of_sfid(sfid))
+  local msg, status = msg.of_sfid(sfid)
+  if not msg then error('Message ' .. sfid .. ' is missing from the cache') end
   classification = classification or status -- unlearn parm now optional
   if status == 'unlearned' then
-    error(errmsgs.unlearn['unlearned'])
+    error('This message was already unlearned or was never learned to begin with.')
   end
   if status ~= classification then
     error(string.format([[
 You asked to unlearn a message that you thought had been learned as %s,
-but %s.]], 
-          classification,
-          errmsgs.unlearn[status] or cannot_unlearn_msg(status, classification)))
+but the message was previously learned as %s.]], 
+          classification, status))
   end
 
-  local lim_orig_header, lim_orig_msg = msg.lim.header, msg.lim.msg
-
-  local parms = learn_parms(classification)
+  local lim = msg.lim
   local k = cfg.constants
-  local old_pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
-  core.unlearn(lim_orig_msg, cfg.dbset, parms.index, k.learn_flags+core.MISTAKE)
-  local pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
-  local i = 0
-  while i < parms.reinforcement_limit and parms.bigger(pR, threshold_offset) do
-    core.unlearn(lim_orig_header, cfg.dbset, parms.index, k.learn_flags)
-    pR = core.classify(lim_orig_msg, cfg.dbset, k.classify_flags)
-    i = i + 1
+  local trainings = { }
+  local function unlearn(node)
+    if node.classification == classification then
+      return true
+    elseif node.children then
+      local c1, c2 = unpack(node.children)
+      local l1, l2 = unlearn(c1), unlearn(c2)
+      if l1 or l2 then
+        local parms = l1 and c1.parms or c2.parms
+        local old_pR = core.classify(lim.msg, dbset(node), k.classify_flags)
+        core.unlearn(lim.msg, dbset(node), parms.index, k.learn_flags+core.MISTAKE)
+        local pR = core.classify(lim.msg, dbset(node), k.classify_flags)
+        for i = 1, parms.reinforcement_limit do
+          if parms.bigger(pR, threshold_offset) then
+            core.unlearn(lim.header, dbset(node), parms.index, k.learn_flags)
+            pR = core.classify(lim.msg, dbset(node), k.classify_flags)
+          else
+            break
+          end
+        end
+        table.insert(trainings, { orig = old_pR, new = pR, class = node.classification})
+        return true
+      end
+    end
   end
+  unlearn(config.multitree)
   cache.change_file_status(sfid, classification, 'unlearned')
-  local comment =
-    string.format('Message unlearned (was %s): %.2f -> %.2f',
-                  classification, old_pR, pR)
-  return comment, 'unlearned', old_pR, pR
+
+  return string.format('Message unlearned (was %s): %s', training_string(trainings)),
+         trainings
 end
 
 
@@ -313,7 +297,9 @@ end
 
 __doc.sfid_tags = [[table mapping sfid tag --> meaning
 Where sfid tag is tag used in headers and sfid,
-and meaning is an informal explanation.
+and meaning is an informal explanation.  It's
+all a bit confusing, but these are the *classification*
+tags as opposed to the *learning* tags...
 ]]
 
 sfid_tags = {
@@ -339,46 +325,34 @@ local function register_sfid_tag(tag, name)
 end
 
 cfg.after_loading_do(function()
-                       if cfg.multi then
-                         for class, tag in pairs(cfg.multi.tags.sfid) do
-                           register_sfid_tag(tag, class)
+                       for class, tbl in pairs(cfg.classes) do
+                         if type(class) == 'string' then
+                           register_sfid_tag(string.upper(tbl.sfid), class)
                          end
                        end
                      end)
                 
-
-__doc.tags = [[function(pR) returns subject-line tag, sfid tag
-pR may be a numeric score or may be nil (to indicate error trying
-to classify).]]
-
-local function tags(pR)
-  local zero = cfg.min_pR_success
-  if pR == nil then
-    return '', 'E'
-  elseif pR < zero - cfg.threshold then
-    return cfg.tag_spam, 'S'
-  elseif pR > zero + cfg.threshold then
-    return cfg.tag_ham, 'H'
-  elseif pR >= zero then
-    return cfg.tag_unsure_ham, '+'
-  else
-    assert (pR < zero)
-    return cfg.tag_unsure_spam, '-'
-  end
-end
-
-
 local msgmod = msg
 
-__doc.classify = [[function(msgspec) returns train, pR, sfid tag, subject tag, classification
-train tells whether to train
-pR is a numeric score or nil; tags are always strings
+__doc.classify = 
+[[function(msgspec) returns train, pRs, sfid tag, subject tag, classification
+train is a boolean or nil; 
+pRs is a nonempty list of ratios; 
+tags are always strings
+
+Note that these sfid tags are *classification* tags, not *learning* tags,
+and so they are uppercase.
 ]]
 
-function classify(msg)
-  local pR, sfid_tag, subj_tag
+local function wrap_subj_tag(s)
+  if s and s ~= '' then return '[' .. s .. ']' else return '' end
+end
+
+function classify (msg)
+  local sfid_tag, subj_tag
 
   msg = msgmod.of_any(msg)
+
   -- whitelist messages with the header 'X-Spamfilter-Lua-Whitelist: <cfg.pwd>'
   -- Used mainly to whitelist the cache report
   local pwd_pat = '^.-: *' .. cfg.pwd .. '$'
@@ -391,59 +365,35 @@ function classify(msg)
     end
   end
   if found_pwd or lists.match('whitelist', msg) then
-    sfid_tag, subj_tag = 'W', cfg.tag_ham
+    sfid_tag = 'W'
+    subj_tag = cfg.classes.ham  and (cfg.classes.ham.sure  or '') or sfid_tag
   elseif lists.match('blacklist', msg) then
-    sfid_tag, subj_tag = 'B', cfg.tag_spam
+    sfid_tag = 'B'
+    subj_tag = cfg.classes.spam and cfg.classes.spam.sure or sfid_tag
   end
 
   -- continue with classification even if whitelisted or blacklisted
-
-  local k = cfg.constants
-  local count_classifications_flag =
-    cfg.count_classifications and core.COUNT_CLASSIFICATIONS or 0
-
-  local pR = core.classify(msg.lim.msg, cfg.dbset,
-                           count_classifications_flag + k.classify_flags)
-  if not sfid_tag then
-    subj_tag, sfid_tag = tags(pR)
-  end
-
-  assert(sfid_tag and subj_tag)
-  return math.abs(pR) < cfg.threshold, pR, sfid_tag, subj_tag, sfid_tag
-end
-
-__doc.multiclassify = 
-[[function(msgspec) returns train, pRs, sfid tag, subject tag, classification
-train is a boolean or nil; 
-pRs is a nonempty list of ratios; 
-tags are always strings
-]]
-
-function multiclassify (msg)
-  local function wrap_subj_tag(s)
-    if s then return '[' .. s .. '] ' else return '' end
-  end
-
-  msg = msgmod.of_any(msg)
 
   local count_classifications_flags =
     (cfg.count_classifications and core.COUNT_CLASSIFICATIONS or 0)
          + cfg.constants.classify_flags
   local ratios = { }
-  local node = cfg.multitree()
+  local node = cfg.multitree
   local train = false
   repeat
-    assert(type(node) == 'table' and node.children)
-    local pR, probs, next =
+    assert(type(node) == 'table' and node.children and #node.children == 2)
+    local pR, probs =
       core.classify(msg.lim.msg, dbset(node), count_classifications_flags)
     table.insert(ratios, pR)
+    local next = pR > t.min_pR and 2 or 1
     node = node.children[next]
-    train = train or math.abs(pR) < node.threshold
+    train = train or math.abs(pR - t.min_pR) < node.threshold
     --- debugging ---
     for i = 1, #probs do
       io.stderr:write('Probability ', i, ' = ', probs[i], '\n')
     end
     io.stderr:write('Classified ', node.dbname, ' with index ', next, ', score ', pR, 
+                    ' vs min = ', t.min_pR, 
                     node.classification and ' (as ' .. node.classification .. ')'
                       or ' (no classification)', '\n')
     ----------------
@@ -451,13 +401,14 @@ function multiclassify (msg)
   local class = node.classification
   local surety = train and 'unsure' or 'sure'
   local multi = cfg.multi
-  local sfid_tag = util.insistf(multi.tags.sfid[class], 'missing sfid tag for %s',class)
-  local subj_tag = wrap_subj_tag(multi.tags[surety][class])
+  sfid_tag = sfid_tag or
+    string.upper(util.insistf(multi.tags.sfid[class], 'missing sfid tag for %s',class))
+  subj_tag = wrap_subj_tag(subj_tag or multi.tags[surety][class])
   return train, ratios, sfid_tag, subj_tag, class
 end
 
 -----------------------------------------------------------------------------
--- calculate statistics
+-- calculate statistics for the special case where classes include 'spam' and 'ham'
 
 __doc.stats = [[function(full) returns hstats, sstats, herr, rerr, srate, gerr
 where
@@ -473,10 +424,10 @@ the databases usage is also calculated and included in hstats and sstats.
 ]]
 
 function stats(full)
-  local ham_db  = cfg.dbset.classes[cfg.dbset.ham_index]
-  local spam_db = cfg.dbset.classes[cfg.dbset.spam_index]
-  local stats1 = util.validate(core.stats(ham_db, full))
-  local stats2 = util.validate(core.stats(spam_db, full))
+  local ham_db  = (cfg.dbnames.ham or error 'No database for ham')[1]
+  local spam_db = (cfg.dbnames.spam or error 'No database for spam')[1]
+  local stats1 = core.stats(ham_db, full)
+  local stats2 = core.stats(spam_db, full)
 
   ---------- compute derived statistics
   local error_rate1, error_rate2, spam_rate, global_error_rate = 0, 0, 0, 0

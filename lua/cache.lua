@@ -253,10 +253,10 @@ end
 
 __doc.sfid_is_in_reinforcement_zone = [[function(sfid) returns true if sfid is
 in user reinforcement zone.
-Bogus in the presence of multiclassification sfids!]]
+Sneakily compares the min-abs pR against the widest zone!]]
 
 function sfid_is_in_reinforcement_zone(sfid)
-  return math.abs(sfid_score(sfid) - cfg.min_pR_success) < cfg.threshold
+  return math.abs(sfid_score(sfid) - cfg.multitree.min_pR) < cfg.multitree.threshold
 end
 
 ----------------------------------------------------------------

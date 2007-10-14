@@ -198,7 +198,10 @@ __doc.validate = [[function(...) returns ... or kills process
 Used in place of 'assert' where a function might return nil, error
 but we expect this never to happen.  If first arg is nil, calls
 util.die() with the remaining arguments.  Otherwise, just acts like
-the identity function, passing all arguments through as results.]]
+the identity function, passing all arguments through as results.
+
+Normally should be used only to call builtin Lua functions, as our
+own functions call error or lua_error in case of errors.]]
 
 function validate(first, ...)
   if first == nil then

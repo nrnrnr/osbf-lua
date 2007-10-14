@@ -8,7 +8,18 @@ require 'osbf.command_line'
 require 'osbf.options'
 require 'osbf.util'
 
+
+osbf.options.register { long = 'trace', usage = ' # stack trace on error',
+                   help = [[
+  --trace
+      Don't recover from errors; give a stack trace instead
+]] }
+
 local options, args = osbf.util.validate(osbf.options.parse(arg))
+
+if options.trace then
+  osbf.command_line.pcall = function(f, ...) return true, f(...) end
+end
 
 osbf.init(options, args[1] == 'init')
 

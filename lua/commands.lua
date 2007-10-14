@@ -63,7 +63,7 @@ function create_single_db(db_path, size_in_bytes)
     util.die('Database too small; each database must use at least ',
              util.human_of_bytes(bytes(min_buckets)), '\n')
   end
-  util.validate(core.create_db(db_path, num_buckets))
+  core.create_db(db_path, num_buckets)
   return bytes(num_buckets)
 end
 
@@ -81,14 +81,11 @@ function init(email, totalsize, lang)
   end
 
   local dbcount = 0
-  if cfg.dbset then dbcount = dbcount + #cfg.dbset.classes end
-  if cfg.multi then
-    local t = cfg.multitree()
-    local function walk(t)
-      if t.dbname then dbcount = dbcount + 1 end
-      if t.children then for _, c in ipairs(t.children) do walk(c) end end
-    end
+  local function walk(t)
+    if t.dbnames then dbcount = dbcount + #t.dbnames end
+    if t.children then for _, c in ipairs(t.children) do walk(c) end end
   end
+  walk(cfg.multitree)
   totalsize = totalsize or dbcount * cfg.constants.default_db_megabytes * 1024 * 1024
   if type(totalsize) ~= 'number' then
     util.die('Database size must be a number')
@@ -96,25 +93,18 @@ function init(email, totalsize, lang)
   local dbsize = totalsize / dbcount
   -- create new, empty databases
   local totalbytes = 0
-  if cfg.dbset then
-    for _, path in ipairs(cfg.dbset.classes) do
-      totalbytes = totalbytes + create_single_db(path, dbsize)
+  local function walk(t)
+    for _, db in ipairs(t.dbnames or { }) do
+      totalbytes = totalbytes + create_single_db(db, dbsize)
     end
-  end
-  if cfg.multi then
-    local function walk(t)
-      if t.dbname then
-        totalbytes = totalbytes + create_single_db(t.dbname, dbsize)
-      end
-      if t.children then walk(t.children[1]); walk(t.children[2]) end
-    end
-    walk(cfg.multitree())
+    if t.children then walk(t.children[1]); walk(t.children[2]) end
   end    
+  walk(cfg.multitree)
   local config = cfg.configfile
   if util.file_is_readable(config) then
     util.write_error('Warning: not overwriting existing ', config, '\n')
   else
-    local default = util.validate(util.submodule_path 'default_cfg')
+    local default = util.submodule_path 'default_cfg'
     local f = util.validate(io.open(default, 'r'))
     local u = util.validate(io.open(config, 'w'))
     local x = f:read '*a'

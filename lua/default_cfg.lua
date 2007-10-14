@@ -11,41 +11,52 @@ return {
   -- command password
   pwd = "your_password_here", -- no spaces allowed
 
-  -- database files
-  ham_db  = "ham.cfc",
-  spam_db = "spam.cfc",
+  -- classes of email received
+  --   1. List of class names, possibly nested
+  --   2. Table for each class name of
+  --         sfid      -- unique lowercase letter to identify class (required)
+  --         sure      -- optional Subject: tag when mail definitely classified
+  --         unsure    -- optional Subject: tag when mail in reinforcement zone
+  --         threshold -- optional number == half width of reinforcement zone
+  --         dbnames   -- optional list of databases for this classification
+  --         min_pR    -- minimum ratio of probabilities to choose class (default 0)
+  classes = {
+    'spam', 'ham',
+    spam = { sfid = 's', sure = '--', unsure = '-', threshold = threshold },
+    ham  = { sfid = 'h', sure = '',   unsure = '+', threshold = threshold },
+  },
 
-  -- for class
-  -- multi = { classes = { 'spam', 'commercial', 'ham' },
-  --           tags = { sure   = { spam = '--', commercial = '$$' },
-  --                    unsure = { spam = '-', commercial = '$', ham = '+' },
-  --                    sfid   = { spam = 's', commercial = 'c', ham = 'h' },
-  --                  },
-  --           threshold = { spam = 20, commercial = 20, ham = 10 },
-  --         }
+  -- -- alternative classification
+  -- classes = {
+  --   'spam', { 'ecommerce', 'work', 'personal' },
+  --   spam      = { sure = '--', unsure = '-', sfid = 's', threshold = threshold,
+  --                 dbs = { 'spam.cfc', 'globalspam.cfc' }
+  --               },
+  --   personal  = { sfid = 'p', sure = '',   unsure = '+', threshold = 10 },
+  --   ecommerce = { sfid = 'c', sure = '$$', unsure = '$', threshold = threshold },
+  --   work      = { sfid = 'w', sure = '',   unsure = 'w', threshold = threshold },
+  -- }
 
-  multi = false,  -- tree for multifilter command
-
-  min_pR_success    = 0,  -- min pR to be considered as ham
-
-
-  threshold         = threshold, -- half the width of the reinforcement range
-
-  -- tags for the subject line
+  -- put tags on subject line?
   tag_subject     = true,
-  tag_spam        = "[--]",  -- tag for spam messages
-  tag_unsure_spam = "[-]",   -- tag for low abs score spam messages
-  tag_unsure_ham  = "[+]",   -- tag for low score ham messages
-  tag_ham         = "",      -- tag for ham messages
 
-  -- training result subjects
-  trained_as_spam        = "Trained as spam",
-  trained_as_ham     = "Trained as ham",
-  training_not_necessary = "Training not necessary: score = %.2f; " ..
-                           "out of learning region: [-%.1f, %.1f]",
+  -- training result subjects: used in string.format(string, class)
+  -- can be specialized to each class as needed.
+  trained_as_subject = { default = "Trained as %s" },
+  training_not_necessary_single = "Training not necessary: score = %s is " ..
+                                  "out of learning region %s",
+  training_not_necessary_multi = "Training not necessary: scores = %s are " ..
+                                  "out of learning regions %s",
+  
 
-  -- name of the header added to the message with OSBF-Lua score
-  score_header_name = "X-OSBF-Lua-Score",
+  -- prefix of each header added to the message; by changing prefix,
+  -- you can filter the same message with multiple instances of OSBF-Lua
+  header_prefix = "X-OSBF-Lua", 
+  header_suffixes = {
+    score = "Score",
+    class = "Class",
+    needs_training = "Train",
+  },
 
   -- To disable sfids, make false.
   use_sfid     = true,
@@ -76,7 +87,7 @@ return {
   -- This option specifies that the original message will be written to stdout
   -- after a training, with the correct tag. To have the original behavior,
   -- that is, just a report message, comment this option out.
-  output       = "message",
+  training_output = "message",
 
   -- Set remove_body_threshold to the score below which you want the
   -- message body removed. Use this option after you have well trained
