@@ -21,9 +21,9 @@ return {
   --         dbnames   -- optional list of databases for this classification
   --         min_pR    -- minimum ratio of probabilities to choose class (default 0)
   classes = {
-    'spam', 'ham',
-    spam = { sfid = 's', sure = '--', unsure = '-', threshold = threshold },
+    'ham', 'spam',
     ham  = { sfid = 'h', sure = '',   unsure = '+', threshold = threshold },
+    spam = { sfid = 's', sure = '--', unsure = '-', threshold = threshold },
   },
 
   -- -- alternative classification

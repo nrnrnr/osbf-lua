@@ -1,5 +1,8 @@
-local require, print, pairs, ipairs, type, assert, loadfile, setmetatable =
-      require, print, pairs, ipairs, type, assert, loadfile, setmetatable
+local require, print, pairs, ipairs, type, error, assert, loadfile, setmetatable =
+      require, print, pairs, ipairs, type, error, assert, loadfile, setmetatable
+
+local tostring, pcall =
+      tostring, pcall
 
 local function eprintf(...) return io.stderr:write(string.format(...)) end
 
@@ -8,8 +11,8 @@ local io, os, string, table, coroutine, tonumber =
 
 module(...)
 
-local cfg = require(_PACKAGE .. 'cfg')
-local util = require(_PACKAGE .. 'util')
+local cfg   = require(_PACKAGE .. 'cfg')
+local util  = require(_PACKAGE .. 'util')
 local cache = require(_PACKAGE .. 'cache')
 
 __doc = { }
@@ -448,6 +451,7 @@ Extracts the sfid from the headers of the specified message.]]
 function extract_sfid(msg)
   -- if the sfid was not given in the command, extract it
   -- from the references or in-reply-to field
+  local spec = msg
   msg = of_any(msg)
 
   for refs in headers_tagged(msg, 'references') do
@@ -462,8 +466,18 @@ function extract_sfid(msg)
     if sfid then return sfid end
   end
   
-  error('Could not extract sfid from message')
+  error('Could not extract sfid from message ' .. tostring(spec))
 end
+
+__doc.has_sfid = [[function(T) returns bool
+Tells whether the given message contains a sfid in one
+of the relevant headers.
+]]
+
+function has_sfid(msg)
+  return (pcall(extract_sfid, msg)) -- just the one result
+end
+
 
 -- Used to check and parse subject-line commands
 local subject_cmd_pattern = {

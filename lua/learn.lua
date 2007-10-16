@@ -3,18 +3,20 @@ local threshold_offset			= 2
 local max_learn_threshold		= 20 -- overtraining protection
 local header_learn_threshold            = 14 -- header overtraining protection
 local reinforcement_degree              = 0.6
-local plus_reinforcement_limit          = 4
-local minus_reinforcement_limit         = 4
+local left_reinforcement_limit          = 4
+local right_reinforcement_limit         = 4
 local threshold_reinforcement_degree    = 1.5
 
 local require, print, pairs, type, assert, loadfile, setmetatable, tostring, unpack =
       require, print, pairs, type, assert, loadfile, setmetatable, tostring, unpack
 
-local error = 
-      error
+local error, ipairs = 
+      error, ipairs
 
 local io, string, table, math =
       io, string, table, math
+
+local debug_out = false and io.stderr or { write = function() end }
 
 local prog = _G.arg and _G.arg[0] or 'osbf'
 
@@ -53,30 +55,31 @@ probably been deleted.]]
   -- learning and unlearning code can be reused.  One such
   -- table is stored in every child node of the multitree.
 do
-  local function learn_parms_minus(threshold)
+  local function learn_parms_left(threshold)
+    -- left child == positive scores
     return {
-      index = 1,  -- left child in multi tree
-      threshold  = threshold_offset - threshold,
-      bigger     = function(x, y) return x < y end, -- more negative
-      offset_max_threshold = threshold_offset - max_learn_threshold,
-      reinforcement_limit  = minus_reinforcement_limit,
-    }
-  end
-  local function learn_parms_plus(threshold)
-    return {
-      index = 2,  -- left child in multi tree
+      index = function(dbset) return 1 end, -- first db in left child
       threshold  = threshold_offset + threshold,
       bigger     = function(x, y) return x > y end, -- more positive
       offset_max_threshold = threshold_offset + max_learn_threshold,
-      reinforcement_limit  = plus_reinforcement_limit,
+      reinforcement_limit  = left_reinforcement_limit,
+    }
+  end
+  local function learn_parms_right(threshold)
+    return {
+      index = function(dbset) return 1+dbset.ncfs end, -- first db in right child
+      threshold  = threshold_offset - threshold,
+      bigger     = function(x, y) return x < y end, -- more negative
+      offset_max_threshold = threshold_offset - max_learn_threshold,
+      reinforcement_limit  = right_reinforcement_limit,
     }
   end
   local function set_parms(node, parms)
     if parms then node.parms = parms(node.threshold) end
     local cs = node.children
     if cs then
-      set_parms(cs[1], learn_parms_minus)
-      set_parms(cs[2], learn_parms_plus)
+      set_parms(cs[1], learn_parms_left)
+      set_parms(cs[2], learn_parms_right)
     end
   end
   cfg.after_loading_do(function () set_parms(cfg.multitree) end)
@@ -101,32 +104,42 @@ local function dbset(node)
 end
 
 
-__doc.tone = [[function(msg, parms, dbset) returns new_pR, old_pR or errors
+__doc.tone = [[function(msg, bigger, dbset, index) returns new_pR, old_pR or errors
 Conditionally train message 'msg' as belonging to database
-dbset[parms.index]. Training is actually done 
-'on or near error' (TONE): if the classifier produces the wrong
-classification, we train with the MISTAKE flag.  Otherwise,
-if pR lies within the reinforcement zone (near error), we train
-without the MISTAKE flag.
+dbset[index]. Training is actually done 'on or near error' (TONE): 
+if the classifier produces the wrong classification (as determined
+using the 'bigger' function), we train with the MISTAKE flag.
+Otherwise, if pR lies within the reinforcement zone (near error), we
+train without the MISTAKE flag.
 
 If training was not necessary (correct and not near error), 
 return identical probabilities.
 ]]
 
-local function tone(msg, parms, dbset)
+if false then
+  local c = core.classify
+  function core.classify(msg, dbset, index, min_p_ratio)
+    local t = { c(msg, dbset, index, min_p_ratio) }
+    io.stderr:write('Classification by ', table.concat(dbset.classes, ' vs '),
+                    ' gives pR = ', t[1], '; probs = ', table.concat(t[2], ', '), '\n')
+    return unpack(t)
+  end
+end
+
+local function tone(msg, bigger, dbset, index)
 
   local pR = core.classify(msg, dbset, 0)
 
-  if parms.bigger(0, pR) then
+  if bigger(0, pR) then
     -- core.MISTAKE indicates that the mistake counter in the database
     -- must be incremented. This is an approximate counting because there
     -- can be cases where there was no mistake in the first
     -- classification, but because of other trainings in between, the
     -- present classification is wrong. And vice-versa.
-    core.learn(msg, dbset, parms.index, core.MISTAKE)
+    core.learn(msg, dbset, index, core.MISTAKE)
     return (core.classify(msg, dbset, 0)), pR
   elseif math.abs(pR) < max_learn_threshold then
-    core.learn(msg, dbset, parms.index, 0)
+    core.learn(msg, dbset, index, 0)
     return (core.classify(msg, dbset, 0)), pR
   else
     return pR, pR
@@ -140,7 +153,7 @@ end
 
 local function tone_msg_and_reinforce_header(lim_orig_msg, lim_orig_header, parms, dbset)
   -- train on the whole message if on or near error
-  local new_pR, orig_pR = tone(lim_orig_msg, parms, dbset)
+  local new_pR, orig_pR = tone(lim_orig_msg, parms.bigger, dbset, parms.index(dbset))
   if   parms.bigger(parms.threshold, new_pR)
   and  math.abs(new_pR - orig_pR) < header_learn_threshold
   then 
@@ -156,9 +169,10 @@ local function tone_msg_and_reinforce_header(lim_orig_msg, lim_orig_header, parm
     for i = 1, parms.reinforcement_limit do
       -- (may exit early if the change in new_pR is big enough)
       pR = new_pR
-      core.learn(lim_orig_header, dbset, parms.index,
+      core.learn(lim_orig_header, dbset, parms.index(dbset),
                  k.learn_flags+core.EXTRA_LEARNING)
-      io.stderr:write('Reinforced ', dbset.classes[parms.index], ' with pR = ', pR, '\n')
+      debug_out:write('Reinforced ', dbset.classes[parms.index(dbset)],
+                      ' with pR = ', pR, '\n')
       new_pR = core.classify(lim_orig_msg, dbset, k.classify_flags)
       if parms.bigger(new_pR, trd) or math.abs (pR - new_pR) >= rd then
         break
@@ -195,7 +209,7 @@ local function new_scores(trainings)
 end
 
 function learn(sfid, classification)
-  if type(classification) ~= 'string' or not cfg.multitree[classification].sfid then
+  if type(classification) ~= 'string' or not cfg.classes[classification].sfid then
     error('learn command requires one of these classes: ' .. cfg.classlist())
   end 
 
@@ -268,13 +282,14 @@ but the message was previously learned as %s.]],
       local l1, l2 = unlearn(c1), unlearn(c2)
       if l1 or l2 then
         local parms = l1 and c1.parms or c2.parms
-        local old_pR = core.classify(lim.msg, dbset(node), k.classify_flags)
-        core.unlearn(lim.msg, dbset(node), parms.index, k.learn_flags+core.MISTAKE)
-        local pR = core.classify(lim.msg, dbset(node), k.classify_flags)
+        local dbs = dbset(node)
+        local old_pR = core.classify(lim.msg, dbs, k.classify_flags)
+        core.unlearn(lim.msg, dbs, parms.index(dbs), k.learn_flags+core.MISTAKE)
+        local pR = core.classify(lim.msg, dbs, k.classify_flags)
         for i = 1, parms.reinforcement_limit do
           if parms.bigger(pR, threshold_offset) then
-            core.unlearn(lim.header, dbset(node), parms.index, k.learn_flags)
-            pR = core.classify(lim.msg, dbset(node), k.classify_flags)
+            core.unlearn(lim.header, dbs, parms.index(dbs), k.learn_flags)
+            pR = core.classify(lim.msg, dbs, k.classify_flags)
           else
             break
           end
@@ -385,25 +400,29 @@ function classify (msg)
     local pR, probs =
       core.classify(msg.lim.msg, dbset(node), count_classifications_flags)
     table.insert(ratios, pR)
-    local next = pR > t.min_pR and 2 or 1
-    node = node.children[next]
-    train = train or math.abs(pR - t.min_pR) < node.threshold
+    local next = pR > node.min_pR and 1 or 2
     --- debugging ---
-    for i = 1, #probs do
-      io.stderr:write('Probability ', i, ' = ', probs[i], '\n')
+    do
+      local dbnames = dbset(node).classes
+      for i = 1, #probs do
+        debug_out:write('Probability ', i, ' = ', probs[i], ' (', dbnames[i], ')\n')
+      end
     end
-    io.stderr:write('Classified ', node.dbname, ' with index ', next, ', score ', pR, 
-                    ' vs min = ', t.min_pR, 
+    ----------------
+    node = node.children[next]
+    train = train or math.abs(pR - node.min_pR) < node.threshold
+    --- debugging ---
+    debug_out:write('Classified ', table.concat(node.dbnames, '/'),
+                    ' with index ', next, ', score ', pR, ' vs min = ', node.min_pR, 
                     node.classification and ' (as ' .. node.classification .. ')'
                       or ' (no classification)', '\n')
     ----------------
   until node.classification
   local class = node.classification
-  local surety = train and 'unsure' or 'sure'
-  local multi = cfg.multi
+  local t = assert(cfg.classes[class], 'missing configuration for class')
   sfid_tag = sfid_tag or
-    string.upper(util.insistf(multi.tags.sfid[class], 'missing sfid tag for %s',class))
-  subj_tag = wrap_subj_tag(subj_tag or multi.tags[surety][class])
+    string.upper(util.insistf(t.sfid, 'missing sfid tag for %s', class))
+  subj_tag = wrap_subj_tag(subj_tag or t[train and 'unsure' or 'sure'])
   return train, ratios, sfid_tag, subj_tag, class
 end
 

@@ -9,11 +9,7 @@ local msg          = require 'osbf3.msg'
 local cfg          = require 'osbf3.cfg'
 local cache        = require 'osbf3.cache'
 
-local opts, args   = util.validate(options.parse(arg))
-if not opts then
-  io.stderr:write(args, '\n')
-  os.exit(1)
-end
+local opts, args   = options.parse(arg)
 
 local trecdir = args[1] 
 if not trecdir then
@@ -33,10 +29,7 @@ osbf.init(opts, true)
 local email = 'test@test'
 commands.init(email, db_total_size)
 
-cfg.min_pR_success = 0
 cfg.limit = 500000
-local th, ts = 20, -20
-local sfid_tags = { H = 'ham', ['+'] = 'ham', S = 'spam', ['-'] = 'spam' }
 
 local result = assert(io.open('result', 'w'))
 local max_lines = 5000
@@ -46,16 +39,19 @@ for l in assert(io.lines(trecdir .. 'index')) do
   if num_lines > max_lines then
     break
   end
-  local class, file = string.match(l, '^(%w+)%s+(.*)')
-  local m = util.validate(msg.of_any(trecdir .. file))
-  local pR, tag = commands.classify(m)
-  if class == 'ham' and pR < th or class == 'spam' and pR > ts then
+  local labelled, file = string.match(l, '^(%w+)%s+(.*)')
+  local m = msg.of_any(trecdir .. file)
+  local train, pRs, tag, _, class = commands.classify(m)
+  local pR = util.min_abs(pRs)
+  if train or class ~= labelled then
     local sfid = cache.generate_sfid(tag, pR)
     cache.store(sfid, msg.to_orig_string(m))
-    _, _, _, new_pR = commands.learn(sfid, class)
+    commands.learn(sfid, labelled)
   end
 
-  result:write(string.format("%s %s %s %s%.4f\n",
-	 file, 'judge=' .. class, 'class=' .. sfid_tags[tag], 'score=', -pR))
+  result:write(string.format("%s judge=%s class=%s score=%.4f\n",
+                             file, labelled, class, -pR))
+--  io.stderr:write(string.format("%s judge=%s class=%s score=%.4f\n",
+--                             file, labelled, class, -pR))
 end
 result:close()

@@ -250,15 +250,30 @@ function learner(cmd)
       usage('learn command requires one of these classes: ' .. config.classlist())
     else
       for msgspec in has_class and msgspecs(...) or msgspecs(classification, ... ) do
-        local sfid = msg.sfid(msgspec)
+        local m = msg.of_any(msgspec)
+        local sfid
+        if msg.has_sfid(m) then
+          sfid = msg.sfid(m)
+        elseif not (cfg.use_sfid and cfg.save_for_training) then
+          error('Cannot learn or unlearn messages because the configuration file\n'..
+                'is set ' .. (cfg.use_sfid and 'not to save messages' or
+                              'not to use sfids'))
+        else
+          local train, pRs, sfid_tag, subj_tag, classification = commands.classify(m)
+          local min_pR = util.min_abs(pRs)
+          sfid = cache.generate_sfid(sfid_tag, min_pR)
+          cache.store(sfid, msg.to_orig_string(m))
+        end
+
         local comment, training = cmd(sfid, has_class and classification or nil)
         util.writeln(comment)
-        -- redelivers message if it was trained as ham, received any
+        -- redelivers message if it was trained and config calls for a resend
         -- subject tag and it was a subject command 
         -- (is_output_set_to_message())
         local learned_as_ham_and_tagged =
-          cmd == commands.learn and classification == 'ham' and
-          cfg.tag_subject and cache.sfid_score(sfid) < cfg.classes.ham.threshold
+          cmd == commands.learn and cfg.classes[classification].resend ~= false and
+          cfg.tag_subject and
+          cache.sfid_score(sfid) < cfg.classes[classification].threshold
         if learned_as_ham_and_tagged and util.is_output_set_to_message() then
           local m = msg.of_sfid(sfid)
           local subj_cmd = 'resend ' .. cfg.pwd .. ' ' .. sfid
@@ -499,15 +514,6 @@ local function exec_subject_line_command(cmd, m)
   run(unpack(cmd))
 end
 
-local function min_abs(xs)
-  local x = xs[1] or math.huge
-  for i = 2, #xs do
-    local x2 = xs[i]
-    if math.abs(x2) < math.abs(x) then x = x2 end
-  end
-  return x
-end
-
 __doc.filter = [[function(...)
 Reads a message from a file, sfid or stdin, searches for a command
 in the subject line and either executes the command, if found, or
@@ -531,7 +537,7 @@ local function filter(...)
     else
       local function classify_and_insert() -- protect from errors
         local train, pRs, sfid_tag, subj_tag, classification = commands.classify(m)
-        local min_pR = min_abs(pRs)
+        local min_pR = util.min_abs(pRs)
         if not options.nosfid and cfg.use_sfid then
           local sfid = cache.generate_sfid(sfid_tag, min_pR)
           if not options.nocache and cfg.save_for_training then

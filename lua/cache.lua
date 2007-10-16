@@ -14,6 +14,7 @@ __doc.sfid = 'A string (spam filter id) that uniquely identifies a message'
 
 local cfg  = require(_PACKAGE .. 'cfg')
 local core = require(_PACKAGE .. 'core')
+local util = require(_PACKAGE .. 'util')
 local slash = cfg.slash
 
 ----------------------------------------------------------------

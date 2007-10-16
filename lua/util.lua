@@ -22,6 +22,21 @@ function table_tab(t)
   return t
 end
 ----------------------------------------------------------------
+
+__doc.min_abs = [[function(list of numbers) returns number
+Returns the number in the list with the minimum absolute value,
+or math.huge if the list is empty]]
+
+function min_abs(xs)
+  local x = xs[1] or math.huge
+  for i = 2, #xs do
+    local x2 = xs[i]
+    if math.abs(x2) < math.abs(x) then x = x2 end
+  end
+  return x
+end
+
+----------------------------------------------------------------
 __doc.file_is_readable = [[function(filename) returns bool]]
 function file_is_readable(file)
   local f = io.open(file, 'r')
@@ -189,9 +204,11 @@ function insist(v, msg)
   if v == nil then error(msg, 2) end
 end
 
-__doc.insistf = [[function(bool, ...) if bool is false, calls util.errorf(...)]]
+__doc.insistf = [[function(v, ...) returns arguments
+if v is false or nil, calls util.errorf(...);
+otherwise returns v, ... (acting as identity function)]]
 function insistf(p, ...)
-  if not p then return errorf(...) end
+  if not p then return errorf(...) else return p, ... end
 end
 
 __doc.validate = [[function(...) returns ... or kills process
