@@ -370,7 +370,9 @@ function after_loading_do(f)
   table.insert(postloads, f)
 end
 
+__doc.dbnames = [[A mapping from classification to list of db names]]
 dbnames = { }
+
 
 __doc.multitree = [[The classification tree built from cfg.classes
 
@@ -380,7 +382,26 @@ field (where it's databases are found in the file system), a 'parms'
 table (which knows whether it's on the positive or negative side of
 its parent), and a 'threshold' field (which knows whether a ratio lies
 in the reinforcement zone.  An internal node has a 'children' field
-which is always a list of its two children.]]
+which is always a list of its two children.
+
+In more detail the fields of a tree node are as follows:
+  
+  In every node:
+    min_pR:     a value such that larger pR's go left, smaller go right
+    threshold:  half the width of the reinforcement zone for this node
+
+  In every node except the root:
+    dbnames:    a list of databases representing messages trained on
+                on this node
+
+  Only in internal nodes:
+    children:   a list of two tree nodes
+
+  Only in leaf nodes:
+    classification:  the class of document (email) represented by this node
+
+
+]]
 
 local function mk_multitree()
   local function walk(prefix, node, index)
