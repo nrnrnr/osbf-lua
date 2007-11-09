@@ -16,7 +16,7 @@ local error, ipairs =
 local io, string, table, math =
       io, string, table, math
 
-local debug_out = false and io.stderr or { write = function() end }
+local debug_out = true and io.stderr or { write = function() end }
 
 local prog = _G.arg and _G.arg[0] or 'osbf'
 
@@ -30,6 +30,8 @@ local msg   = require(_PACKAGE .. 'msg')
 local core  = require(_PACKAGE .. 'core')
 local lists = require(_PACKAGE .. 'lists')
 local cache = require(_PACKAGE .. 'cache')
+
+local smallP = core.smallP
 
 __doc = __doc or { }
 
@@ -82,27 +84,10 @@ do
       set_parms(cs[2], learn_parms_right)
     end
   end
-  cfg.after_loading_do(function () set_parms(cfg.multitree) end)
+  -- cfg.after_loading_do(function () set_parms(cfg.multitree) end)
 end
 
 local msgmod = msg
-
-__doc.dbset = [[function(treenode) return dbset
-Given a multitree node, returns a dbset suitable for
-core classification and learning.
-]]
-local function dbset(node)
-  if not node.dbset then 
-    local t = assert(node.children)
-    assert(#t == 2)
-    local classes = { unpack(t[1].dbnames) }
-    for _, d in ipairs(t[2].dbnames) do table.insert(classes, d) end
-    node.dbset = { classes = classes, ncfs = #t[1].dbnames,
-                   delimiters = cfg.extra_delimiters or '' }
-  end
-  return node.dbset
-end
-
 
 __doc.tone = [[function(msg, bigger, dbset, index) returns new_pR, old_pR or errors
 Conditionally train message 'msg' as belonging to database
@@ -116,18 +101,12 @@ If training was not necessary (correct and not near error),
 return identical probabilities.
 ]]
 
-if false then
-  local c = core.classify
-  function core.classify(msg, dbset, index, min_p_ratio)
-    local t = { c(msg, dbset, index, min_p_ratio) }
-    io.stderr:write('Classification by ', table.concat(dbset.classes, ' vs '),
-                    ' gives pR = ', t[1], '; probs = ', table.concat(t[2], ', '), '\n')
-    return unpack(t)
-  end
-end
+local smallP = core.smallP
+
 
 local function tone(msg, bigger, dbset, index)
 
+  assert(false, 'tone not yet implemented')
   local pR = core.classify(msg, dbset, 0)
 
   if bigger(0, pR) then
@@ -339,20 +318,23 @@ local function register_sfid_tag(tag, name)
   end
 end
 
+local db2class, dblist
+local classes = { }
+
 cfg.after_loading_do(function()
                        for class, tbl in pairs(cfg.classes) do
-                         if type(class) == 'string' then
-                           register_sfid_tag(string.upper(tbl.sfid), class)
-                         end
+                         register_sfid_tag(string.upper(tbl.sfid), class)
+                         table.insert(classes, class)
                        end
+                       db2class, dblist = cfg.db2class, cfg.dblist
                      end)
                 
 local msgmod = msg
 
 __doc.classify = 
-[[function(msgspec) returns train, pRs, sfid tag, subject tag, classification
+[[function(msgspec) returns train, pR, sfid tag, subject tag, classification
 train is a boolean or nil; 
-pRs is a nonempty list of ratios; 
+pR the log of ratio of the probability for the chosen class
 tags are always strings
 
 Note that these sfid tags are *classification* tags, not *learning* tags,
@@ -392,38 +374,35 @@ function classify (msg)
   local count_classifications_flags =
     (cfg.count_classifications and core.COUNT_CLASSIFICATIONS or 0)
          + cfg.constants.classify_flags
-  local ratios = { }
-  local node = cfg.multitree
-  local train = false
-  repeat
-    assert(type(node) == 'table' and node.children and #node.children == 2)
-    local pR, probs =
-      core.classify(msg.lim.msg, dbset(node), count_classifications_flags)
-    table.insert(ratios, pR)
-    local next = pR > node.min_pR and 1 or 2
-    --- debugging ---
-    do
-      local dbnames = dbset(node).classes
-      for i = 1, #probs do
-        debug_out:write('Probability ', i, ' = ', probs[i], ' (', dbnames[i], ')\n')
-      end
+  local sum, probs, trainings =
+    core.classify(msg.lim.msg, dblist, count_classifications_flags)
+  assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table')
+  local classprobs = { }
+    -- first time we load, use small nonzero probability
+  for i = 1, #probs do
+    local class = db2class[dblist[i]]
+    classprobs[class] = (classprobs[class] or 0) + probs[i]
+  end
+  local max_pR, class = -10000, 'this cannot happen'
+  for _, c in ipairs(classes) do
+    assert(cfg.classes[c], 'missing configuration for class')
+    local P = classprobs[c] or 0
+    local pR = core.pR(P + smallP, sum - P) + cfg.classes[c].pR_boost
+    debug_out:write('pR for class ', c, ' = ' , pR, '\n')
+    if pR > max_pR then
+      max_pR, class = pR, c
     end
-    ----------------
-    node = node.children[next]
-    train = train or math.abs(pR - node.min_pR) < node.threshold
-    --- debugging ---
-    debug_out:write('Classified ', table.concat(node.dbnames, '/'),
-                    ' with index ', next, ', score ', pR, ' vs min = ', node.min_pR, 
-                    node.classification and ' (as ' .. node.classification .. ')'
-                      or ' (no classification)', '\n')
-    ----------------
-  until node.classification
-  local class = node.classification
+  end
+  local train = max_pR < cfg.classes[class].threshold
+
+  debug_out:write('Classified ', table.concat(dblist, '#'),
+                  ' as class ', class, ' with score ', max_pR, '\n')
+
   local t = assert(cfg.classes[class], 'missing configuration for class')
   sfid_tag = sfid_tag or
     string.upper(util.insistf(t.sfid, 'missing sfid tag for %s', class))
   subj_tag = wrap_subj_tag(subj_tag or t[train and 'unsure' or 'sure'])
-  return train, ratios, sfid_tag, subj_tag, class
+  return train, max_pR, sfid_tag, subj_tag, class
 end
 
 -----------------------------------------------------------------------------
@@ -443,8 +422,8 @@ the databases usage is also calculated and included in hstats and sstats.
 ]]
 
 function stats(full)
-  local ham_db  = (cfg.dbnames.ham or error 'No database for ham')[1]
-  local spam_db = (cfg.dbnames.spam or error 'No database for spam')[1]
+  local ham_db  = (cfg.classes.ham.dbs or error 'No database for ham')[1]
+  local spam_db = (cfg.classes.spam.dbs or error 'No database for spam')[1]
   local stats1 = core.stats(ham_db, full)
   local stats2 = core.stats(spam_db, full)
 

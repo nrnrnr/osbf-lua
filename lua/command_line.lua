@@ -259,9 +259,8 @@ function learner(cmd)
                 'is set ' .. (cfg.use_sfid and 'not to save messages' or
                               'not to use sfids'))
         else
-          local train, pRs, sfid_tag, subj_tag, classification = commands.classify(m)
-          local min_pR = util.min_abs(pRs)
-          sfid = cache.generate_sfid(sfid_tag, min_pR)
+          local train, pR, sfid_tag, subj_tag, classification = commands.classify(m)
+          sfid = cache.generate_sfid(sfid_tag, pR)
           cache.store(sfid, msg.to_orig_string(m))
         end
 
@@ -324,10 +323,10 @@ function resend(sfid)
   local message, err = cache.try_recover(sfid)
   if message then
     local m = msg.of_string(message)
-    local train, pRs, sfid_tag, subj_tag = commands.classify(m)
+    local train, pR, sfid_tag, subj_tag = commands.classify(m)
     sfid_tag = 'R' .. sfid_tag -- prefix tag to indicate a resent message
     local score_header =
-      string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', pRs[1],
+      string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', pR,
                     cfg.multitree.min_pR, sfid_tag, core._VERSION, cfg.version)
     msg.add_osbf_header(m, cfg.score_header_suffix, score_header)
     msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
@@ -604,6 +603,7 @@ Accepts option -lang to set report_locale in config.
 ]]
 
 function init(...)
+  -- XXX todo: allow user to specify -dbsize or -totalsize or -buckets
   local opts = {lang = options.std.val}
   local opts, args = options.parse({...}, opts)
   if #args > 2 then usage() end
@@ -612,7 +612,7 @@ function init(...)
     util.die('The locale informed is not valid: ', tostring(opts.lang))
   end
   if not (type(email) == 'string' and string.find(email, '@')) then
-    usage('Init requires a valid email for subject-line commands.')
+    usage('For subject-line commands, init requires a valid email in user@host form.')
   end
   local nb = dbsize and util.bytes_of_human(dbsize)
   if not core.isdir(cfg.dirs.user) then

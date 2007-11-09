@@ -80,12 +80,7 @@ function init(email, totalsize, lang)
     util.mkdir(d)
   end
 
-  local dbcount = 0
-  local function walk(t)
-    if t.dbnames then dbcount = dbcount + #t.dbnames end
-    if t.children then for _, c in ipairs(t.children) do walk(c) end end
-  end
-  walk(cfg.multitree)
+  local dbcount = #cfg.dblist
   totalsize = totalsize or dbcount * cfg.constants.default_db_megabytes * 1024 * 1024
   if type(totalsize) ~= 'number' then
     util.die('Database size must be a number')

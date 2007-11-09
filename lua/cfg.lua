@@ -29,39 +29,6 @@ end
 
 __doc = {
   pwd = 'Password for subject-line commands',
-  classes = [[Classes of email to be identified.
-
-This value is a table with two parts: a list part and a keyword part.
-The list part is a list of all the classes of interest.  A default list
-might be
-   'spam', 'ham'
-a longer list might be
-   'spam', 'work', 'ecommerce', 'entertainment', 'sports', 'personal'
-and a list might be subdivided to group related messages:
-   { 'spam', 'ecommerce' }, { 'entertainment', 'sports' }, 'work', 'personal'
-
-The table part contains a table for each named class.  The only
-required entry in this table is 'sfid', which must be a lowercase
-letter that is unique to the class.  (This letter is used to tag the
-class of learned messages.)  The list of all possible entries is:
-  sfid      -- unique lowercase letter to identify class (required)
-  sure      -- Subject: tag when mail definitely classified (defaults empty)
-  unsure    -- Subject: tag when mail in reinforcement zone (defaults '?')
-  threshold -- half width of reinforcement zone (defaults 20)
-  dbnames   -- list of databases for this class (defaults { class .. '.cfc' })
-  min_pR    -- minimum absolute ratio of probabilities to choose class (default 0)
-
-Sfids 's' and 'h' must be for 'spam' and 'ham', and sfids 'w', 'b',
-and 'e' are reserved for whitelisting, blacklisting, and errors.
-
-Once the filter is well trained, thresholds should be reduced from the 
-default value of 20 to something like 10, to reduce the burden of training.
-(We'd love to have an automatic reduction, but we don't have an algorithm.)
-
-If dbnames is given, each name should be relative to the user's database 
-directory (normally the 'udir').  It is pointless to give dbnames unless
-there is more than one name on the list.
-]],
 
   tag_subject     = 'Flag to turn on of off subject tagging',
 
@@ -334,7 +301,8 @@ end
 
 __doc.dirfilename = [[function(dir, filename, suffix)
 Returns a filename in particular directory of table dirs.
-Suffix is used primarily to deal with sfid suffixes.
+'dir' says what kind of directory it is (e.g., 'user', 'cache')
+Suffix is optional and is used primarily to deal with sfid suffixes.
 ]]
 
 function dirfilename(dir, basename, suffix)
@@ -370,90 +338,90 @@ function after_loading_do(f)
   table.insert(postloads, f)
 end
 
-__doc.dbnames = [[A mapping from classification to list of db names]]
-dbnames = { }
+__doc.classes = [[Classes of email to be identified.
 
+This value is a table containing a record (table) for each class.
+Each key is a class name.  A minimal table might look like
 
-__doc.multitree = [[The classification tree built from cfg.classes
+  classes = { spam = { sfid = 's', resend = false },
+              ham  = { sfid = 'h' },
+            }
 
-A classification tree is a binary tree with a 'classification' at each
-leaf and a database at each child.  With the database go a 'dbnames'
-field (where it's databases are found in the file system), a 'parms'
-table (which knows whether it's on the positive or negative side of
-its parent), and a 'threshold' field (which knows whether a ratio lies
-in the reinforcement zone.  An internal node has a 'children' field
-which is always a list of its two children.
+A more aggressive mail filter might contain more classes, e.g., 
 
-In more detail the fields of a tree node are as follows:
-  
-  In every node:
-    min_pR:     a value such that larger pR's go left, smaller go right
-    threshold:  half the width of the reinforcement zone for this node
+  classes = { spam          = { sfid = 's', resend = false },
+              work          = { sfid = 'w' },
+              ecommerce     = { sfid = 'c' },
+              entertainment = { sfid = 'e' },
+              sports        = { sfid = 's' },
+              personal      = { sfid = 'p' },
+            }
 
-  In every node except the root:
-    dbnames:    a list of databases representing messages trained on
-                on this node
+As shown above, the only information that is required for each class
+is a 'sfid', which must be a lowercase letter that is unique to the
+class.  (This letter is used to tag the class of learned messages.)
+It is also possible to include other information:
 
-  Only in internal nodes:
-    children:   a list of two tree nodes
+  sfid      -- unique lowercase letter to identify class (required)
+  sure      -- Subject: tag when mail definitely classified (defaults empty)
+  unsure    -- Subject: tag when mail in reinforcement zone (defaults '?')
+  dbs       -- list of databases for this class (defaults { class .. '.cfc' })
+  threshold -- pR below which training is assumed needed (defaults 20)
+  pR_boost  -- during classification, a number added to pR for this class (default 0)
+  resend    -- if this message is trained, resend it with new headers (default true)
 
-  Only in leaf nodes:
-    classification:  the class of document (email) represented by this node
+Sfids 's' and 'h' are reserved for 'spam' and 'ham', and sfids 'w',
+'b', and 'e' are reserved for whitelisting, blacklisting, and errors.
 
+Once the filter is well trained, thresholds should be reduced from the 
+default value of 20 to something like 10, to reduce the burden of training.
+(We'd love to have an automatic reduction, but we don't have an algorithm.)
 
+If dbs is given, each name should be relative to the user's database 
+directory (normally the 'udir').  It is pointless to give dbs unless
+there is more than one name on the list.  One possibility, for example, 
+would be to use both global and user-specific databases for spam:
+
+  classes = { spam = { sfid = 's', resend = false,
+                       dbs = { "globalspam.cfc", "userspam.cfc" } },
+              ham  = { sfid = 'h',
+                       dbs = { "globalham.cfc", "userham.cfc" } },
+            }
 ]]
 
-local function mk_multitree()
-  local function walk(prefix, node, index)
-    local t = { }
-    if not node then error 'bad multiclassification config' end
-    if type(node) == 'table' then
-      assert(#node == 2)
-      local n1 = walk(prefix .. '-1', node[1], 1)
-      local n2 = walk(prefix .. '-2', node[2], 2)
-      t.children = { n1, n2 }
-      t.threshold = math.max(n1.threshold, n2.threshold)
-      t.min_pR = (n2.min_pR - n1.min_pR) / 2
+__doc.db2class = [[A mapping from db name to classification]]
+__doc.dblist = [[A list of all databases]]
+db2class, dblist = { }, { }
+
+local function set_class_defaults()
+  local c = classes
+  local used = { s = 'spam', h = 'ham', w = true, b = true, e = true }
+  for class, t in pairs(c) do
+    if not t.sfid then util.errorf('Class %s lacks a sfid', class)
+    elseif type(t.sfid) ~= 'string' or string.len(t.sfid) ~= 1 or
+           t.sfid ~= string.lower(t.sfid) then
+      util.errorf("Class %s's sfid is not a single lower-case letter")
+    elseif used[t.sfid] and used[t.sfid] ~= class then
+      util.errorf("Class %s has sfid %s, which is %s",
+                  class, t.sfid,
+                  used[t.sfid] == true and "reserved for internal use" or
+                    "already taken by class " .. used[t.sfid])
     else
-      t.classification = node
-      t.min_pR = classes[node].min_pR or 0
-      if index == 1 then t.min_pR = -t.min_pR end
-      t.threshold = classes[node].threshold or default_threshold
-      classes[node].threshold = t.threshold -- set to default
+      used[t.sfid] = class
     end
-    if index then
-      if t.classification and classes[t.classification].dbnames then
-        t.dbnames = { }
-        for _, name in ipairs(classes[t.classification].dbnames) do
-          table.insert(t.dbnames, dirs.database .. name)
-        end
-      else
-        local edge = t.classification and '-' .. t.classification or ''
-        t.dbnames = { table.concat {dirs.database, prefix, edge, '.cfc'} }
-          -- for a more readable name, could use only t.classification
-      end
-      if t.classification then dbnames[t.classification] = t.dbnames end
-      io.stderr:write('Noted dbs ', table.concat(t.dbnames, ', '), '\n')
+    t.sure   = t.sure   or ''
+    t.unsure = t.unsure or '?'
+    t.dbs    = t.dbs or { class .. '.cfc' }
+    for i = 1, #t.dbs do
+      local db     = dirfilename('database', t.dbs[i])
+      t.dbs[i]     = db
+      db2class[db] = class
+      table.insert(dblist, db)
     end
-    return t
+    t.threshold = t.threshold or default_threshold
+    t.pR_boost  = t.pR_boost or 0
+    t.resend    = t.resend == nil and true or t.resend
   end
-  local function make_binary(t, lo, hi)
-    if type(t) == 'string' then
-      return t
-    elseif type(t) == 'table' then
-      lo = lo or 1
-      hi = hi or #t
-      if lo == hi then return make_binary(t[lo])
-      elseif lo > hi then error 'empty category list in cfg.classes'
-      elseif lo + 1 == hi then
-        return { make_binary(t[lo]), make_binary(t[hi]) }
-      else
-        local mid = math.floor((lo + hi) / 2)
-        return { make_binary(t, lo, mid), make_binary(t, mid+1, hi) }
-      end
-    end
-  end
-  multitree = walk('class', make_binary(classes))
 end
 
 __doc.classlist = [[function() returns sorted list of class names]]
@@ -473,11 +441,10 @@ do
   end
 end
 
-      
 local function init(options, no_dirs_ok)
   set_dirs(options, no_dirs_ok)
   load_if_readable(configfile)
-  mk_multitree()
+  set_class_defaults()
   for _, f in ipairs(postloads) do
     f(_M)
   end

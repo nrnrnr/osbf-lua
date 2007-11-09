@@ -12,7 +12,7 @@ __doc = __doc or { }
 
 __doc.__order = {
   'create_db', 'header_size', 'bucket_size',
-  'classify', 'learn', 'unlearn', 'train', 'stats', 'config', 'dump',
+  'classify', 'learn', 'unlearn', 'train', 'pR', 'stats', 'config', 'dump',
   'restore', 'import', 'chdir', 'getdir', 'dir', 'isdir',
 }
 
@@ -25,73 +25,54 @@ Example:
   core.create_db('spam.cfc', 94321)
 ]]
 
-__doc.classify = [=[function(text, dbset, flags, min_p_ratio) 
-     returns pR, probs, i_pmax, trainings
+__doc.pR = [[function(p1, p2) returns log(p1/p2)
+Compute the logarithm of the ratio of two probabilities, where the
+base of the logarithm is chosen such that if p1 and p2 are (sums of)
+probabilities returned by core.classify, then pR of less than 20
+means that training is suggested (Train Near Error).]]
+
+__doc.classify = [=[function(text, dblist, flags, min_p_ratio, delimiters) 
+     returns probs, trainings, sum
   or calls lua_error
 
-Classifies the string text using the databases in dbset.
+Classifies the string text using the databases in dblist
 
 Arguments are as follows:
 
   text: String with the text to be classified
 
-  dbset: Lua table with the following structure:
-      dbset = {
-              classes = {"ham.cfc", "spam.cfc"},
-              ncfs = 1,
-              delimiters = "" -- you can put additional token delimiters here
-          }
-
-      classes: list of classes for classification.
-
-      ncfs: splits classes in 2 subsets. The first subset is formed by
-      the first ncfs class databases. The remainder databases will form
-      the second subset. These 2 subsets define 2 composed classes. In
-      the above example we have 2 composed classes formed by a single
-      class database each. Another possibility, for instance, would be 2
-      composed classes formed by a pair of single class databases each:
-      global and per user. Ex:
-          dbset = {
-              classes = {"globalham.cfc", "userham.cfc",
-                         "globalspam.cfc", "userspam.cfc"},
-              ncfs = 2, -- 2 single classes in the first subset
-              delimiters = ""
-          }
-
-      delimiters: String with extra token delimiters. The tokens are
-      produced by the internal fixed pattern ([[:graph:]]+), or, in
-      other words, by sequences of printable chars except tab, new
-      line, vertical tab, form feed, carriage return, or space. If
-      delimiters is not empty, its chars will be considered as extra
-      token delimiters, like space, tab, new line, etc.
+  dbset: list of pathnames, each of which is an on-disk database
+         Example: {"ham.cfc", "spam.cfc"}
 
   flags: Number with the classification control flags. Each bit is a flag.
-    The available flags are:
-      * core.NO_EDDC                - disable EDDC;
-      * core.COUNT_CLASSIFICATIONS  - turn on the classification counter;
-    The NO_EDDC flag is intended for tests because disabling EDDC
-    normally lowers accuracy.
+     The available flags are:
+       * core.NO_EDDC                - disable EDDC;
+       * core.COUNT_CLASSIFICATIONS  - turn on the classification counter;
+     The NO_EDDC flag is intended for tests because disabling EDDC
+     normally lowers accuracy.
 
-  min_p_ratio: Number with the minimum feature probability ratio. 
+  min_p_ratio: Optional number with the minimum feature probability ratio. 
      The probability ratio of a feature is the ratio between the
      maximum and the minimum probabilities it has over the
      classes. Features with less than min_p_ratio are not considered
      for classification. This parameter is optional. The default is 1,
      which means that all features are considered.
 
+  delimiters: optional parameter containing additional token
+    delimiters; defaults to the empty string.  The tokens are produced
+    by the internal fixed pattern ([[:graph:]]+), or, in other words,
+    by sequences of printable chars except tab, new line, vertical
+    tab, form feed, carriage return, or space. If delimiters is not
+    empty, its chars will be considered as extra token delimiters,
+    like space, tab, new line, etc.
 
 Results are as follows:
-  returns pR, probs, i_pmax, trainings
-    * pR:        The log of the ratio between the probabilities of 
-                 the first and second subsets
+  returns probs, trainings, sum
     * probs:     a Lua array with the probability of each single class
-    * i_pmax:    index of the array to the single class with maximum
-                 probability
     * trainings: a Lua array with the number of trainings for each
                  class
-
-In case of error, core.classify returns 2 values: 
-  nil and an error message.
+    * sum:       the sum of all probabilities in probs, plus core.smallP
+In case of error, core.classify calls lua_error.
 ]=]
 
 __doc.learn = [[
