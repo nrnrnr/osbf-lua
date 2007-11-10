@@ -495,13 +495,11 @@ function generate_training_message(email, temail, opt_locale)
   -- Experimental - to be moved to a funtion in a better place.
   -- Calculates half the width of reinforcement zone based on
   -- number of learnings. Initial width is larger than the max
-  -- possible value (307) and decreases exponentially down to
-  -- the minimum value specified by the user in cfg.threshold.
+  -- possible value (307) and decreases exponentially down.
+  -- However if the threshold specified by the user is larger, 
+  -- we use that instead (local variable ct below).
   local min_learnings = math.min(hstats.learnings, sstats.learnings)
   local threshold = 350 / math.sqrt(2*min_learnings+0.1)
-  if threshold < cfg.multitree.threshold then
-    threshold = cfg.multitree.threshold
-  end
 
   if not ready then language.title = language.title_nready end
 
@@ -518,8 +516,11 @@ function generate_training_message(email, temail, opt_locale)
         if #sfids >= max_sfids then
           break
         end
-      elseif math.abs(cache.sfid_score(sfid)) < threshold then
-        table.insert(outside_minimum, sfid)
+      else
+        local ct = cfg.classes[cache.sfid_class(sfid)].threshold
+        if math.abs(cache.sfid_score(sfid)) < math.max(threshold, ct) then
+          table.insert(outside_minimum, sfid)
+        end
       end
     end
   end

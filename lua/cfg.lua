@@ -390,8 +390,9 @@ would be to use both global and user-specific databases for spam:
 ]]
 
 __doc.db2class = [[A mapping from db name to classification]]
+__doc.class2db = [[A mapping from classification to the first db for that class]]
 __doc.dblist = [[A list of all databases]]
-db2class, dblist = { }, { }
+db2class, class2db, dblist = { }, { }, { }
 
 local function set_class_defaults()
   local c = classes
@@ -416,6 +417,7 @@ local function set_class_defaults()
       local db     = dirfilename('database', t.dbs[i])
       t.dbs[i]     = db
       db2class[db] = class
+      class2db[class] = class2db[class] or db -- the first db is the one trained on
       table.insert(dblist, db)
     end
     t.threshold = t.threshold or default_threshold
@@ -431,9 +433,8 @@ do
     if not the_classes then
       the_classes = { }
       for c, v in pairs(classes) do
-        if type(c) == 'string' and v.sfid then
-          table.insert(the_classes, c)
-        end
+        assert(type(c) == 'string' and type(v) == 'table' and v.sfid)
+        table.insert(the_classes, c)
       end
       table.sort(the_classes)
     end

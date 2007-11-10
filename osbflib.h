@@ -80,6 +80,8 @@ typedef struct
   uint32_t unreachable;
 } STATS_STRUCT;
 
+#define NELEMS(A) (sizeof(A)/sizeof((A)[0]))
+
 /* Database version */
 #define SBPH_VERSION		0
 #define OSB_VERSION		1
@@ -167,16 +169,19 @@ extern const char *db_version_names[];
 
 #define OSBF_DBL_MIN DBL_MIN
 /* #define OSBF_DBL_MIN 1E-50 */
+#define OSBF_SMALLP (10 * OSBF_DBL_MIN) /* a very small but nonzero probability */
 #define OSBF_ERROR_MESSAGE_LEN 512
 
-/* learn flags */
-#define NO_MICROGROOM	1
-#define MISTAKE		2	/* increase mistake counter */
-#define EXTRA_LEARNING	4	/* flag for extra learning */
+enum learn_flags {
+  NO_MICROGROOM	 = 1,
+  MISTAKE	 = 2,	/* increase mistake counter */
+  EXTRA_LEARNING = 4	/* flag for extra learning */
+};
 
-/* classify flags */
-#define NO_EDDC			1
-#define COUNT_CLASSIFICATIONS	2
+enum classify_flags {
+  NO_EDDC			= 1,
+  COUNT_CLASSIFICATIONS		= 2
+};
 
 extern uint32_t strnhash (unsigned char *str, uint32_t len);
 extern off_t check_file (const char *file);
@@ -219,7 +224,7 @@ osbf_bayes_classify (const unsigned char *text,
 		     unsigned long len,
 		     const char *pattern,
 		     const char *classes[],
-		     uint32_t flags,
+		     enum classify_flags flags,
 		     double min_pmax_pmin_ratio, double ptc[],
 		     uint32_t ptt[], char *errmsg);
 
@@ -228,14 +233,14 @@ old_osbf_bayes_learn (const unsigned char *text,
 		  unsigned long len,
 		  const char *pattern,
 		  const char *classes[],
-		  unsigned tc, int sense, uint32_t flags, char *errmsg);
+		  unsigned tc, int sense, enum learn_flags flags, char *errmsg);
 
 extern int
 osbf_bayes_train (const unsigned char *text,
 		  unsigned long len,
 		  const char *pattern,
 		  const char *class,
-		  int sense, uint32_t flags, char *errmsg);
+		  int sense, enum learn_flags flags, char *errmsg);
 
 extern int
 osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,

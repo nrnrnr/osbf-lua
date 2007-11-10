@@ -138,6 +138,7 @@ function generate_sfid(sfid_tag, pR)
   -- returns a new SFID
   -- if pR is not a number, 0 is used instead.
   assert(type(sfid_tag) == 'string', 'sfid_tag type must be string')
+  assert(string.find(sfid_tag, '^%a$'), 'sfid tag is not a lower-case letter')
   local at_rightid = '@' .. generate_rightid()
   local leftid = string.format('sfid-%s%s-%+07.2f-', sfid_tag,
 				os.date('%Y%m%d-%H%M%S'),
@@ -252,12 +253,35 @@ end
 
 ----------------------------------------------------------------
 
+local tag_cache
+local function tag2class(tag)
+  if not tag_cache then
+    tag_cache = { }
+    for class, t in ipairs(cfg.classes) do
+      tag_cache[t.sfid] = class
+    end
+  end
+  return tag_cache[string.lower(tag)]
+end
+
+__doc.sfid_class = [[function(sfid) returns class of sfid or error if class not determinable]]
+
+function sfid_class(sfid)
+  local tag = string.match(sfid, '%-(%l)$') or string.match(sfid, '^sfid%-(%a)')
+  if not tag then error('Cannot determine class of sfid ' .. sfid)
+  else
+    return tag2class(tag) or error('Tag ' .. tag .. ' corresponds to no known class')
+  end
+end
+
+----------------------------------------------------------------
+
 __doc.sfid_is_in_reinforcement_zone = [[function(sfid) returns true if sfid is
 in user reinforcement zone.
-Sneakily compares the min-abs pR against the widest zone!]]
+]]
 
 function sfid_is_in_reinforcement_zone(sfid)
-  return math.abs(sfid_score(sfid) - cfg.multitree.min_pR) < cfg.multitree.threshold
+  return sfid_score(sfid) < cfg.classes[sfid_class(sfid)].threshold
 end
 
 ----------------------------------------------------------------

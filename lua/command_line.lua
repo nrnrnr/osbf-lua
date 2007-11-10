@@ -247,7 +247,8 @@ function learner(cmd)
   return function(classification, ...)
     local has_class = cfg.classes[classification]
     if cmd == commands.learn and not has_class then
-      usage('learn command requires one of these classes: ' .. config.classlist())
+      usage('learn command requires one of these classes: ' ..
+            table.concat(cfg.classlist(), ', '))
     else
       for msgspec in has_class and msgspecs(...) or msgspecs(classification, ... ) do
         local m = msg.of_any(msgspec)
@@ -264,7 +265,7 @@ function learner(cmd)
           cache.store(sfid, msg.to_orig_string(m))
         end
 
-        local comment, training = cmd(sfid, has_class and classification or nil)
+        local comment = cmd(sfid, has_class and classification or nil)
         util.writeln(comment)
         -- redelivers message if it was trained and config calls for a resend
         -- subject tag and it was a subject command 
@@ -323,11 +324,12 @@ function resend(sfid)
   local message, err = cache.try_recover(sfid)
   if message then
     local m = msg.of_string(message)
-    local train, pR, sfid_tag, subj_tag = commands.classify(m)
+    local train, pR, sfid_tag, subj_tag, class = commands.classify(m)
     sfid_tag = 'R' .. sfid_tag -- prefix tag to indicate a resent message
+    local boost = cfg.classes[class].pR_boost
     local score_header =
-      string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', pR,
-                    cfg.multitree.min_pR, sfid_tag, core._VERSION, cfg.version)
+      string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', pR - boost,
+                    -boost, sfid_tag, core._VERSION, cfg.version)
     msg.add_osbf_header(m, cfg.score_header_suffix, score_header)
     msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
     util.unset_output_to_message()
@@ -372,50 +374,37 @@ and prints the classification to stdout.
 Valid option: -cache => caches the original message
 ]]
 
-function mk_classify(classify)
-  return function(...)
-    local options, argv =
-      options.parse({...}, {tag = options.std.bool, cache = options.std.bool})
-    local show =
-      options.tag 
-        and
-      function(pR, tag) return tag end
-        or
-      function(pR, tag, class)
-        local what = commands.sfid_tags[tag] or class
-        if pR then
-          local ess, scores = '', { }
-          if type(pR) == 'table' then
-            for i = 1, #pR do
-              table.insert(scores, string.format('%03.1f', pR[i]))
-            end
-            scores = table.concat(scores, ', ')
-            if #pR > 1 then ess = 's' end
-          else
-            scores = string.format('%03.1f', pR)
-          end
-          what = string.format('%s with score%s %s', what, ess, scores)
-        end
-        return what
-      end 
-    
-    for msgspec, what in msgspecs(unpack(argv)) do
-      local m = msg.of_any(msgspec)
-      local train, pR, tag, _, class = classify(m)
-      if options.cache then
-        cache.store(cache.generate_sfid(tag, pR), msg.to_orig_string(m))
+function classify(...)
+  local options, argv =
+    options.parse({...}, {tag = options.std.bool, cache = options.std.bool})
+  local show =
+    options.tag 
+      and
+    function(pR, tag) return tag end
+      or
+    function(pR, tag, class)
+      local what = commands.sfid_tags[tag] or class
+      if pR then
+        what = string.format('%s with score %4.2f', what, pR)
+      else
+        what = what .. ' and pR is ' .. tostring(pR) .. ' and tag is ' .. tostring(tag) .. '?!'
       end
-      util.write(what, ' is ', show(pR, tag, class),
-                 train and ' [needs training]' or '', m.eol)
+      return what
+    end 
+  
+  for msgspec, what in msgspecs(unpack(argv)) do
+    local m = msg.of_any(msgspec)
+    io.stderr:write(string.sub(m.body, 1, 300), '...\n')
+    local train, pR, tag, _, class = commands.classify(m)
+    if options.cache then
+      cache.store(cache.generate_sfid(tag, pR), msg.to_orig_string(m))
     end
+    util.write(what, ' is ', show(pR, tag, class),
+               train and ' [needs training]' or '', m.eol)
   end
 end
 
-classify = mk_classify(commands.classify)
-multiclassify = mk_classify(commands.multiclassify)
-
 table.insert(usage_lines, 'classify [-tag] [-cache] [<sfid|filename> ...]')
-table.insert(usage_lines, 'multiclassify [-tag] [-cache] [<sfid|filename> ...]')
 
 __doc.do_nothing = [[function(sfid) just prints the message "Nothing done.".]]
 
@@ -628,46 +617,30 @@ table.insert(usage_lines, 'init [-lang=<locale>] <user-email> [<database size in
 
 __doc.resize = [[function (class, newsize)
 Changes the size of a class database.
-class is either 'ham' or 'spam'.
 newsize is the new size in bytes.
 If the new size is lesser than the original size, contents are
 pruned, less significative buckets first, to fit the new size.
 XXX if resized back to 1.1M we get 95778 buckets, not 94321.
-With multiclassification we resize up to the root!
 ]]
 
 function resize(class, newsize, ...)
   local nb = newsize and util.bytes_of_human(newsize)
-  if select('#', ...) > 0
-  or type(class) ~= 'string' then
+  if select('#', ...) > 0 or type(class) ~= 'string' then
     usage()
+  elseif not cfg.classes[class] then
+    util.die('Unknown class to resize: "', class,
+             '".\nValid classes are:', cfg.classlist())
   else
-    local function resize(dbname)
-      local stats = core.stats(dbname)
-      local tmpname = util.validate(os.tmpname())
-      -- XXX non atomic...
-      os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force?)
-      local real_bytes = commands.create_single_db(tmpname, nb)
-      core.import(tmpname, dbname)
-      util.validate(os.rename(tmpname, dbname))
-      class = util.capitalize(class)
-      util.writeln(class, ' database resized to ', util.human_of_bytes(real_bytes))
-    end
-    -- resize all the way up to the root!
-    local function search(node)
-      if node.classification == class or
-         (node.children and search(node.chidren[1]) or search(node.children[2]))
-      then
-        for _, n in ipairs(node.dbnames) do
-          resize(n)
-        end
-        return true
-      end
-    end
-    if not search(cfg.multitree()) then
-      util.die('Unknown class to resize: "', class,
-               '".\nValid classes are:', cfg.classlist())
-    end
+    local dbname = cfg.classes[class].dbs[1]
+    local stats = core.stats(dbname)
+    local tmpname = util.validate(os.tmpname())
+    -- XXX non atomic...
+    os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force?)
+    local real_bytes = commands.create_single_db(tmpname, nb)
+    core.import(tmpname, dbname)
+    util.validate(os.rename(tmpname, dbname))
+    class = util.capitalize(class)
+    util.writeln(class, ' database resized to ', util.human_of_bytes(real_bytes))
   end
 end
 

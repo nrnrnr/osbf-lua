@@ -71,12 +71,12 @@ Results are as follows:
     * probs:     a Lua array with the probability of each single class
     * trainings: a Lua array with the number of trainings for each
                  class
-    * sum:       the sum of all probabilities in probs, plus core.smallP
+    * sum:       the sum of all probabilities in probs
 In case of error, core.classify calls lua_error.
 ]=]
 
-__doc.learn = [[
-function(text, dbset, class_index, flags) 
+__doc.learn = [=[
+function(text, dblist, class_index, [flags, [delimiters]]) 
   returns nothing or calls lua_error
 
 Learns the string text as belonging to the single class database
@@ -86,9 +86,9 @@ Arguments are as follows:
 
   text: string with the text to be learned
 
-  dbset: table with the classes, as in core.classify
+  dblist: list of databases, as in core.classify
 
-  class_index: index to the single class, in dbset.classes, to be
+  class_index: index to the single database in dblist to be
       trained with text
 
   flags: Number with the flags to control the learning operation.
@@ -104,25 +104,24 @@ Arguments are as follows:
      to guarantee space for new learnings. The MISTAKE and the
      EXTRA_LEARNING flags shouldn't be used simultaneously.
 
-   core.learn returns true in case of success or nil plus an error
-   message in case of error.
-]]
+  delimiters: optional extra delimiters as in core.classify
+]=]
 
-__doc.unlearn = [[
-function(text, dbset, class_index, flags) 
+__doc.unlearn = [=[
+function(text, dblist, class_index, [flags, [delimiters]]) 
   returns nothing or calls lua_error
 
 Undoes the effect of core.learn.  Arguments are as for core.learn.
-]]
+]=]
 
 __doc.train = [=[
-function(sense, text, dbname, [flags, [delimiters]])
+function(sense, text, list, index, [flags, [delimiters]])
   calls lua_error or returns nothing
 
 If sense = 1 it's equivalent to core.learn, differing on how args
 are passed.
 
-  text and flags are as for core.learn
+  text, flags, and index are as for core.learn
 
   dbname: class to be trained with text
 

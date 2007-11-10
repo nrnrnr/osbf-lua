@@ -13,13 +13,15 @@
  *
  */
 
+#include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <math.h>
+
+#include <unistd.h>
 #include <errno.h>
 #include <dirent.h>
 #include <inttypes.h>
@@ -46,11 +48,6 @@ extern uint32_t limit_token_size;
 #ifndef uchar
 #define uchar(c)        ((unsigned char)(c))
 #endif
-
-/* db key names */
-static char key_classes[] = "classes";
-static char key_ncfs[] = "ncfs";
-static char key_delimiters[] = "delimiters";
 
 /* pR scale calibration factor - pR_SCF
    This value is used to calibrate the pR scale so that
@@ -175,74 +172,68 @@ lua_osbf_createdb (lua_State * L)
   }
 }
 
+/* takes a Lua state and the index of the list of classes.
+   Writes the names of the database files into the array, which
+   has size elements, then writes NULL as the last element 
+   and returns the number of nonnull elements */
+
+static unsigned class_list_to_array(lua_State *L,
+                                    int idx,
+                                    const char *classes[],
+                                    unsigned size)
+{
+  unsigned n;
+
+  for (n = 0; ; n++) {
+    lua_rawgeti(L, idx, n+1); /* Lua is 1-indexed; C is 0-indexed */
+    if (lua_isnil(L, -1)) break;
+    else if (!lua_isstring(L, -1))
+      return luaL_error(L, "Element %d of the list of databases is not a string",
+                        n + 1);
+    else if (n == size - 1)
+      return luaL_error(L, "Can't handle more than %d classes", size);
+    else {
+      classes[n] = lua_tostring(L, -1);
+      lua_pop(L, 1);
+      assert(classes[n]);
+    }
+  }
+  classes[n] = NULL;
+  if (n < 1)
+    return luaL_error (L, "List of OSBF-Lua databases is empty");
+  else
+    return n;
+}
+  
+
 /**********************************************************/
 
 static int
 lua_osbf_classify (lua_State * L)
+     /* classify(text, dbnames, flags, min_p_ratio, delimiters)
+        returns sum, probs, trainings */
 {
   const unsigned char *text;
   size_t text_len;
   const char *delimiters;	/* extra token delimiters */
   size_t delimiters_len;
   const char *classes[OSBF_MAX_CLASSES + 1];	/* set of classes */
-  unsigned ncfs;		/* defines a partition with 2 subsets of the set    */
-  /* "classes". The first "ncfs" classes form the  */
-  /* first subset. The others form the second one.          */
   uint32_t flags = 0;		/* default value */
   double min_p_ratio;		/* min pmax/p,in ratio */
   /* class probabilities are returned in p_classes */
   double p_classes[OSBF_MAX_CLASSES];
   uint32_t p_trainings[OSBF_MAX_CLASSES];
   char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
-  unsigned i, i_pmax, num_classes;
-  double p_first_subset, p_second_subset;
+  unsigned i, num_classes;
 
-  /* get text pointer and text len */
-  text = (unsigned char *) luaL_checklstring (L, 1, &text_len);
-
-  /* check if the second arg is a table */
+  /* get the arguments */
+  text        = (const unsigned char *) luaL_checklstring (L, 1, &text_len);
   luaL_checktype (L, 2, LUA_TTABLE);
-
-  /* extract the class table from inside the db table */
-  lua_pushstring (L, key_classes);
-  lua_gettable (L, 2);
-
-  /* extract the classes */
-  /* check if the arg in the top is a table */
-  if (!lua_istable(L, -1))
-    luaL_error(L, "Element '%s' of argument 2 is not a table", key_classes);
-  lua_pushnil (L);
-  num_classes = 0;
-  while (num_classes < OSBF_MAX_CLASSES && lua_next (L, -2) != 0)
-    {
-      classes[num_classes++] = luaL_checkstring (L, -1);
-      lua_pop (L, 1);
-    }
-  classes[num_classes] = NULL;
-  /* remove last index of the class table and the table itself */
-  lua_pop (L, 1);
-  if (num_classes < 1)
-    return luaL_error (L, "at least one class must be given");
-
-  /* extract the number of classes in the first subset */
-
-  lua_pushstring (L, key_ncfs);
-  lua_gettable (L, 2);
-  ncfs = luaL_checknumber (L, -1);
-  lua_pop (L, 1);
-  if (ncfs > num_classes)
-    ncfs = num_classes;
-
-  /* extract the extra token delimiters */
-  lua_pushstring (L, key_delimiters);
-  lua_gettable (L, 2);
-  delimiters = luaL_checklstring (L, -1, &delimiters_len);
-  lua_pop (L, 1);
-
-  /* extract flags, if any */
-  flags = (uint32_t) luaL_optnumber (L, 3, 0);
-  /* extract p_min_ratio if any */
+  num_classes = class_list_to_array(L, 2, classes, NELEMS(classes));
+  flags       = (uint32_t) luaL_optnumber (L, 3, 0);
   min_p_ratio = (double) luaL_optnumber (L, 4, OSBF_MIN_PMAX_PMIN_RATIO);
+  delimiters  = luaL_optlstring (L, 5, "", &delimiters_len);
+
 
   /* call osbf_classify */
   if (osbf_bayes_classify (text, text_len, delimiters, classes,
@@ -253,45 +244,39 @@ lua_osbf_classify (lua_State * L)
     }
   else
     {
+      double sum = 0;
+      /* push list of probabilities onto the stack */
       lua_newtable (L);
-      i_pmax = 0;
-      p_first_subset = p_second_subset = 10 * DBL_MIN;
-      for (i = 0; i < num_classes; i++)
-	{
-	  lua_pushnumber (L, (lua_Number) p_classes[i]);
-	  lua_rawseti (L, -2, i + 1);
-	  if (p_classes[i] > p_classes[i_pmax])
-	    i_pmax = i;
-	  if (i < ncfs)
-	    p_first_subset += p_classes[i];
-	  else
-	    p_second_subset += p_classes[i];
-	}
-
-      /*
-       * return pR, log10 of the ratio between the sum of the
-       * probabilities in the first subset and the sum of the
-       * probabilities in the second one.
-       */
-      lua_pushnumber (L,
-		      (lua_Number) pR_SCF *
-		      log10 (p_first_subset / p_second_subset));
-
-      /* exchange array and pR positions on the stack */
-      lua_insert (L, -2);
-
-      /* return index to the class with highest probability */
-      lua_pushnumber (L, (lua_Number) i_pmax + 1);
-
       /* push table with number of trainings per class */
       lua_newtable (L);
       for (i = 0; i < num_classes; i++)
 	{
+          sum += p_classes[i];
+	  lua_pushnumber (L, (lua_Number) p_classes[i]);
+	  lua_rawseti (L, -3, i + 1);
 	  lua_pushnumber (L, (lua_Number) p_trainings[i]);
 	  lua_rawseti (L, -2, i + 1);
 	}
-      return 4;
+      lua_pushnumber(L, sum);
+      lua_insert(L, -3);
+      return 3;
     }
+}
+
+static int
+lua_osbf_pR (lua_State * L)
+     /* core.pR(p1, p2) returns log(p1/p2) */
+{
+  double p1 = luaL_checknumber(L, 1);
+  double p2 = luaL_checknumber(L, 2);
+  if (lua_type(L, 3) != LUA_TNONE)
+    return luaL_error(L, "Too many arguments to core.pR");
+  else if (p2 <= 0.0)
+    return luaL_error(L, "Division by non-positive probability");
+  else {
+    lua_pushnumber (L, (lua_Number) pR_SCF * log10 (p1 / p2));
+    return 1;
+  }
 }
 
 /**********************************************************/
@@ -340,46 +325,16 @@ old_osbf_train (lua_State * L, int sense)
   const char *classes[OSBF_MAX_CLASSES + 1];
   int num_classes;
   size_t ctbt;			/* index of the class to be trained */
-  uint32_t flags = 0;		/* default value */
+  uint32_t flags;
   char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
 
-  /* get text pointer and text len */
+  /* get the arguments */
   text = (unsigned char *) luaL_checklstring (L, 1, &text_len);
-
-  /* check if the second arg is a table */
   luaL_checktype (L, 2, LUA_TTABLE);
-  /* extract the class table from inside the db table */
-  lua_pushstring (L, key_classes);
-  lua_gettable (L, 2);
-
-  /* extract the classes */
-  /* check if the arg in the top is a table */
-  luaL_checktype (L, -1, LUA_TTABLE);
-  lua_pushnil (L);
-  num_classes = 0;
-  while (num_classes < OSBF_MAX_CLASSES && lua_next (L, -2) != 0)
-    {
-      classes[num_classes++] = luaL_checkstring (L, -1);
-      lua_pop (L, 1);
-    }
-  classes[num_classes] = NULL;
-  /* remove last index of the class table and the table itself */
-  lua_pop (L, 1);
-  if (num_classes < 1)
-    return luaL_error (L, "at least one class must be given");
-
-  /* extract the extra token delimiters */
-  lua_pushstring (L, key_delimiters);
-  lua_gettable (L, 2);
-  delimiters = luaL_checklstring (L, -1, &delimiters_len);
-  lua_pop (L, 1);
-
-  /* get the index of the class to be trained */
-  ctbt = luaL_checknumber (L, 3) - 1;
-
-  /* get flags  */
-  if (lua_isnumber (L, 4))
-    flags = (uint32_t) luaL_checknumber (L, 4);
+  num_classes = class_list_to_array(L, 2, classes, NELEMS(classes));
+  ctbt = luaL_checknumber (L, 3) - 1;  /* Lua is 1-indexed; C is 0-indexed */
+  flags = (uint32_t) luaL_optnumber (L, 4, (lua_Number) 0);
+  delimiters = luaL_optlstring (L, 5, "", &delimiters_len);
 
   if (old_osbf_bayes_learn (text, text_len, delimiters, classes,
 			ctbt, sense, flags, errmsg) < 0)
@@ -597,6 +552,9 @@ set_info (lua_State * L, int idx)
   lua_pushliteral (L, "bucket_size");
   lua_pushnumber (L, (lua_Number) sizeof(OSBF_BUCKET_STRUCT));
   lua_settable (L, idx);
+  lua_pushliteral(L, "smallP");
+  lua_pushnumber (L, (lua_Number) OSBF_SMALLP);
+  lua_settable (L, idx);
 
 #define add_const(C) lua_pushliteral(L, #C); lua_pushnumber(L, (lua_Number) C); \
                      lua_settable(L, idx);
@@ -726,6 +684,7 @@ static const struct luaL_reg osbf[] = {
   {"learn", lua_osbf_old_learn},
   {"unlearn", lua_osbf_old_unlearn},
   {"train", lua_osbf_train},
+  {"pR", lua_osbf_pR},
   {"dump", lua_osbf_dump},
   {"restore", lua_osbf_restore},
   {"import", lua_osbf_import},

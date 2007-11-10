@@ -88,13 +88,9 @@ function init(email, totalsize, lang)
   local dbsize = totalsize / dbcount
   -- create new, empty databases
   local totalbytes = 0
-  local function walk(t)
-    for _, db in ipairs(t.dbnames or { }) do
-      totalbytes = totalbytes + create_single_db(db, dbsize)
-    end
-    if t.children then walk(t.children[1]); walk(t.children[2]) end
-  end    
-  walk(cfg.multitree)
+  for _, db in ipairs(cfg.dblist) do
+    totalbytes = totalbytes + create_single_db(db, dbsize)
+  end
   local config = cfg.configfile
   if util.file_is_readable(config) then
     util.write_error('Warning: not overwriting existing ', config, '\n')
