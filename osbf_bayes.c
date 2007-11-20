@@ -358,11 +358,11 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 	         class.header->learnings += 1;
 	         if (class.header->learnings >= OSBF_MAX_BUCKET_VALUE)
 	         {
-	           uint32_t i;
+	         uint32_t i;
 
-	           class.header->learnings >>= 1;
-	           for (i = 0; i < NUM_BUCKETS (&class); i++)
-	             BUCKET_VALUE (&class, i) = BUCKET_VALUE (&class, i) >> 1;
+	         class.header->learnings >>= 1;
+	         for (i = 0; i < NUM_BUCKETS (&class); i++)
+	         BUCKET_VALUE (&class, i) = BUCKET_VALUE (&class, i) >> 1;
 	         }
 	       */
 
@@ -412,13 +412,13 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 /* Train the specified class with the text pointed to by "p_text" */
 /******************************************************************/
 int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
-		      unsigned long text_len,	/* length of text */
-		      const char *delims,	/* token delimiters */
-		      const char *classnames[],	/* class file names */
-		      uint32_t ctbt,	/* index of the class to be trained */
-		      int sense,	/* 1 => learn;  -1 => unlearn */
-		      uint32_t flags,	/* flags */
-		      char *errmsg)
+			  unsigned long text_len,	/* length of text */
+			  const char *delims,	/* token delimiters */
+			  const char *classnames[],	/* class file names */
+			  uint32_t ctbt,	/* index of the class to be trained */
+			  int sense,	/* 1 => learn;  -1 => unlearn */
+			  uint32_t flags,	/* flags */
+			  char *errmsg)
 {
   int err;
   uint32_t window_idx;
@@ -646,6 +646,7 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
   CLASS_STRUCT class[OSBF_MAX_CLASSES];
 
   int32_t num_classes;
+  double a_priori_prob;		/* inverse of the number of classes: 1/num_classes */
   uint32_t total_learnings = 0;
   uint32_t totalfeatures;	/* total features */
 
@@ -697,7 +698,21 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
       /* update total learnings */
       total_learnings += class[i].learnings;
     }
+
   num_classes = i;
+
+  if (num_classes == 0)
+    {
+      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
+		"At least one class must be given.");
+      return (-1);
+    }
+  else
+    {
+      /* a-priori, zero-knowledge, class probability */
+      a_priori_prob = 1 / num_classes;
+    }
+
   exponent = pow (total_learnings * 3, 0.2);
   if (exponent < 5)
     {
@@ -707,13 +722,6 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
       feature_weight[4] = pow (exponent * 2.0 / 5.0, exponent * 2.0 / 5.0);
     }
 
-  if (num_classes == 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"At least one class must be given.");
-      return (-1);
-    }
-
   for (i = 0; i < num_classes; i++)
     {
       /*  initialize our arrays for N .cfc files */
@@ -721,7 +729,7 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
       class[i].totalhits = 0;	/* absolute hit counts */
       class[i].uniquefeatures = 0;	/* features counted per class */
       class[i].missedfeatures = 0;	/* missed features per class */
-      ptc[i] = (double) class[i].learnings / total_learnings;	/* a priori probability */
+      ptc[i] = (double) class[i].learnings / total_learnings;	/* a priori probability after some knowledge */
     }
 
   /* do we have at least 1 valid .cfc files? */
@@ -965,8 +973,8 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 	     * calculated value is adjusted using the following
 	     * formula:
 	     *
-	     *  CP(Feature|Class) = 0.5 + 
-	     *             CF(Feature) * (P(Feature|Class) - 0.5)
+	     *  CP(Feature|Class) = 1/num_classes + 
+	     *     CF(Feature) * (P(Feature|Class) - 1/num_classes)
 	     *
 	     * Where CF(Feature) is the confidence factor and
 	     * CP(Feature|Class) is the adjusted estimate for the
@@ -1092,11 +1100,10 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 		 * P(F|C) = hits[k]/learnings[k], adjusted by the
 		 * confidence factor.
 		 */
-		ptc[class_idx] = ptc[class_idx] * (0.5 + confidence_factor *
-						   (class[class_idx].
-						    hits /
-						    class[class_idx].
-						    learnings - 0.5));
+		ptc[class_idx] = ptc[class_idx] *
+		  (a_priori_prob + confidence_factor *
+		   (class[class_idx].hits / class[class_idx].learnings -
+		    a_priori_prob));
 
 		if (ptc[class_idx] < 10 * OSBF_DBL_MIN)
 		  ptc[class_idx] = 10 * OSBF_DBL_MIN;
