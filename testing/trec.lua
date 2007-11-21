@@ -34,6 +34,7 @@ cfg.limit = 500000
 local result = assert(io.open('result', 'w'))
 local max_lines = 5000
 local num_lines = 0
+local learnings = 0
 for l in assert(io.lines(trecdir .. 'index')) do
   num_lines = num_lines + 1
   if num_lines > max_lines then
@@ -41,12 +42,12 @@ for l in assert(io.lines(trecdir .. 'index')) do
   end
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')
   local m = msg.of_any(trecdir .. file)
-  local train, pRs, tag, _, class = commands.classify(m)
-  local pR = util.min_abs(pRs)
+  local train, pR, tag, _, class = commands.classify(m)
   if train or class ~= labelled then
     local sfid = cache.generate_sfid(tag, pR)
     cache.store(sfid, msg.to_orig_string(m))
     commands.learn(sfid, labelled)
+    learnings = learnings + 1
   end
 
   result:write(string.format("%s judge=%s class=%s score=%.4f\n",
@@ -55,3 +56,4 @@ for l in assert(io.lines(trecdir .. 'index')) do
 --                             file, labelled, class, -pR))
 end
 result:close()
+io.stderr:write('Test suite required ', learnings, ' learnings\n')

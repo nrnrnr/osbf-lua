@@ -510,17 +510,15 @@ function generate_training_message(email, temail, opt_locale)
   local sfids = {}
   local outside_minimum = {}
   for sfid in cache.two_days_sfids() do
-    if cache.sfid_is_learnable(sfid) then
-      if cache.sfid_is_in_reinforcement_zone(sfid) then
+    local t = cache.table_of_sfid
+    if not t.learned and not cache.tag_is_unlearnable(t.tag) then
+      if t.confidence < cfg.classes[t.class].threshold then -- should be train_below 
         table.insert(sfids, sfid)
         if #sfids >= max_sfids then
           break
         end
-      else
-        local ct = cfg.classes[cache.sfid_class(sfid)].threshold
-        if math.abs(cache.sfid_score(sfid)) < math.max(threshold, ct) then
-          table.insert(outside_minimum, sfid)
-        end
+      elseif t.confidence < math.max(threshold, cfg.classes[t.class].threshold) then
+        table.insert(outside_minimum, sfid)
       end
     end
   end
@@ -534,7 +532,7 @@ function generate_training_message(email, temail, opt_locale)
     end
   end
 
-  table.sort(sfids, cache.cmp_sfids(cfg.cache_report_order))
+  cache.sort_sfids(sfids) -- should be redundant (but then should be cheap)
   return(message(sfids, email, temail, ready))
 end
 

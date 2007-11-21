@@ -273,7 +273,7 @@ function learner(cmd)
         local learned_as_ham_and_tagged =
           cmd == commands.learn and cfg.classes[classification].resend ~= false and
           cfg.tag_subject and
-          cache.sfid_score(sfid) < cfg.classes[classification].threshold
+          cache.table_of_sfid(sfid).confidence <= cfg.classes[classification].threshold
         if learned_as_ham_and_tagged and util.is_output_set_to_message() then
           local m = msg.of_sfid(sfid)
           local subj_cmd = 'resend ' .. cfg.pwd .. ' ' .. sfid

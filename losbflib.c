@@ -206,6 +206,47 @@ static unsigned class_list_to_array(lua_State *L,
 }
   
 
+/* this function asserts that probabilities add up to 1.0, within rounding error */
+static void check_sum_is_one(double *p_classes, unsigned num_classes);
+
+#define ULP 2.23e-16 /* http://docs.sun.com/source/806-3568/ncg_math.html */
+  /* one unit in the last place */
+
+
+
+#ifdef NDEBUG
+static void check_sum_is_one(double *p_classes, unsigned num_classes) { exit(99); }
+#else
+static void check_sum_is_one(double *p_classes, unsigned num_classes) { 
+  /* sort before adding to avoid rounding error */
+  double sorted[OSBF_MAX_CLASSES], sum, badsum;
+  unsigned i, n;
+  for (n = 0; n < num_classes; n++) {
+    sorted[n] = p_classes[n];
+    /* insertion sort; fastest for num_classes < 12 (Sedgewick PhD thesis) */
+    for (i = n - 1; i <= 0 && p_classes[i] > p_classes[i+1]; i--) {
+      double tmp;
+      tmp = sorted[i]; sorted[i] = sorted[i+1]; sorted[i+1] = tmp;
+    }
+  }
+  for (i = 0; i < num_classes - 1; i++)
+    assert(sorted[i] <= sorted[i+1]);
+  badsum = sum = 0.0;
+  /* add small numbers first to avoid rounding error */
+  for (i = 0; i < num_classes; i++) {
+    sum += sorted[i];
+    badsum += p_classes[i];
+  }
+  assert(fabs(sum - 1.0) < 10 * ULP);
+  fprintf(stderr, "Sum - 1.0 = %9g; ", sum - 1.0);
+  fprintf(stderr, "smallest probability = %9g\n", sorted[0]);
+  fprintf(stderr, "badsum - sum = %9g\n", badsum - sum);
+}
+#endif
+
+
+
+
 /**********************************************************/
 
 static int
@@ -234,7 +275,6 @@ lua_osbf_classify (lua_State * L)
   min_p_ratio = (double) luaL_optnumber (L, 4, OSBF_MIN_PMAX_PMIN_RATIO);
   delimiters  = luaL_optlstring (L, 5, "", &delimiters_len);
 
-
   /* call osbf_classify */
   if (osbf_bayes_classify (text, text_len, delimiters, classes,
 			   flags, min_p_ratio, p_classes, p_trainings,
@@ -249,14 +289,18 @@ lua_osbf_classify (lua_State * L)
       lua_newtable (L);
       /* push table with number of trainings per class */
       lua_newtable (L);
+      fprintf(stderr, "Classified %5d characters", text_len);
       for (i = 0; i < num_classes; i++)
 	{
           sum += p_classes[i];
+          fprintf(stderr, "; P(database %d) = %.2g", i, p_classes[i]);
 	  lua_pushnumber (L, (lua_Number) p_classes[i]);
 	  lua_rawseti (L, -3, i + 1);
 	  lua_pushnumber (L, (lua_Number) p_trainings[i]);
 	  lua_rawseti (L, -2, i + 1);
 	}
+      fprintf(stderr, "\n");
+      check_sum_is_one(p_classes, num_classes);
       lua_pushnumber(L, sum);
       lua_insert(L, -3);
       return 3;

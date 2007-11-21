@@ -11,6 +11,8 @@ return {
   -- command password
   pwd = "your_password_here", -- no spaces allowed
 
+  -- XXX change 'threshold' to 'train_below' everywhere it makes sense
+
   -- classes of email received
   --   1. Table for each class name of
   --        sfid      -- unique lowercase letter to identify class (required)
@@ -20,6 +22,7 @@ return {
   --        threshold -- pR below which training is assumed needed (default 20)
   --        pR_boost  -- a number added to pR for this class (default 0)
   --        resend    -- if this message is trained, resend it with new headers
+  -- XXXX needs new names 'train_below' and 'confidence_boost'
   classes = {
     ham  = { sfid = 'h', sure = '',   unsure = '+', threshold = threshold },
     spam = { sfid = 's', sure = '--', unsure = '-', threshold = threshold,
@@ -109,8 +112,8 @@ return {
   cache_report_limit = 50,
 
   -- Option to set what to order sfids by in cache report
-  -- Valid values are 'date' and 'score' (absolute value)
-  cache_report_order_by = "score",
+  -- Valid values are 'date' and 'confidence'
+  cache_report_order_by = "confidence",
 
   -- Order of messages in cache report.
   -- '<' => ascending; '>' => descending

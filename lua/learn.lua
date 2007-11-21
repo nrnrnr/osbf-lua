@@ -85,7 +85,7 @@ cfg.after_loading_do(function()
                 
 local msgmod = msg
 
-__doc.tone = [[function(text, index, original) returns new_pR, old_pR or errors
+__doc.tone = [[function(text, index, original) returns old_pR, new_pR or errors
 Conditionally train 'text' as belonging to database
 dblist[index]. Training is actually done 'on or near error' (TONE): 
 if the classifier produces the wrong classification (different from
@@ -101,23 +101,23 @@ return identical probabilities.
 
 local function tone(text, index)
 
-  local pR, class, train = classify_without_tags(text)
+  local pR, cindex = most_likely_pR_and_index(text)
 
-  if class ~= index2class[index] then
+  if cindex ~= index then
     -- core.MISTAKE indicates that the mistake counter in the database
     -- must be incremented. This is an approximate counting because there
     -- can be cases where there was no mistake in the first
     -- classification, but because of other trainings in between, the
     -- present classification is wrong. And vice-versa.
     core.learn(text, dblist, index, core.MISTAKE)
-    return (classify_without_tags(text)), pR
+    return pR, (most_likely_pR_and_index(text))
   elseif math.abs(pR) < overtraining_protection_threshold then
     -- N.B. We don't test 'train' here because if we reach this point,
     -- the user has decided training is needed.  Thus we use only the
     -- overtraining-protection threshold in order to protect the integrity
     -- of the database.
     core.learn(text, dblist, index)
-    return (classify_without_tags(text)), pR
+    return pR, (most_likely_pR_and_index(text))
   else
     return pR, pR
   end
@@ -130,9 +130,8 @@ end
 
 local function tone_msg_and_reinforce_header(lim_orig_msg, lim_orig_header, index)
   -- train on the whole message if on or near error
-  local class = index2class[index]
-  local new_pR, orig_pR = tone(lim_orig_msg, index)
-  if   new_pR > cfg.classes[class].threshold + threshold_offset
+  local orig_pR, new_pR = tone(lim_orig_msg, index)
+  if   new_pR > cfg.classes[index2class[index]].threshold + threshold_offset
   and  math.abs(new_pR - orig_pR) < header_learn_threshold
   then 
     -- Iterative training on the header only (header reinforcement)
@@ -150,8 +149,8 @@ local function tone_msg_and_reinforce_header(lim_orig_msg, lim_orig_header, inde
       core.learn(lim_orig_header, dblist, index, k.learn_flags+core.EXTRA_LEARNING)
       debug_out:write('Reinforced ', index2class[index], ' with pR = ', pR, '\n')
       local new_class
-      new_pR, new_class = classify_without_tags(lim_orig_msg, k.classify_flags)
-      if new_class == class and (new_pR > trd or math.abs (pR - new_pR) >= rd) then
+      new_pR, new_index = most_likely_pR_and_index(lim_orig_msg, k.classify_flags)
+      if new_index == index and (new_pR > trd or math.abs (pR - new_pR) >= rd) then
         break
       end
     end
@@ -211,14 +210,14 @@ but the message was previously learned as %s.]],
 
   local lim = msg.lim
   local k = cfg.constants
-  local old_pR = classify_without_tags(lim.msg, k.classify_flags)
+  local old_pR = most_likely_pR_and_class(lim.msg, k.classify_flags)
   local index = class2index[status]
   core.unlearn(lim.msg, dblist, index, k.learn_flags+core.MISTAKE)
-  local pR, class = classify_without_tags(lim.msg, k.classify_flags)
+  local pR, class = most_likely_pR_and_class(lim.msg, k.classify_flags)
   for i = 1, parms.reinforcement_limit do
     if class == status and pR > threshold_offset then
       core.unlearn(lim.header, dblist, index, k.learn_flags)
-      pR, class = classify_without_tags(lim.msg, k.classify_flags)
+      pR, class = most_likely_pR_and_class(lim.msg, k.classify_flags)
     else
       break
     end
@@ -266,39 +265,64 @@ local function wrap_subj_tag(s)
   if s and s ~= '' then return '[' .. s .. ']' else return '' end
 end
 
-__doc.classify_without_tags = 
+__doc.most_likely_pR_and_class = 
 [[function(text, flags) returns pR, classification, train
 train is a boolean or nil; 
 pR the log of ratio of the probability for the chosen class
 ]]
 
-local smallP, core_pR = core.smallP, core.pR
-function classify_without_tags(msg, flags)
-  local sum, probs, trainings = core.classify(msg, dblist, flags)
-  assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table')
-  local classprobs = { }
-  for i = 1, #probs do
-    local class = index2class[i]
-    classprobs[class] = (classprobs[class] or 0) + probs[i]
-  end
-  local max_pR, class = -10000, 'this cannot happen'
-  -- find the class with the largest pR
-  for _, c in ipairs(classes) do
-    assert(cfg.classes[c], 'missing configuration for class')
-    local P = classprobs[c] or 0
-    local pR = core_pR(smallP + P, smallP + (sum - P)) + boost[c]
-    debug_out:write(string.format('%-20s = %8.3g; P(others) = %8.3g; pR(%s) = %.2f\n',
-                                  'P(' .. c .. ')',
-                                  smallP + P, smallP + (sum - P), c, pR))
-    -- debug_out:write('pR for class ', c, ' = ' , pR, '\n')
-    if pR > max_pR then
-      max_pR, class = pR, c
+do
+  local smallP, core_pR = core.smallP, core.pR
+  local function most_likely_in_table(probs, size, boost)
+    local max_pR, most_likely = -10000, 'this cannot happen'
+    -- find the table key with the largest pR
+    if not size then size = 0; for _ in pairs(probs) do size = size + 1 end end
+    local k = size - 1
+    assert(k > 0, 'Must decide most likely among two or more things')
+    for key, P in pairs(probs) do
+      local pR = core_pR(smallP + P, smallP + (1.0 - P) / k) + boost[key]
+      debug_out:write(string.format('%-20s = %8.3g; P(others) = %8.3g; pR(%s) = %.2f\n',
+                                  'P(' .. key .. ')',
+                                  smallP + P, smallP + (1.0 - P), key, pR))
+      if pR > max_pR then
+        max_pR, most_likely = pR, key
+      end
     end
+    return max_pR, most_likely
   end
-  local train = max_pR < cfg.classes[class].threshold
-  debug_out:write('Classified ', table.concat(dblist, '#'),
-                  ' as class ', class, ' with score ', max_pR, '\n')
-  return max_pR, class, train
+
+  local index_boost = { }
+  setmetatable(index_boost, { __index = function() return 0 end })
+
+  function most_likely_pR_and_index(msg, flags)
+    local sum, probs, trainings = core.classify(msg, dblist, flags)
+    assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table')
+    return most_likely_in_table(probs, #probs, index_boost)
+  end
+
+  local class_boost
+  cfg.after_loading_do(function()
+                         class_boost = { }
+                         for class, t in pairs(cfg.classes) do
+                           class_boost[class] = t.pR_boost
+                         end
+                       end)
+
+  function most_likely_pR_and_class(msg, flags)
+    local sum, probs, trainings = core.classify(msg, dblist, flags)
+    assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table')
+    local classprobs = { }
+    for i = 1, #probs do
+      local class = index2class[i]
+      classprobs[class] = (classprobs[class] or 0) + probs[i]
+    end
+    local pR, class = most_likely_in_table(classprobs, #classes, class_boost)
+    local train = pR < cfg.classes[class].threshold
+    debug_out:write('Classified ', table.concat(dblist, '#'),
+                    ' as class ', class, ' with score ', pR,
+                    train and ' (train)' or '', '\n')
+    return pR, class, train
+  end
 end
 
 function classify (msg)
@@ -331,7 +355,7 @@ function classify (msg)
     (cfg.count_classifications and core.COUNT_CLASSIFICATIONS or 0)
          + cfg.constants.classify_flags
   local pR, class, train =
-    classify_without_tags(msg.lim.msg, count_classifications_flags)
+    most_likely_pR_and_class(msg.lim.msg, count_classifications_flags)
   local t = assert(cfg.classes[class], 'missing configuration for class')
   sfid_tag = sfid_tag or
     string.upper(util.insistf(t.sfid, 'missing sfid tag for %s', class))
