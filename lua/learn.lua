@@ -101,25 +101,39 @@ return identical probabilities.
 
 local function tone(text, index)
 
-  local pR, cindex = most_likely_pR_and_index(text)
+  local target_class = index2class[index]
+  local pR, class = most_likely_pR_and_class(text)
 
-  if cindex ~= index then
+  if class ~= target_class then
     -- core.MISTAKE indicates that the mistake counter in the database
     -- must be incremented. This is an approximate counting because there
     -- can be cases where there was no mistake in the first
     -- classification, but because of other trainings in between, the
     -- present classification is wrong. And vice-versa.
     core.learn(text, dblist, index, core.MISTAKE)
-    return pR, (most_likely_pR_and_index(text))
+    -- guarantee that starting class for tone-hr is the target class
+    local new_pR, new_class = most_likely_pR_and_class(text)
+    debug_out:write(string.format("Tone: pR = %.2f; new_pR = %.2f; target class = %s; class = %s\n", pR, new_pR, target_class, new_class))
+    local count = 0
+    while new_class ~= target_class and count < 10 do
+      core.learn(text, dblist, index) -- no mistake flag here
+      new_pR, new_class = most_likely_pR_and_class(text)
+      debug_out:write(string.format(" Tone - forcing right class: pR = %.2f; new_pR = %.2f; new_class = %s\n", pR, new_pR, new_class))
+      count = count + 1
+    end
+    assert(count <= 10, "Training doesn't converge")
+    return pR, new_pR, class, new_class
   elseif math.abs(pR) < overtraining_protection_threshold then
     -- N.B. We don't test 'train' here because if we reach this point,
     -- the user has decided training is needed.  Thus we use only the
     -- overtraining-protection threshold in order to protect the integrity
     -- of the database.
     core.learn(text, dblist, index)
-    return pR, (most_likely_pR_and_index(text))
+    local new_pR, new_class = most_likely_pR_and_class(text)
+    debug_out:write(string.format("Tone - already right class: pR = %.2f; new_pR = %.2f; target class = %s\n", pR, new_pR, target_class))
+    return pR, new_pR, class, new_class
   else
-    return pR, pR
+    return pR, pR, class, class
   end
 end
 
@@ -130,8 +144,11 @@ end
 
 local function tone_msg_and_reinforce_header(lim_orig_msg, lim_orig_header, index)
   -- train on the whole message if on or near error
-  local orig_pR, new_pR = tone(lim_orig_msg, index)
-  if   new_pR > cfg.classes[index2class[index]].threshold + threshold_offset
+  local target_class = index2class[index]
+  -- tone guarantees that new_class == target_class
+  local orig_pR, new_pR, class, new_class = tone(lim_orig_msg, index)
+  debug_out:write(string.format('Tone_hr - old pR: %.2f; new pR: %.2f; new_class: %s; target: %s\n', orig_pR, new_pR, new_class, target_class))
+  if new_pR < cfg.classes[target_class].threshold + threshold_offset
   and  math.abs(new_pR - orig_pR) < header_learn_threshold
   then 
     -- Iterative training on the header only (header reinforcement)
@@ -147,10 +164,9 @@ local function tone_msg_and_reinforce_header(lim_orig_msg, lim_orig_header, inde
       -- (may exit early if the change in new_pR is big enough)
       pR = new_pR
       core.learn(lim_orig_header, dblist, index, k.learn_flags+core.EXTRA_LEARNING)
-      debug_out:write('Reinforced ', index2class[index], ' with pR = ', pR, '\n')
-      local new_class
-      new_pR, new_index = most_likely_pR_and_index(lim_orig_msg, k.classify_flags)
-      if new_index == index and (new_pR > trd or math.abs (pR - new_pR) >= rd) then
+      debug_out:write('Reinforced ', target_class, ' with pR = ', pR, '\n')
+      new_pR = most_likely_pR_and_class(lim_orig_msg, k.classify_flags)
+      if new_pR > trd or math.abs (pR - new_pR) >= rd then
         break
       end
     end
@@ -176,6 +192,7 @@ function learn(sfid, classification)
     error(learned_as_msg(status))
   end
   local lim = msg.lim
+  debug_out:write('\nLearning...\n')
   local orig, new =
     tone_msg_and_reinforce_header(lim.header, lim.msg, class2index[classification])
   cache.change_file_status(sfid, status, classification)
@@ -273,17 +290,18 @@ pR the log of ratio of the probability for the chosen class
 
 do
   local smallP, core_pR = core.smallP, core.pR
-  local function most_likely_in_table(probs, size, boost)
+  local function most_likely_in_table(sum, probs, size, boost)
     local max_pR, most_likely = -10000, 'this cannot happen'
     -- find the table key with the largest pR
     if not size then size = 0; for _ in pairs(probs) do size = size + 1 end end
     local k = size - 1
     assert(k > 0, 'Must decide most likely among two or more things')
     for key, P in pairs(probs) do
-      local pR = core_pR(smallP + P, smallP + (1.0 - P) / k) + boost[key]
+      --local pR = core_pR(smallP + P, smallP + (1.0 - P) / k) + boost[key]
+      pR = core_pR(smallP + P, smallP + (sum - P)/ k) + boost[key]
       debug_out:write(string.format('%-20s = %8.3g; P(others) = %8.3g; pR(%s) = %.2f\n',
                                   'P(' .. key .. ')',
-                                  smallP + P, smallP + (1.0 - P), key, pR))
+                                  smallP + P, smallP + (sum - P), key, pR))
       if pR > max_pR then
         max_pR, most_likely = pR, key
       end
@@ -297,7 +315,7 @@ do
   function most_likely_pR_and_index(msg, flags)
     local sum, probs, trainings = core.classify(msg, dblist, flags)
     assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table')
-    return most_likely_in_table(probs, #probs, index_boost)
+    return most_likely_in_table(sum, probs, #probs, index_boost)
   end
 
   local class_boost
@@ -316,7 +334,7 @@ do
       local class = index2class[i]
       classprobs[class] = (classprobs[class] or 0) + probs[i]
     end
-    local pR, class = most_likely_in_table(classprobs, #classes, class_boost)
+    local pR, class = most_likely_in_table(sum, classprobs, #classes, class_boost)
     local train = pR < cfg.classes[class].threshold
     debug_out:write('Classified ', table.concat(dblist, '#'),
                     ' as class ', class, ' with score ', pR,
@@ -354,6 +372,7 @@ function classify (msg)
   local count_classifications_flags =
     (cfg.count_classifications and core.COUNT_CLASSIFICATIONS or 0)
          + cfg.constants.classify_flags
+  debug_out:write('\nClassifying...\n')
   local pR, class, train =
     most_likely_pR_and_class(msg.lim.msg, count_classifications_flags)
   local t = assert(cfg.classes[class], 'missing configuration for class')

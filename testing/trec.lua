@@ -43,6 +43,7 @@ for l in assert(io.lines(trecdir .. 'index')) do
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')
   local m = msg.of_any(trecdir .. file)
   local train, pR, tag, _, class = commands.classify(m)
+  pR = class == 'ham' and pR or -pR
   if train or class ~= labelled then
     local sfid = cache.generate_sfid(tag, pR)
     cache.store(sfid, msg.to_orig_string(m))

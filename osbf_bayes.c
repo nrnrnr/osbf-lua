@@ -710,7 +710,7 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
   else
     {
       /* a-priori, zero-knowledge, class probability */
-      a_priori_prob = 1 / num_classes;
+      a_priori_prob = 1.0 / num_classes;
     }
 
   exponent = pow (total_learnings * 3, 0.2);
