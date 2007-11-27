@@ -1,0 +1,19 @@
+#!/bin/sh
+
+for i in db2class class2db dblist index2class class2index
+do
+  for lua in *.lua
+  do
+    case $lua in
+      learn.lua|core_doc.lua) ;; # do nothing
+      *) exposed=`grep -wl $i $lua`
+         if [ -n "$exposed" ]; then
+           echo "$i is mistakenly exposed to file $lua" 1>&2
+           exit 1
+         fi
+         ;;
+    esac
+  done
+done
+
+

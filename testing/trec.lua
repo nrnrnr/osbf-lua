@@ -25,14 +25,16 @@ os.execute('/bin/mkdir ' .. test_dir)
 opts['udir'] = test_dir
 
 osbf.init(opts, true)
--- local db_total_size = 96009072 -- 4000037 buckets/database, used in TREC2006
+local db_total_size = 96009072 -- 4000037 buckets/database, used in TREC2006
 local email = 'test@test'
 commands.init(email, db_total_size)
 
 cfg.limit = 500000
 
+pcall = function(f, ...) return true, f(...) end
+
 local result = assert(io.open('result', 'w'))
-local max_lines = 5000
+local max_lines = tonumber(os.getenv 'TREC_MAX' or 5000)
 local num_lines = 0
 local learnings = 0
 for l in assert(io.lines(trecdir .. 'index')) do
@@ -43,7 +45,7 @@ for l in assert(io.lines(trecdir .. 'index')) do
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')
   local m = msg.of_any(trecdir .. file)
   local train, pR, tag, _, class = commands.classify(m)
-  pR = class == 'ham' and pR or -pR
+  pR = class == 'ham' and pR or (pR > 0 and -pR or pR)
   if train or class ~= labelled then
     local sfid = cache.generate_sfid(tag, pR)
     cache.store(sfid, msg.to_orig_string(m))

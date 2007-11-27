@@ -18,7 +18,6 @@ return {
   --        sfid      -- unique lowercase letter to identify class (required)
   --        sure      -- Subject: tag when mail definitely classified (default empty)
   --        unsure    -- Subject: tag when mail in reinforcement zone (default '?')
-  --        dbs       -- list of databases for this class (default { class .. '.cfc' })
   --        threshold -- pR below which training is assumed needed (default 20)
   --        pR_boost  -- a number added to pR for this class (default 0)
   --        resend    -- if this message is trained, resend it with new headers
@@ -32,7 +31,7 @@ return {
   -- -- alternative classification
   -- classes = {
   --   spam      = { sure = '--', unsure = '-', sfid = 's', threshold = threshold,
-  --                 dbs = { 'spam.cfc', 'globalspam.cfc' }, resend = false
+  --                 resend = false
   --               },
   --   personal  = { sfid = 'p', sure = '',   unsure = '+', threshold = 10 },
   --   ecommerce = { sfid = 'c', sure = '$$', unsure = '$', threshold = threshold },

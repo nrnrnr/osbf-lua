@@ -1,5 +1,5 @@
-local string, io, require, os, assert, ipairs, type, math =
-      string, io, require, os, assert, ipairs, type, math
+local string, io, require, os, assert, ipairs, pairs, type, math =
+      string, io, require, os, assert, ipairs, pairs, type, math
 
 module(...)
 
@@ -80,7 +80,8 @@ function init(email, totalsize, lang)
     util.mkdir(d)
   end
 
-  local dbcount = #cfg.dblist
+  local classes = cfg.classlist()
+  local dbcount = #classes
   totalsize = totalsize or dbcount * cfg.constants.default_db_megabytes * 1024 * 1024
   if type(totalsize) ~= 'number' then
     util.die('Database size must be a number')
@@ -88,8 +89,8 @@ function init(email, totalsize, lang)
   local dbsize = totalsize / dbcount
   -- create new, empty databases
   local totalbytes = 0
-  for _, db in ipairs(cfg.dblist) do
-    totalbytes = totalbytes + create_single_db(db, dbsize)
+  for c, tbl in pairs(cfg.classes) do
+    totalbytes = totalbytes + create_single_db(tbl.db, dbsize)
   end
   local config = cfg.configfile
   if util.file_is_readable(config) then

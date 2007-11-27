@@ -3,6 +3,7 @@ SRC=$(shell echo *.lua)
 all: doc
 
 test: 
+	./test-hiding
 	(cd ..; make test)
 
 install: 

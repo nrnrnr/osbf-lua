@@ -26,7 +26,7 @@
 #include <inttypes.h>
 #include <errno.h>
 
-#define DEBUG 0
+#define DEBUG 0  /* usefully 0, 1, 2, or > 2 */
 
 /*  OSBF structures */
 #include "osbflib.h"
@@ -278,7 +278,7 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 	hashpipe[h] = hashpipe[h - 1];
       hashpipe[0] = ts.hash;
 
-#if (DEBUG)
+#if (DEBUG > 2)
       {
 	fprintf (stderr, "  Hashpipe contents: ");
 	for (h = 0; h < OSB_BAYES_WINDOW_LEN; h++)
@@ -305,7 +305,7 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 #endif
 	    hindex = h1 % class.header->num_buckets;
 
-#if (DEBUG)
+#if (DEBUG > 0)
 	    fprintf (stderr,
 		     "Polynomial %" PRIu32 " has h1:%" PRIu32 "  h2: %"
 		     PRIu32 "\n", window_idx, h1, h2);
@@ -487,7 +487,7 @@ int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
 	hashpipe[h] = hashpipe[h - 1];
       hashpipe[0] = ts.hash;
 
-#if (DEBUG)
+#if (DEBUG > 2)
       {
 	fprintf (stderr, "  Hashpipe contents: ");
 	for (h = 0; h < OSB_BAYES_WINDOW_LEN; h++)
@@ -514,7 +514,7 @@ int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
 #endif
 	    hindex = h1 % class[ctbt].header->num_buckets;
 
-#if (DEBUG)
+#if (DEBUG > 2)
 	    fprintf (stderr,
 		     "Polynomial %" PRIu32 " has h1:%" PRIu32 "  h2: %"
 		     PRIu32 "\n", window_idx, h1, h2);
@@ -710,7 +710,7 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
   else
     {
       /* a-priori, zero-knowledge, class probability */
-      a_priori_prob = 1.0 / num_classes;
+      a_priori_prob = 1.0 / (double) num_classes;
     }
 
   exponent = pow (total_learnings * 3, 0.2);
@@ -799,7 +799,7 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 
 	    hindex = h1;
 
-#if (DEBUG)
+#if (DEBUG > 2)
 	    fprintf (stderr,
 		     "Polynomial %" PRIu32 " has h1:%i" PRIu32 "  h2: %"
 		     PRIu32 "\n", window_idx, h1, h2);
@@ -1082,7 +1082,7 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 								  [window_idx]));
 #endif
 
-#if (DEBUG)
+#if (DEBUG > 1)
 	      fprintf
 		(stderr,
 		 "CF: %.4f, max_hits = %3" PRIu32 ", min_hits = %3" PRIu32
@@ -1108,7 +1108,7 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 		if (ptc[class_idx] < 10 * OSBF_DBL_MIN)
 		  ptc[class_idx] = 10 * OSBF_DBL_MIN;
 		renorm += ptc[class_idx];
-#if (DEBUG)
+#if (DEBUG > 1)
 		fprintf (stderr, "CF: %.4f, class[k].totalhits: %" PRIu32 ", "
 			 "missedfeatures[k]: %" PRIu32
 			 ", uniquefeatures[k]: %" PRIu32 ", "
@@ -1125,7 +1125,7 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 	    for (class_idx = 0; class_idx < num_classes; class_idx++)
 	      ptc[class_idx] = ptc[class_idx] / renorm;
 
-#if (DEBUG)
+#if (DEBUG > 2)
 	    {
 	      for (class_idx = 0; class_idx < num_classes; class_idx++)
 		{
@@ -1195,7 +1195,7 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
       }
   }
 
-#if (DEBUG)
+#if (DEBUG > 0)
   {
     for (class_idx = 0; class_idx < num_classes; class_idx++)
       fprintf (stderr,

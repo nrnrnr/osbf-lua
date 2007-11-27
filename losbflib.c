@@ -238,9 +238,11 @@ static void check_sum_is_one(double *p_classes, unsigned num_classes) {
     badsum += p_classes[i];
   }
   assert(fabs(sum - 1.0) < 10 * ULP);
+#if 0
   fprintf(stderr, "Sum - 1.0 = %9g; ", sum - 1.0);
   fprintf(stderr, "smallest probability = %9g\n", sorted[0]);
   fprintf(stderr, "badsum - sum = %9g\n", badsum - sum);
+#endif
 }
 #endif
 
@@ -289,17 +291,23 @@ lua_osbf_classify (lua_State * L)
       lua_newtable (L);
       /* push table with number of trainings per class */
       lua_newtable (L);
+#if 0
       fprintf(stderr, "Classified %5d characters", text_len);
+#endif
       for (i = 0; i < num_classes; i++)
 	{
           sum += p_classes[i];
+#if 0
           fprintf(stderr, "; P(database %d) = %.2g", i, p_classes[i]);
+#endif
 	  lua_pushnumber (L, (lua_Number) p_classes[i]);
 	  lua_rawseti (L, -3, i + 1);
 	  lua_pushnumber (L, (lua_Number) p_trainings[i]);
 	  lua_rawseti (L, -2, i + 1);
 	}
+#if 0
       fprintf(stderr, "\n");
+#endif
       check_sum_is_one(p_classes, num_classes);
       lua_pushnumber(L, sum);
       lua_insert(L, -3);
@@ -313,12 +321,16 @@ lua_osbf_pR (lua_State * L)
 {
   double p1 = luaL_checknumber(L, 1);
   double p2 = luaL_checknumber(L, 2);
+  double ratio;
   if (lua_type(L, 3) != LUA_TNONE)
     return luaL_error(L, "Too many arguments to core.pR");
-  else if (p2 <= 0.0)
-    return luaL_error(L, "Division by non-positive probability");
   else {
-    lua_pushnumber (L, (lua_Number) pR_SCF * log10 (p1 / p2));
+    if (p2 <= 0.0)
+      p2 = OSBF_SMALLP;
+    ratio = p1 / p2;
+    if (ratio <= 0.0)
+      ratio = OSBF_SMALLP;
+    lua_pushnumber (L, (lua_Number) pR_SCF * log10 (ratio));
     return 1;
   }
 }

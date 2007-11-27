@@ -365,7 +365,6 @@ It is also possible to include other information:
   sfid      -- unique lowercase letter to identify class (required)
   sure      -- Subject: tag when mail definitely classified (defaults empty)
   unsure    -- Subject: tag when mail in reinforcement zone (defaults '?')
-  dbs       -- list of databases for this class (defaults { class .. '.cfc' })
   threshold -- pR below which training is assumed needed (defaults 20)
   pR_boost  -- during classification, a number added to pR for this class (default 0)
   resend    -- if this message is trained, resend it with new headers (default true)
@@ -376,28 +375,17 @@ Sfids 's' and 'h' are reserved for 'spam' and 'ham', and sfids 'w',
 Once the filter is well trained, thresholds should be reduced from the 
 default value of 20 to something like 10, to reduce the burden of training.
 (We'd love to have an automatic reduction, but we don't have an algorithm.)
-
-If dbs is given, each name should be relative to the user's database 
-directory (normally the 'udir').  It is pointless to give dbs unless
-there is more than one name on the list.  One possibility, for example, 
-would be to use both global and user-specific databases for spam:
-
-  classes = { spam = { sfid = 's', resend = false,
-                       dbs = { "globalspam.cfc", "userspam.cfc" } },
-              ham  = { sfid = 'h',
-                       dbs = { "globalham.cfc", "userham.cfc" } },
-            }
 ]]
-
-__doc.db2class = [[A mapping from db name to classification]]
-__doc.class2db = [[A mapping from classification to the first db for that class]]
-__doc.dblist = [[A list of all databases]]
-db2class, class2db, dblist = { }, { }, { }
 
 local function set_class_defaults()
   local c = classes
   local used = { s = 'spam', h = 'ham', w = true, b = true, e = true }
   for class, t in pairs(c) do
+    assert(type(class) == 'string', 'grave config error -- class is not a string')
+    util.insistf(not string.find(class, '[%=%/%;%:%s]'),
+                 "Class name '%s' contains a bad character", class)
+    util.insistf(not t.dbs, "Config table for class %s contains obsolete 'dbs' entry",
+                 class)
     if not t.sfid then util.errorf('Class %s lacks a sfid', class)
     elseif type(t.sfid) ~= 'string' or string.len(t.sfid) ~= 1 or
            t.sfid ~= string.lower(t.sfid) then
@@ -412,14 +400,7 @@ local function set_class_defaults()
     end
     t.sure   = t.sure   or ''
     t.unsure = t.unsure or '?'
-    t.dbs    = t.dbs or { class .. '.cfc' }
-    for i = 1, #t.dbs do
-      local db     = dirfilename('database', t.dbs[i])
-      t.dbs[i]     = db
-      db2class[db] = class
-      class2db[class] = class2db[class] or db -- the first db is the one trained on
-      table.insert(dblist, db)
-    end
+    t.db     = dirfilename('database', class .. '.cfc')
     t.threshold = t.threshold or default_threshold
     t.pR_boost  = t.pR_boost or 0
     t.resend    = t.resend == nil and true or t.resend

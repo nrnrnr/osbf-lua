@@ -285,27 +285,27 @@ stuff.  Here are some example usages:
 
    --------------------------- To create databases
    local core = require "osbf.core"
-   local dbset = { classes = {"ham.cfc", "spam.cfc"} }
+   local dblist = { "ham.cfc", "spam.cfc" }
    local num_buckets = 94321
    -- remove previous databases with the same name
-   for _, p in ipairs(dbset.classes) do os.remove(p) end
-   core.create_db(dbset.classes, num_buckets) -- create new, empty databases
+   for _, p in ipairs(dblist) do os.remove(p) end
+   core.create_db(dblist, num_buckets) -- create new, empty databases
 
-   -------- To classify a message read from stdin
+   --------------------- To classify a message read from stdin
    local core = require "osbf.core"
-   local dbset = {
-       classes = {"nonspam.cfc", "spam.cfc"},
-       ncfs = 1,
-       delimiters = ""
-   }
-   local classify_flags = 0
+   local dblist = { "ham.cfc", "spam.cfc" }
    -- read entire message into var "text"
    local text = io.read("*all")
-   local pR, p_array = osbf.classify(text, dbset, classify_flags)
-   io.write(string.format("The message score is %f - ", pR))
-   if (pR >= 0) then
-     io.write("HAM\n")
+   local probs, trainings, sum = osbf.classify(text, dblist)
+   if probs[1] > probs[2] then
+     io.write('ham with confidence ', core.pR(probs[1], probs[2]), '\n')
    else
-     io.write("SPAM\n")
+     io.write('spam with confidence ', core.pR(probs[2], probs[1]), '\n')
    end
 ]]
+
+__doc.pR = [[function(p1, p2) returns confidence
+Takes the logarithm of the ratio p1/p2, choosing a base such that a
+logarithm equal to 20.0 is a good initial threshold for training.
+In case rounding error results in a p2 or a ratio that is not positive,
+this function will substitute a very small positive number.]]

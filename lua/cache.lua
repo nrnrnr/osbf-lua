@@ -97,6 +97,17 @@ end
 local is_valid_tag = { B = true, W = true, E = true }
   -- blacklist, whitelist, and error are always valid
 
+__doc.sfid_tag_meaning = [[table mapping sfid tag --> meaning
+Where sfid tag is tag used in headers and sfid, and meaning is an
+informal explanation of what happened at *classification* time.
+]]
+
+sfid_tag_meaning = {
+  B = 'blacklisted',
+  W = 'whitelisted',
+  E = 'an error in classification',
+}
+
 function sfid_of_table(t, serial)
   local s =
     table.concat({ 'sfid',
@@ -171,9 +182,12 @@ do
         error('sfid tag for class ' .. class ..
               ' must be a lowercase letter other than b, e, or w')
       else
+        local utag = string.upper(tag)
         suffixes[class] = '-' .. tag
-        is_valid_tag[tag] = true
-        is_valid_tag[string.upper(tag)] = true
+        is_valid_tag[tag]  = true
+        is_valid_tag[utag] = true
+        sfid_tag_meaning[tag]  = 'classified as ' .. class .. ' (with low confidence)'
+        sfid_tag_meaning[utag] = 'classified as ' .. class .. ' (with high confidence)'
       end
     end
   end

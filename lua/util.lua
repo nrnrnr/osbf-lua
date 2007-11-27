@@ -21,21 +21,25 @@ function table_tab(t)
   setmetatable(t, { __index = table__index })
   return t
 end
+
 ----------------------------------------------------------------
-
-__doc.min_abs = [[function(list of numbers) returns number
-Returns the number in the list with the minimum absolute value,
-or math.huge if the list is empty]]
-
-function min_abs(xs)
-  local x = xs[1] or math.huge
-  for i = 2, #xs do
-    local x2 = xs[i]
-    if math.abs(x2) < math.abs(x) then x = x2 end
-  end
-  return x
+function tablerep(v, n)
+  local data = { }
+  for i = 1, n do data[i] = v end
+  return data
 end
-
+----------------------------------------------------------------
+function tablemap(f, l, ...)
+  local data = { }
+  for i = 1, #l do data[i] = f(l[i], ...) end
+  return data
+end
+----------------------------------------------------------------
+function tablecopy(t)
+  local data = { }
+  for k, v in pairs(t) do data[k] = v end
+  return data
+end
 ----------------------------------------------------------------
 __doc.file_is_readable = [[function(filename) returns bool]]
 function file_is_readable(file)
