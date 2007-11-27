@@ -28,6 +28,8 @@ local io, string, table, math =
 local use_smallP = os.getenv 'OSBF_USE_SMALLP' or true
 
 local debug = os.getenv 'OSBF_DEBUG'
+local md5
+if debug then md5 = require 'md5' else md5 = { sum = function() return "?" end } end
 local debug_out = os.getenv 'OSBF_DEBUG' and io.stderr or { write = function() end }
 local function debugf(...) return debug_out:write(string.format(...)) end
 
@@ -46,6 +48,11 @@ local cache = require(_PACKAGE .. 'cache')
 
 local smallP = core.smallP
 core.pR = assert(core.old_pR)
+
+local function fingerprint(s)
+  local function hex(s) return string.format('%02x', string.byte(s)) end
+  return string.gsub(md5.sum(s), '.', hex)
+end
 
 __doc = __doc or { }
 
@@ -231,7 +238,7 @@ function learn(sfid, class)
     error(learned_as_msg(status))
   end
   local lim = msg.lim
-  debug_out:write('\nLearning as ', class, '...\n')
+  debug_out:write('\nLearning ', fingerprint(lim.msg), ' with header ', fingerprint(lim.header), ' as ', class, '...\n')
   local orig, new =
     tone_msg_and_reinforce_header(lim.header, lim.msg, class)
   cache.change_file_status(sfid, status, class)
@@ -325,6 +332,8 @@ do
     -- find the class with the largest pR
     local max_pR, most_likely = -10000, 'this cannot happen'
 
+for classification_count = 1, 5 do
+
     local sum, probs, trainings = core.classify(msg, dblist, flags)
     assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table')
     local function prob_not(i) --- probability that it's not dblist[i]
@@ -348,6 +357,7 @@ do
         max_pR, most_likely = pR, class
       end
     end
+end
     local train = max_pR < cfg.classes[most_likely].threshold
     debugf('Classified %s as class %s with confidence %.2f%s\n',
            table.concat(cfg.classlist(), '/'), most_likely, max_pR,
@@ -385,7 +395,7 @@ function classify (msg)
   local count_classifications_flags =
     (cfg.count_classifications and core.COUNT_CLASSIFICATIONS or 0)
          + cfg.constants.classify_flags
-  debug_out:write('\nClassifying...\n')
+  debugf('\nClassifying msg %s...\n', fingerprint(msg.lim.msg))
   local pR, class, train =
     most_likely_pR_and_class(msg.lim.msg, count_classifications_flags)
   local t = assert(cfg.classes[class], 'missing configuration for class')

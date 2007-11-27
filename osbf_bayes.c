@@ -1105,8 +1105,8 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 		   (class[class_idx].hits / class[class_idx].learnings -
 		    a_priori_prob));
 
-		if (ptc[class_idx] < 10 * OSBF_DBL_MIN)
-		  ptc[class_idx] = 10 * OSBF_DBL_MIN;
+		if (ptc[class_idx] < OSBF_SMALLP)
+		  ptc[class_idx] = OSBF_SMALLP;
 		renorm += ptc[class_idx];
 #if (DEBUG > 1)
 		fprintf (stderr, "CF: %.4f, class[k].totalhits: %" PRIu32 ", "
