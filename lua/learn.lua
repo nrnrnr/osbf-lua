@@ -25,7 +25,9 @@ local error, ipairs =
 local io, string, table, math =
       io, string, table, math
 
-local use_smallP = os.getenv 'OSBF_USE_SMALLP' 
+local use_smallP = os.getenv 'OSBF_USE_SMALLP' or true
+
+local debug = os.getenv 'OSBF_DEBUG'
 local debug_out = os.getenv 'OSBF_DEBUG' and io.stderr or { write = function() end }
 local function debugf(...) return debug_out:write(string.format(...)) end
 
@@ -43,6 +45,7 @@ local lists = require(_PACKAGE .. 'lists')
 local cache = require(_PACKAGE .. 'cache')
 
 local smallP = core.smallP
+core.pR = assert(core.old_pR)
 
 __doc = __doc or { }
 
@@ -80,6 +83,28 @@ do
   end
   cfg.after_loading_do(init)
 end
+
+if debug then
+  local learn, classify = core.learn, core.classify
+  core.learn = function(text, dbs, i, ...)
+                 local class = string.gsub(dbs[i], '%.cfc$', '')
+                 class = string.gsub(class, '.*/', '')
+                 debugf("** learning class %s\n", class)
+                 return learn(text, dbs, i, ...)
+               end
+  core.classify = function(...)
+                    local sum, probs, trainings = classify(...)
+                    -- XXX drop sum from the outputs of core.classify
+                    local out = { }
+                    for i = 1, #probs do
+                      table.insert(out, string.format("%s=%.2f", index2class[i], probs[i]))
+                    end
+                    debugf("** classifying P(%s)\n", table.concat(out, ", "))
+                    return sum, probs, trainings
+                  end
+end
+
+
                 
 local msgmod = msg
 

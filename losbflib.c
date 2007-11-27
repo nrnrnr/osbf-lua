@@ -335,6 +335,23 @@ lua_osbf_pR (lua_State * L)
   }
 }
 
+
+static int
+lua_osbf_old_pR (lua_State * L)
+     /* core.pR(p1, p2) returns log(p1/p2) */
+{
+  double p1 = luaL_checknumber(L, 1);
+  double p2 = luaL_checknumber(L, 2);
+  if (lua_type(L, 3) != LUA_TNONE)
+    return luaL_error(L, "Too many arguments to core.pR");
+  else if (p2 <= 0.0 || p1 <= 0.0)
+    return luaL_error(L, "in core.pR, a probability is not positive");
+  else {
+    lua_pushnumber (L, (lua_Number) pR_SCF * log10 (p1 / p2));
+    return 1;
+  }
+}
+
 /**********************************************************/
 
 static int
@@ -741,6 +758,7 @@ static const struct luaL_reg osbf[] = {
   {"unlearn", lua_osbf_old_unlearn},
   {"train", lua_osbf_train},
   {"pR", lua_osbf_pR},
+  {"old_pR", lua_osbf_old_pR},
   {"dump", lua_osbf_dump},
   {"restore", lua_osbf_restore},
   {"import", lua_osbf_import},

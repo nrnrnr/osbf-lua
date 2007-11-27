@@ -32,7 +32,7 @@ probabilities returned by core.classify, then pR of less than 20
 means that training is suggested (Train Near Error).]]
 
 __doc.classify = [=[function(text, dblist, flags, min_p_ratio, delimiters) 
-     returns probs, trainings, sum
+     returns sum, probs, trainings
   or calls lua_error
 
 Classifies the string text using the databases in dblist
