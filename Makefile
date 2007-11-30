@@ -1,6 +1,6 @@
 MODNAME=osbf3
 
-include ./config
+include ./pgconfig
 
 DIST_DIR= osbf-$LIB_VERSION
 TAR_FILE= $(DIST_DIR).tar.gz
@@ -15,6 +15,7 @@ SRCS= losbflib.c osbf_bayes.c osbf_aux.c
 OBJS= losbflib.o osbf_bayes.o osbf_aux.o
 
 CFLAGS += -DOPENFUN=luaopen_$(MODNAME)_core
+CFLAGS += -DLUA_USE_LINUX
 
 lib: $(LIBNAME)
 
@@ -22,6 +23,9 @@ lib: $(LIBNAME)
 
 $(LIBNAME): $(OBJS)
 	$(CC) $(CFLAGS) $(LIB_OPTION) -o $(LIBNAME) $(OBJS) $(LIBS)
+
+osbf-lua: $(OBJS) lua.o main.o
+	$(CC) $(CFLAGS) -o osbf-lua main.o $(OBJS) lua.o -L$(PGDIR)/lib -llua -ldl -lreadline -lhistory -lncurses $(LIBS) 
 
 install: $(LIBNAME)
 	mkdir -p $(LUAMODULE_DIR)/$(MODNAME)

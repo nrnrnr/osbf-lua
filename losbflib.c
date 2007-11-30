@@ -777,7 +777,7 @@ static const struct luaL_reg osbf[] = {
 int
 OPENFUN (lua_State * L)
 {
-  const char *libname = luaL_checkstring(L, 1);
+  const char *libname = luaL_checkstring(L, -1);
   /* Open dir function */
   luaL_newmetatable (L, "LuaBook.dir");
   /* set its __gc field */
