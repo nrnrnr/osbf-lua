@@ -1,4 +1,6 @@
-#! /usr/bin/env lua5.1
+#! ../osbf-lua
+
+-- #! /usr/bin/env lua5.1
 
 local osbf         = require 'osbf3'
 local command_line = require 'osbf3.command_line'
@@ -25,12 +27,14 @@ os.execute('/bin/mkdir ' .. test_dir)
 opts['udir'] = test_dir
 
 osbf.init(opts, true)
-local db_total_size = 96009072 -- 4000037 buckets/database, used in TREC2006
+local num_buckets	= 94321 -- min value recommended for production
+--local num_buckets	= 4000037 -- value used for TREC tests
 local email = 'test@test'
-commands.init(email, db_total_size)
+commands.init(email, num_buckets, 'buckets')
 
 cfg.limit = 500000
 
+local opcall = pcall
 pcall = function(f, ...) return true, f(...) end
 
 local result = assert(io.open('result', 'w'))
@@ -49,8 +53,12 @@ for l in assert(io.lines(trecdir .. 'index')) do
   if train or class ~= labelled then
     local sfid = cache.generate_sfid(tag, pR)
     cache.store(sfid, msg.to_orig_string(m))
-    commands.learn(sfid, labelled)
-    learnings = learnings + 1
+    local ok, msg = opcall(commands.learn, sfid, labelled)
+    if ok then
+      learnings = learnings + 1
+    else
+      io.stderr:write(msg, '\n')
+    end
   end
 
   result:write(string.format("%s judge=%s class=%s score=%.4f\n",

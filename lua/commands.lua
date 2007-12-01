@@ -49,71 +49,88 @@ Returns the real size in bytes, which is the greatest multiple of the size
 of a bucket not greater than size_in_bytes
 ]]
 
-function create_single_db(db_path, size_in_bytes)
-  assert(type(size_in_bytes) == 'number') 
-
-  local function bytes(buckets)
-    return buckets * core.bucket_size + core.header_size
+local function buckets_of_bytes(bytes) 
+  if bytes <= core.header_size then
+    return 0
+  else
+    return math.floor((bytes - core.header_size) / core.bucket_size + 0.5)
   end
-
-  local min_buckets =   100 --- minimum number of buckets acceptable
-  local num_buckets =
-    math.floor((size_in_bytes - core.header_size) / core.bucket_size)
-  if num_buckets < min_buckets then
-    util.die('Database too small; each database must use at least ',
-             util.human_of_bytes(bytes(min_buckets)), '\n')
-  end
-  core.create_db(db_path, num_buckets)
-  return bytes(num_buckets)
 end
 
-__doc.init = [[function(email, totalsize, lang)
+local function bytes_of_buckets(buckets)
+  return buckets * core.bucket_size + core.header_size
+end
+
+function create_single_db(db_path, buckets)
+  assert(type(buckets) == 'number') 
+  local min_buckets =   100 --- minimum number of buckets acceptable
+  util.checkf(buckets >= min_buckets, 'Database of %d buckets is too small; ' ..
+              'must use at least %d buckets or %s\n', buckets,
+               min_buckets, util.human_of_bytes(bytes_of_buckets(min_buckets)))
+  core.create_db(db_path, buckets)
+  return bytes_of_buckets(buckets)
+end
+
+__doc.init = [[function(email, size, units, lang)
 The init command creates directories and databases and the default config.
-totalsize is the total size in bytes of all databases to be created.
+'size' is the a size, which is interpreted according to 'units', which must
+be one of these values:
+   buckets      -- number of buckets in one database
+   totalbuckets -- number of buckets in all databases
+   bytes        -- number of bytes in one database
+   totalbytes   -- number of bytes in all databases
 email is the address for subject-line commands.
 lang (optional) is a string with the language for report_locale in config.
 ]]
 
-function init(email, totalsize, lang)
-  local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
-  for _, d in ipairs(ds) do
-    util.mkdir(d)
-  end
+do
+  
+  function id(x) return x end
+  local to_buckets = { buckets = id, totalbuckets = id,
+                       bytes = buckets_of_bytes, totalbytes = buckets_of_bytes }
+  local divide = { totalbuckets = true, totalbytes = true }
 
-  local classes = cfg.classlist()
-  local dbcount = #classes
-  totalsize = totalsize or dbcount * cfg.constants.default_db_megabytes * 1024 * 1024
-  if type(totalsize) ~= 'number' then
-    util.die('Database size must be a number')
-  end
-  local dbsize = totalsize / dbcount
-  -- create new, empty databases
-  local totalbytes = 0
-  for c, tbl in pairs(cfg.classes) do
-    totalbytes = totalbytes + create_single_db(tbl.db, dbsize)
-  end
-  local config = cfg.configfile
-  if util.file_is_readable(config) then
-    util.write_error('Warning: not overwriting existing ', config, '\n')
-  else
-    local default = util.submodule_path 'default_cfg'
-    local f = util.validate(io.open(default, 'r'))
-    local u = util.validate(io.open(config, 'w'))
-    local x = f:read '*a'
-    -- sets initial password to a random string
-    x = string.gsub(x, '(pwd%s*=%s*)[^\r\n]*',
-      string.format('%%1%q,', util.generate_pwd()))
-    -- sets email address for commands 
-    x = string.gsub(x, '(command_address%s*=%s*)[^\r\n]*',
-      string.format('%%1%q,', email))
-    -- sets report_locale
-    if lang then
-      x = string.gsub(x, '(report_locale%s*=%s*)[^\r\n]*',
-        string.format('%%1%q,', lang))
+
+  function init(email, size, units, lang)
+    local to_buckets = assert(to_buckets[units], 'bad units passed to commands.init')
+    assert(type(size) == 'number', 'bad size (not a number) passed to commands.init')
+
+    -- io.stderr:write('Initalization with ', units, ' ', size, '\n')
+
+    local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
+    util.tablemap(util.mkdir, ds)
+
+    if divide[units] then size = math.floor(size / #cfg.classlist()) end
+    local buckets = to_buckets(size)
+
+    -- create new, empty databases
+    local totalbytes = 0
+    for c, tbl in pairs(cfg.classes) do
+      totalbytes = totalbytes + create_single_db(tbl.db, buckets)
     end
-    u:write(x)
-    f:close()
-    u:close()
+    local config = cfg.configfile
+    if util.file_is_readable(config) then
+      util.write_error('Warning: not overwriting existing ', config, '\n')
+    else
+      local default = util.submodule_path 'default_cfg'
+      local f = util.validate(io.open(default, 'r'))
+      local u = util.validate(io.open(config, 'w'))
+      local x = f:read '*a'
+      -- sets initial password to a random string
+      x = string.gsub(x, '(pwd%s*=%s*)[^\r\n]*',
+        string.format('%%1%q,', util.generate_pwd()))
+      -- sets email address for commands 
+      x = string.gsub(x, '(command_address%s*=%s*)[^\r\n]*',
+        string.format('%%1%q,', email))
+      -- sets report_locale
+      if lang then
+        x = string.gsub(x, '(report_locale%s*=%s*)[^\r\n]*',
+          string.format('%%1%q,', lang))
+      end
+      u:write(x)
+      f:close()
+      u:close()
+    end
+    return totalbytes --- total bytes consumed by databases
   end
-  return totalbytes --- total bytes consumed by databases
 end

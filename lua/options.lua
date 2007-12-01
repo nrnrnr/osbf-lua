@@ -5,6 +5,7 @@ local table, string, require, assert, ipairs, error =
 
 module(...)
 local core = require (_PACKAGE .. 'core')
+local util = require (_PACKAGE .. 'util')
 
 ---- standard kinds of options we recognize:
 -- value required, directory required, value optional , boolean
@@ -39,7 +40,7 @@ function std.val(key, value, args)
   elseif #args > 0 then
     return table.remove(args, 1)
   else
-    error('missing argument for option ' .. key)
+    util.die('missing argument for option ' .. key)
   end
 end
 function std.dir(key, value, args)
@@ -49,21 +50,21 @@ function std.dir(key, value, args)
   elseif core.isdir(v) then
     return v
   else
-    error('Path ' .. v .. ' given for option --' .. key .. ' is not a directory')
+    util.die('Path ' .. v .. ' given for option --' .. key .. ' is not a directory')
   end
 end
 function std.bool(key, value, args)
   if value ~= '' then
-    error('Option ' .. key .. ' takes no argument')
+    util.die('Option ' .. key .. ' takes no argument')
   else
     return true
   end
 end
 local function no_such_option(key, value, args)
     if key == '' and value then
-      error('Missing option name before "="')
+      util.die('Missing option name before "="')
     end
-    error('Unknown option: ' .. key)
+    util.die('Unknown option: ' .. key)
 end
 
 local default = std.bool -- default type if not specified at registration
@@ -115,7 +116,7 @@ function parse(args, options)
     -- changed + to * to allow forced end of options with "--" or "-"
     local key, eq, value = string.match(args[1], '^%-%-?([^=]*)(=?)(.*)')
     if eq == '=' and value == '' then
-      error('option ' .. args[1] .. ' is ambiguous')
+      util.die('option ' .. args[1] .. ' is ambiguous')
     end
     if not key or key == '' and value == '' and table.remove(args, 1) then
       break -- no more options

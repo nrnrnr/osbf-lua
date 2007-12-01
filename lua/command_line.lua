@@ -35,7 +35,9 @@ function run(cmd, ...)
     usage()
   elseif _M[cmd] then
     local ok, msg = pcall (_M[cmd], ...)
-    if not ok then util.die(string.gsub(msg or 'unknown error calling command ' .. cmd, '\n*$', '')) end
+    if not ok then
+      util.die((string.gsub(msg or 'unknown error calling command ' .. cmd, '\n*$', '')))
+    end
   else
     eprintf('Unknown command %s\n', cmd)
     usage()
@@ -584,36 +586,74 @@ table.insert(usage_lines, 'stats [-v|-verbose]')
 
 local valid_locale = { pt_BR = true, en_US = true }
 
-__doc.init = [[function(email, dbsize)
+do
+  locales = {}
+  for l in pairs(valid_locale) do table.insert(locales, l) end
+  table.sort(locales)
+
+  __doc.init = [[function(email, ...)
 Initialize OSBF-Lua's state in the filesystem.
 email is the address for subject-line commands.
-dbsize is optional. It is the total size of the databases.
-Accepts option -lang to set report_locale in config.
-]]
+Additional options include
+  -lang         locale
+and four options for setting the size of databases.
+  -dbsize       size
+  -totalsize    size
+  -buckets      number
+  -totalbuckets number
+A 'size' may include a suffix such as KB, MB, or GB; 
+a 'number' may not.
 
-function init(...)
-  -- XXX todo: allow user to specify -dbsize or -totalsize or -buckets
-  local opts = {lang = options.std.val}
-  local opts, args = options.parse({...}, opts)
-  if #args > 2 then usage() end
-  local email, dbsize = args[1], args[2]
-  if opts.lang and not valid_locale[opts.lang] then
-    util.die('The locale informed is not valid: ', tostring(opts.lang))
+The system supports these locales: ]] .. table.concat(locales, ' ')
+
+end -- local do for 'locales'
+
+do
+  local translate = { dbsize = 'bytes', totalsize = 'totalbytes' }
+
+  function init(...)
+    local v = options.std.val
+    local opts = {lang = v, dbsize = v, totalsize = v, buckets = v, totalbuckets = v}
+    local opts, args = options.parse({...}, opts)
+    if #args ~= 1 then usage() end
+    local email = args[1]
+    if not (type(email) == 'string' and string.find(email, '@')) then
+      usage('For subject-line commands, init requires a valid email in user@host form.')
+    end
+    if opts.lang and not valid_locale[opts.lang] then
+      util.die('The locale informed is not valid: ', tostring(opts.lang))
+    end
+    if opts.dbsize and opts.totalsize then
+      util.die 'Cannot specify both -dbsize and -totalsize at initialization'
+    elseif opts.buckets and opts.totalbuckets then
+      util.die 'Cannot specify both -buckets and -totalbuckets at initialization'
+    end
+    local bytes   = opts.dbsize  or opts.totalsize
+    local buckets = opts.buckets or opts.totalbuckets
+    if bytes and buckets then
+      util.die 'Cannot specify both size and number of buckets'
+    end
+    buckets = buckets and
+      util.insist(tonumber(buckets), 'You must use a number to specify buckets')
+    bytes = bytes and util.bytes_of_human(bytes)
+    local units
+    if not (bytes or buckets) then
+      buckets, units = 94321, 'buckets'
+    end
+    for u in pairs(opts) do if u ~= 'lang' then units = units or u; break end end
+
+    if not core.isdir(cfg.dirs.user) then
+      util.die('You must create the user directory before initializing it:\n',
+        '  mkdir ', cfg.dirs.user)
+    end
+    nb = commands.init(email, buckets or bytes, translate[units] or units, opts.lang)
+    util.writeln('Created directories and databases using a total of ', 
+      util.human_of_bytes(nb))
   end
-  if not (type(email) == 'string' and string.find(email, '@')) then
-    usage('For subject-line commands, init requires a valid email in user@host form.')
-  end
-  local nb = dbsize and util.bytes_of_human(dbsize)
-  if not core.isdir(cfg.dirs.user) then
-    util.die('You must create the user directory before initializing it:\n',
-      '  mkdir ', cfg.dirs.user)
-  end
-  nb = commands.init(email, nb, opts.lang)
-  util.writeln('Created directories and databases using a total of ',
-    util.human_of_bytes(nb))
+
+  table.insert(usage_lines, 'init [-dbsize <size> | -totalsize <size> | -buckets <number> | -totalbuckets <number>] [-lang=<locale>] <user-email>')
 end
 
-table.insert(usage_lines, 'init [-lang=<locale>] <user-email> [<database size in bytes>]')
 
 __doc.resize = [[function (class, newsize)
 Changes the size of a class database.

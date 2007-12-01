@@ -3,6 +3,7 @@
 -- will refer to databases by index, not by name.  In fact, the world outside
 -- this file should refer only to class names, never to databases.  We attempt
 -- to enforce this rule through the external shell script 'test-hiding'.
+local select = select
 
 
 -- experimental constants
@@ -158,9 +159,9 @@ local function tone_plus(text, target_class)
       debugf(" Tone - forcing right class: classified %s (pR %.2f); target class %s\n",
            new_class, new_pR, target_class)
     end
-    util.insistf(new_class == target_class,
+    util.insistf(new_class == target_class, 
                  "%d trainings insufficient to reclassify %s as %s",
-                 class, target_class)
+                 mistake_limit, class, target_class)
     return pR, new_pR, class, new_class
   elseif math.abs(pR) < overtraining_protection_threshold then
     -- N.B. We don't test 'train' here because if we reach this point,
@@ -332,7 +333,7 @@ do
     -- find the class with the largest pR
     local max_pR, most_likely = -10000, 'this cannot happen'
 
-for classification_count = 1, 5 do
+for classification_count = 1, (debug and 5 or 1) do
 
     local sum, probs, trainings = core.classify(msg, dblist, flags)
     assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table')
@@ -467,7 +468,7 @@ function write_stats(verbose)
 
   local hline = string.rep('-', width)
   local sfmt  = '%-30s' .. string.rep('%12s', #classes) .. '\n' -- string report
-  local sfmt  = '%-30s' .. string.rep('%12d', #classes) .. '\n' -- integer report
+  local dfmt  = '%-30s' .. string.rep('%12d', #classes) .. '\n' -- integer report
   local ffmt  = '%-30s' .. string.rep('%12d', #classes) .. '\n' -- floating report(!)
   local pfmt  = '%-30s' .. string.rep('%11.1f%%', #classes) .. '\n' -- percentage rpt
   local p2fmt = '%-30s' .. string.rep('%11.2f%%', #classes) .. '\n' -- 2-digit % rpt
@@ -483,15 +484,16 @@ function write_stats(verbose)
 
   ---------------- actually issue the report
 
+  local function classmap(f) return unpack(util.tablemap(f, classes)) end
+
   hline()
   writef(sfmt, 'Database Statistics', unpack(classes))
   hline()
-  writef(sfmt, 'Database version', unpack(tablerep(core._VERSION, #classes)))
+  writef(sfmt, 'Database version', unpack(util.tablerep(core._VERSION, #classes)))
   report('Total buckets in database', 'buckets')
   local function hbytes(class) return util.human_of_bytes(stats[class].bytes) end
-  writef(sfmt, 'Size of database', util.tablemap(hbytes, classes))
-  writef(pfmt, 'Buckets used',
-         util.tablemap(function(c) return stats[c].use * 100 end, classes))
+  writef(sfmt, 'Size of database', classmap(hbytes))
+  writef(pfmt, 'Buckets used', classmap(function(c) return stats[c].use * 100 end))
   if verbose then
     report('Bucket size (bytes)', 'bucket_size')
     report('Header size (bytes)', 'header_size')
@@ -510,8 +512,7 @@ function write_stats(verbose)
     report('Header reinforcements', 'extra_learnings')
   end
 
-  writef(p2fmt, 'Accuracy',
-         util.tablemap(function(c) return (1-error_rates[c])*100 end, classes))
+  writef(p2fmt, 'Accuracy', classmap(function(c) return (1-error_rates[c])*100 end))
   hline()
   writef(gsfmt, 'Global accuracy:', (1-global_error_rate)*100,
          'Spam rate:', (rates.spam or 0) * 100)

@@ -198,14 +198,21 @@ function die(...)
   end
 end
 
+__doc.checkf = [[function(v, ...) may print error message and exit
+If v is nil or false, calls util.die(string.format(...)).]]
+
+function checkf(v, ...)
+  if not v then die(string.format(...)) end
+end
+
 __doc.errorf = [[function(...) applies string.format and then error]]
 function errorf(...)
   error(string.format(...), 2)
 end
 
-__doc.insist = [[function(v, msg) if v == nil calls error(msg)]]
+__doc.insist = [[function(v, msg) if v == nil calls error(msg) otherwise returns v]]
 function insist(v, msg)
-  if v == nil then error(msg, 2) end
+  if v == nil then error(msg, 2) else return v end
 end
 
 __doc.insistf = [[function(v, ...) returns arguments

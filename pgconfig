@@ -1,11 +1,12 @@
 # Version
 LIB_VERSION= 2.0.4
 
+# this name is bogus; it should be 5.1.2
 PGDIR=/usr/local/lua-5.2-pg
 
 # Installation directories: Adjust these for your distro and Lua version
 # Where Lua modules are installed
-LUAMODULE_DIR=/usr/local/lib/lua/5.2
+LUAMODULE_DIR=/usr/local/lib/lua/5.1
 LUA_CFLAGS=-I $(PGDIR)/include
 LUABIN=$(PGDIR)/bin/lua
 BINDIR=/usr/local/bin
