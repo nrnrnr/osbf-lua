@@ -1,5 +1,5 @@
-local assert, ipairs, pairs, require, tostring, type
-    = assert, ipairs, pairs, require, tostring, type
+local assert, ipairs, pairs, require, tostring, type, setmetatable
+    = assert, ipairs, pairs, require, tostring, type, setmetatable
 
 local package, string, os, math, table, io
     = package, string, os, math, table, io
@@ -423,6 +423,10 @@ do
   end
 end
 
+local function no_new_config(t, k)
+  util.errorf("Tried to set cfg.%s, but that field doesn't mean anything", tostring(k))
+end
+
 local function init(options, no_dirs_ok)
   set_dirs(options, no_dirs_ok)
   load_if_readable(configfile)
@@ -430,6 +434,7 @@ local function init(options, no_dirs_ok)
   for _, f in ipairs(postloads) do
     f(_M)
   end
+  setmetatable(_M, { __newindex = no_new_config })
 end
 
 boot.initializer(init)

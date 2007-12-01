@@ -11,6 +11,9 @@ local msg          = require 'osbf3.msg'
 local cfg          = require 'osbf3.cfg'
 local cache        = require 'osbf3.cache'
 
+local md5sum = false -- compute md5 sums of databases
+local md5run = md5sum and os.execute or function() end
+
 local opts, args   = options.parse(arg)
 
 local trecdir = args[1] 
@@ -32,7 +35,7 @@ local num_buckets	= 94321 -- min value recommended for production
 local email = 'test@test'
 commands.init(email, num_buckets, 'buckets')
 
-cfg.limit = 500000
+cfg.text_limit = 500000
 
 local opcall = pcall
 pcall = function(f, ...) return true, f(...) end
@@ -41,7 +44,9 @@ local result = assert(io.open('result', 'w'))
 local max_lines = tonumber(os.getenv 'TREC_MAX' or 5000)
 local num_lines = 0
 local learnings = 0
+if md5sum then os.remove(test_dir .. '/md5sums') end
 for l in assert(io.lines(trecdir .. 'index')) do
+  md5run('md5sum ' .. test_dir .. '/*.cfc >> ' .. test_dir .. '/md5sums')
   num_lines = num_lines + 1
   if num_lines > max_lines then
     break

@@ -3,6 +3,7 @@
 local modname, mailfile = assert(arg[1]), assert(arg[2])
 
 local osbf = require(modname)
+require (modname .. '.command_line')
 
 local m = osbf.msg.of_file(mailfile)
 
