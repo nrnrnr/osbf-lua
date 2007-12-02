@@ -97,17 +97,17 @@ if debug then
   core.learn = function(text, dbs, i, ...)
                  local class = string.gsub(dbs[i], '%.cfc$', '')
                  class = string.gsub(class, '.*/', '')
-                 debugf("** learning class %s\n", class)
+                 debugf("** learning %s class %s\n", fingerprint(text), class)
                  return learn(text, dbs, i, ...)
                end
-  core.classify = function(...)
-                    local sum, probs, trainings = classify(...)
+  core.classify = function(text, ...)
+                    local sum, probs, trainings = classify(text, ...)
                     -- XXX drop sum from the outputs of core.classify
                     local out = { }
                     for i = 1, #probs do
                       table.insert(out, string.format("%s=%.2f", index2class[i], probs[i]))
                     end
-                    debugf("** classifying P(%s)\n", table.concat(out, ", "))
+                    debugf("** classifying %s P(%s)\n", fingerprint(text), table.concat(out, ", "))
                     return sum, probs, trainings
                   end
 end
@@ -156,8 +156,8 @@ local function tone_plus(text, target_class)
       if new_class == target_class then break end
       core.learn(text, dblist, target_index) -- no mistake flag here
       new_pR, new_class = most_likely_pR_and_class(text)
-      debugf(" Tone - forcing right class: classified %s (pR %.2f); target class %s\n",
-           new_class, new_pR, target_class)
+      debugf(" Tone %d - forcing right class: classified %s (pR %.2f); target class %s\n",
+           i, new_class, new_pR, target_class)
     end
     util.insistf(new_class == target_class, 
                  "%d trainings insufficient to reclassify %s as %s",
@@ -211,7 +211,7 @@ local function tone_msg_and_reinforce_header(lim_orig_msg, lim_orig_header, targ
       -- (may exit early if the change in new_pR is big enough)
       pR = new_pR
       core.learn(lim_orig_header, dblist, index, k.learn_flags+core.EXTRA_LEARNING)
-      debugf('Reinforced class %s with pR = %.2f\n', target_class, pR)
+      debugf('Reinforced %d class %s with pR = %.2f\n', i, target_class, pR)
       new_pR = most_likely_pR_and_class(lim_orig_msg, k.classify_flags)
       if new_pR > trd or math.abs (pR - new_pR) >= rd then
         break
@@ -241,7 +241,7 @@ function learn(sfid, class)
   local lim = msg.lim
   debug_out:write('\nLearning ', fingerprint(lim.msg), ' with header ', fingerprint(lim.header), ' as ', class, '...\n')
   local orig, new =
-    tone_msg_and_reinforce_header(lim.header, lim.msg, class)
+    tone_msg_and_reinforce_header(lim.msg, lim.header, class)
   cache.change_file_status(sfid, status, class)
 
   local comment = orig == new and
@@ -333,7 +333,7 @@ do
     -- find the class with the largest pR
     local max_pR, most_likely = -10000, 'this cannot happen'
 
-for classification_count = 1, (debug and 5 or 1) do
+--for classification_count = 1, (debug and 5 or 1) do
 
     local sum, probs, trainings = core.classify(msg, dblist, flags)
     assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table')
@@ -358,7 +358,7 @@ for classification_count = 1, (debug and 5 or 1) do
         max_pR, most_likely = pR, class
       end
     end
-end
+--end
     local train = max_pR < cfg.classes[most_likely].threshold
     debugf('Classified %s as class %s with confidence %.2f%s\n',
            table.concat(cfg.classlist(), '/'), most_likely, max_pR,

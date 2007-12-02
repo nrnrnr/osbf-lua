@@ -1,6 +1,5 @@
-#! ../osbf-lua
-
--- #! /usr/bin/env lua5.1
+#! /usr/bin/env lua5.1
+--#! ../osbf-lua
 
 local osbf         = require 'osbf3'
 local command_line = require 'osbf3.command_line'
@@ -16,6 +15,8 @@ local md5run = md5sum and os.execute or function() end
 
 local opts, args   = options.parse(arg)
 
+local debug = os.getenv 'OSBF_DEBUG'
+
 local trecdir = args[1] 
 if not trecdir then
   print('Usage: trec.lua <trec_index_dir>')
@@ -30,8 +31,8 @@ os.execute('/bin/mkdir ' .. test_dir)
 opts['udir'] = test_dir
 
 osbf.init(opts, true)
-local num_buckets	= 94321 -- min value recommended for production
---local num_buckets	= 4000037 -- value used for TREC tests
+--local num_buckets	= 94321 -- min value recommended for production
+local num_buckets	= 4000037 -- value used for TREC tests
 local email = 'test@test'
 commands.init(email, num_buckets, 'buckets')
 
@@ -52,6 +53,7 @@ for l in assert(io.lines(trecdir .. 'index')) do
     break
   end
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')
+  if debug then io.stderr:write("\nMsg ", file) end 
   local m = msg.of_any(trecdir .. file)
   local train, pR, tag, _, class = commands.classify(m)
   pR = class == 'ham' and pR or (pR > 0 and -pR or pR)
@@ -68,8 +70,6 @@ for l in assert(io.lines(trecdir .. 'index')) do
 
   result:write(string.format("%s judge=%s class=%s score=%.4f\n",
                              file, labelled, class, -pR))
---  io.stderr:write(string.format("%s judge=%s class=%s score=%.4f\n",
---                             file, labelled, class, -pR))
 end
 result:close()
 io.stderr:write('Test suite required ', learnings, ' learnings\n')
