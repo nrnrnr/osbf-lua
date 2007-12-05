@@ -13,7 +13,16 @@ local cache        = require 'osbf3.cache'
 local md5sum = false -- compute md5 sums of databases
 local md5run = md5sum and os.execute or function() end
 
-local opts, args   = options.parse(arg)
+options.register { long = 'buckets', type = options.std.val, 
+                   usage = '-buckets <number>|small|large' }
+
+options.register { long = 'max', type = options.std.num, usage = '-max <number>' }
+
+options.register { long = 'o', type = options.std.val, usage = '-o <outfile>' }
+
+options.register { long = 'keep', type = options.std.val, help = 'keep temporary directory and files' }
+
+local opts, args  = options.parse(arg)
 
 local debug = os.getenv 'OSBF_DEBUG'
 
@@ -24,15 +33,34 @@ if not trecdir then
 end
 trecdir = util.append_slash(trecdir)
 
-local test_dir = '/tmp/osbf-lua'
+function os.capture(cmd, raw)
+  local f, msg = io.popen(cmd, 'r')
+  if not f then return nil, msg end
+  local s = assert(f:read('*a'))
+  f:close()
+  if raw then return s end
+  s = string.gsub(s, '^%s+', '')
+  s = string.gsub(s, '%s+$', '')
+  s = string.gsub(s, '[\n\r]+', ' ')
+  return s
+end
+
+
+-- try to avoid collisions on multiple tests
+local test_dir = os.capture 'tempfile -p osbf' or '/tmp/osbf-lua'
 os.execute('/bin/rm -rf ' .. test_dir)
 os.execute('/bin/mkdir ' .. test_dir)
 
-opts['udir'] = test_dir
+opts.udir = test_dir
 
 osbf.init(opts, true)
---local num_buckets	= 94321 -- min value recommended for production
-local num_buckets	= 4000037 -- value used for TREC tests
+
+local bucket_sizes = { small = 94321, large = 4000037, trec = 4000037 }
+
+local num_buckets =
+  opts.buckets and (assert(bucket_sizes[opts.buckets] or tonumber(opts.buckets)))
+  or 94321
+
 local email = 'test@test'
 commands.init(email, num_buckets, 'buckets')
 
@@ -41,10 +69,13 @@ cfg.text_limit = 500000
 local opcall = pcall
 pcall = function(f, ...) return true, f(...) end
 
-local result = assert(io.open('result', 'w'))
-local max_lines = tonumber(os.getenv 'TREC_MAX' or 5000)
+local outfilename = opts.o or 'result'
+
+local result = outfilename == '-' and io.stdout or assert(io.open(outfilename, 'w'))
+local max_lines = opts.max or 5000
 local num_lines = 0
 local learnings = 0
+local start_time = os.time()
 if md5sum then os.remove(test_dir .. '/md5sums') end
 for l in assert(io.lines(trecdir .. 'index')) do
   md5run('md5sum ' .. test_dir .. '/*.cfc >> ' .. test_dir .. '/md5sums')
@@ -71,5 +102,17 @@ for l in assert(io.lines(trecdir .. 'index')) do
   result:write(string.format("%s judge=%s class=%s score=%.4f\n",
                              file, labelled, class, -pR))
 end
-result:close()
-io.stderr:write('Test suite required ', learnings, ' learnings\n')
+local end_time = os.time()
+local nclass = num_lines - 1
+local info = string.format(
+  'Using %d buckets, %d classifications (%.1f/s) require %d learnings',
+  num_buckets, nclass, (nclass / os.difftime(end_time, start_time)), learnings)
+result:write('# ', info, '\n')
+if result ~= io.stdout then
+  result:close()
+end
+io.stderr:write(info, '\n')
+if not opts.keep then
+  os.execute('/bin/rm -rf ' .. test_dir)
+end
+

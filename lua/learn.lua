@@ -26,13 +26,17 @@ local error, ipairs =
 local io, string, table, math =
       io, string, table, math
 
-local use_smallP = os.getenv 'OSBF_USE_SMALLP' or true
+local use_old_pR = os.getenv 'OSBF_OLD_PR'
 
 local debug = os.getenv 'OSBF_DEBUG'
-local md5
-if debug then md5 = require 'md5' else md5 = { sum = function() return "?" end } end
-local debug_out = os.getenv 'OSBF_DEBUG' and io.stderr or { write = function() end }
-local function debugf(...) return debug_out:write(string.format(...)) end
+local md5, debugf -- nontrivial only when debugging
+if debug then
+  md5    = require 'md5' 
+  debugf = function(...) return io.stderr:write(string.format(...)) end
+else 
+  md5    = { sum = function() return "?" end } 
+  debugf = function() end
+end
 
 local prog = _G.arg and _G.arg[0] or 'osbf'
 
@@ -47,8 +51,9 @@ local core  = require(_PACKAGE .. 'core')
 local lists = require(_PACKAGE .. 'lists')
 local cache = require(_PACKAGE .. 'cache')
 
-local smallP = core.smallP
-core.pR = assert(core.old_pR)
+if use_old_pR then
+  core.pR = assert(core.old_pR)
+end
 
 local function fingerprint(s)
   local function hex(s) return string.format('%02x', string.byte(s)) end
@@ -191,8 +196,9 @@ end
 -- This function implements TONE-HR, a training protocol described in
 -- http://osbf-lua.luaforge.net/papers/trec2006_osbf_lua.pdf
 
-local function tone_msg_and_reinforce_header(lim_orig_msg, lim_orig_header, target_class)
+local function tone_msg_and_reinforce_header(lim, target_class)
   -- train on the whole message if on or near error
+  local lim_orig_msg = lim.msg
   local orig_pR, new_pR = tone(lim_orig_msg, target_class)
   if new_pR < cfg.classes[target_class].threshold + threshold_offset
   and  math.abs(new_pR - orig_pR) < header_learn_threshold
@@ -207,6 +213,7 @@ local function tone_msg_and_reinforce_header(lim_orig_msg, lim_orig_header, targ
     local k   = cfg.constants
     local pR
     local index = class2index[target_class]
+    local lim_orig_header = lim.header
     for i = 1, reinforcement_limit do
       -- (may exit early if the change in new_pR is big enough)
       pR = new_pR
@@ -239,9 +246,9 @@ function learn(sfid, class)
     error(learned_as_msg(status))
   end
   local lim = msg.lim
-  debug_out:write('\nLearning ', fingerprint(lim.msg), ' with header ', fingerprint(lim.header), ' as ', class, '...\n')
-  local orig, new =
-    tone_msg_and_reinforce_header(lim.msg, lim.header, class)
+  debugf('\n Learning <%s> with header <%s> as %s...\n', 
+         fingerprint(lim.msg), fingerprint(lim.header), class)
+  local orig, new = tone_msg_and_reinforce_header(lim, class)
   cache.change_file_status(sfid, status, class)
 
   local comment = orig == new and
@@ -320,7 +327,6 @@ pR the log of ratio of the probability for the chosen class
 
 do
   local core_pR = core.pR
-  local smallP = use_smallP and core.smallP or 0.0
 
   local function sum_positive_numbers(l)
     table.sort(l)
@@ -350,7 +356,6 @@ do
     for i, P in pairs(probs) do
       local class = index2class[i]
       local notP = prob_not(i)
-      P, notP = P + smallP, notP + smallP
       local pR = core_pR(P, notP / k) + class_boost[class]
       debugf('%-20s = %8.3g; P(others) = %8.3g; pR(%s) = %.2f\n',
              'P(' .. class .. ')', P, notP, class, pR)

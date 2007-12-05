@@ -1,7 +1,7 @@
 -- registration of options and their parsing
 
-local table, string, require, assert, ipairs, error =
-      table, string, require, assert, ipairs, error
+local table, string, require, assert, ipairs, tonumber, error =
+      table, string, require, assert, ipairs, tonumber, error
 
 module(...)
 local core = require (_PACKAGE .. 'core')
@@ -15,6 +15,7 @@ local util = require (_PACKAGE .. 'util')
 __doc = {
   std = [[table of option types:
 val   - an option that must take an argument
+num   - an option that must take a number as an argument
 dir   - an option that must take an existing directory as argument
 bool  - an option that is either present or not; it takes no argument
 ]],
@@ -42,6 +43,10 @@ function std.val(key, value, args)
   else
     util.die('missing argument for option ' .. key)
   end
+end
+function std.num(key, value, args)
+  return util.checkf(tonumber(std.val(key, value, args)),
+                     'argument for option -%s must be a number', key)
 end
 function std.dir(key, value, args)
   local v, err = std.val(key, value, args)

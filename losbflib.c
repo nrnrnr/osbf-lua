@@ -342,6 +342,8 @@ lua_osbf_old_pR (lua_State * L)
 {
   double p1 = luaL_checknumber(L, 1);
   double p2 = luaL_checknumber(L, 2);
+  p1 += OSBF_SMALLP;
+  p2 += OSBF_SMALLP;
   if (lua_type(L, 3) != LUA_TNONE)
     return luaL_error(L, "Too many arguments to core.pR");
   else if (p2 <= 0.0 || p1 <= 0.0)

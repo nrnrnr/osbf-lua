@@ -65,11 +65,17 @@ end
 -- count number of positive (spam) and negative (ham) examples
 local P, N = 0, 0
 for i = 1, #lines, 1 do
-  if string.match(lines[i], spam_regex) then
-    P = P + 1
-  else
-    N = N + 1
+  if not string.find(lines[i], '^%s*#') then
+    if string.find(lines[i], spam_regex) then
+      P = P + 1
+    else
+      N = N + 1
+    end
   end
+end
+
+if not string.find(lines[#lines], 'score=%S+$') then -- incomplete file
+  table.remove(lines)
 end
 
 table.sort(lines, sort_scores)

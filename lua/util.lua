@@ -199,10 +199,10 @@ function die(...)
 end
 
 __doc.checkf = [[function(v, ...) may print error message and exit
-If v is nil or false, calls util.die(string.format(...)).]]
+If v is nil or false, calls util.die(string.format(...)); otherwise returns v.]]
 
 function checkf(v, ...)
-  if not v then die(string.format(...)) end
+  if not v then die(string.format(...)) else return v end
 end
 
 __doc.errorf = [[function(...) applies string.format and then error]]
