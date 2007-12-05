@@ -1,41 +1,30 @@
 --- returns table of user-editable configuration parameters
 
-
-local threshold = 20 -- low score range, or reinforcement zone,  
-                     -- around min_pR_success. Use 20            
-                     -- during the pre-training phase for better 
-                     -- accuracy and reduce to 10 or less later, 
-                     -- for less burden with daily trainings.    
-
 return {
   -- command password
   pwd = "your_password_here", -- no spaces allowed
 
-  -- XXX change 'threshold' to 'train_below' everywhere it makes sense
-
   -- classes of email received
   --   1. Table for each class name of
-  --        sfid      -- unique lowercase letter to identify class (required)
-  --        sure      -- Subject: tag when mail definitely classified (default empty)
-  --        unsure    -- Subject: tag when mail in reinforcement zone (default '?')
-  --        threshold -- pR below which training is assumed needed (default 20)
-  --        pR_boost  -- a number added to pR for this class (default 0)
-  --        resend    -- if this message is trained, resend it with new headers
-  -- XXXX needs new names 'train_below' and 'confidence_boost'
+  --        sfid        -- unique lowercase letter to identify class (required)
+  --        sure        -- Subject: tag when mail definitely classified (default empty)
+  --        unsure      -- Subject: tag when mail in reinforcement zone (default '?')
+  --        train_below -- confidence below which training is recommended (default 20)
+  --        conf_boost  -- a number added to confidence for this class (default 0)
+  --        resend      -- if this message is trained, resend it with new headers
   classes = {
-    ham  = { sfid = 'h', sure = '',   unsure = '+', threshold = threshold },
-    spam = { sfid = 's', sure = '--', unsure = '-', threshold = threshold,
-             resend = false },
+    ham  = { sfid = 'h', sure = '',   unsure = '+', train_below = 20 },
+    spam = { sfid = 's', sure = '--', unsure = '-', train_below = 20, resend = false },
   },
 
   -- -- alternative classification
   -- classes = {
-  --   spam      = { sure = '--', unsure = '-', sfid = 's', threshold = threshold,
+  --   spam      = { sure = '--', unsure = '-', sfid = 's', train_below = 20,
   --                 resend = false
   --               },
-  --   personal  = { sfid = 'p', sure = '',   unsure = '+', threshold = 10 },
-  --   ecommerce = { sfid = 'c', sure = '$$', unsure = '$', threshold = threshold },
-  --   work      = { sfid = 'w', sure = '',   unsure = 'w', threshold = threshold },
+  --   personal  = { sfid = 'p', sure = '',   unsure = '+', train_below = 10 },
+  --   ecommerce = { sfid = 'c', sure = '$$', unsure = '$', train_below = 20 },
+  --   work      = { sfid = 'w', sure = '',   unsure = 'w', train_below = 20 },
   -- }
 
   -- put tags on subject line?
@@ -89,12 +78,6 @@ return {
   -- after a training, with the correct tag. To have the original behavior,
   -- that is, just a report message, comment this option out.
   training_output = "message",
-
-  -- Set remove_body_threshold to the score below which you want the
-  -- message body removed. Use this option after you have well trained
-  -- databases:
-  --remove_body_threshold = -2 * threshold,
-  remove_body_threshold = false,
 
   -- Language to use in the cache-report training message.
   -- Default of true uses the user's locale; otherwise

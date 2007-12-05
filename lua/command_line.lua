@@ -272,11 +272,12 @@ function learner(cmd)
         -- redelivers message if it was trained and config calls for a resend
         -- subject tag and it was a subject command 
         -- (is_output_set_to_message())
-        local learned_as_ham_and_tagged =
-          cmd == commands.learn and cfg.classes[classification].resend ~= false and
+        local class_cfg = cfg.classes[classification]
+        local tagged_and_to_be_resent =
           cfg.tag_subject and
-          cache.table_of_sfid(sfid).confidence <= cfg.classes[classification].threshold
-        if learned_as_ham_and_tagged and util.is_output_set_to_message() then
+          cmd == commands.learn and class_cfg.resend ~= false and
+          cache.table_of_sfid(sfid).confidence <= class_cfg.train_below
+        if tagged_and_to_be_resent and util.is_output_set_to_message() then
           local m = msg.of_sfid(sfid)
           local subj_cmd = 'resend ' .. cfg.pwd .. ' ' .. sfid
           local ok, err = pcall(msg.send_cmd_message, subj_cmd, m.eol)
@@ -328,7 +329,7 @@ function resend(sfid)
     local m = msg.of_string(message)
     local train, pR, sfid_tag, subj_tag, class = commands.classify(m)
     sfid_tag = 'R' .. sfid_tag -- prefix tag to indicate a resent message
-    local boost = cfg.classes[class].pR_boost
+    local boost = cfg.classes[class].conf_boost
     local score_header =
       string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', pR - boost,
                     -boost, sfid_tag, core._VERSION, cfg.version)

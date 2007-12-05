@@ -499,7 +499,7 @@ function generate_training_message(email, temail, opt_locale)
   -- However if the threshold specified by the user is larger, 
   -- we use that instead (local variable ct below).
   local min_learnings = math.min(hstats.learnings, sstats.learnings)
-  local threshold = 350 / math.sqrt(2*min_learnings+0.1)
+  local train_below = 350 / math.sqrt(2*min_learnings+0.1)
 
   if not ready then language.title = language.title_nready end
 
@@ -512,12 +512,12 @@ function generate_training_message(email, temail, opt_locale)
   for sfid in cache.two_days_sfids() do
     local t = cache.table_of_sfid
     if not t.learned and not cache.tag_is_unlearnable(t.tag) then
-      if t.confidence < cfg.classes[t.class].threshold then -- should be train_below 
+      if t.confidence < cfg.classes[t.class].train_below then -- should be train_below 
         table.insert(sfids, sfid)
         if #sfids >= max_sfids then
           break
         end
-      elseif t.confidence < math.max(threshold, cfg.classes[t.class].threshold) then
+      elseif t.confidence < math.max(train_below, cfg.classes[t.class].train_below) then
         table.insert(outside_minimum, sfid)
       end
     end

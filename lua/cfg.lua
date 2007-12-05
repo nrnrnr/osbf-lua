@@ -95,12 +95,6 @@ To have the original behavior, that is, just a report message, comment
 this option out or set it to false.
 ]],
 
-  remove_body_threshold = [[Set remove_body_threshold to the score
-value below which you want the message body to be removed. Use this
-option after you have well trained databases. Defaults to false,
-no body removal.
-]],
-
   report_locale = [[Language to use in the cache-report training message.
   Default of true uses the user's locale; otherwise we understand
   'en_US' and 'pt_BR'.
@@ -362,17 +356,19 @@ is a 'sfid', which must be a lowercase letter that is unique to the
 class.  (This letter is used to tag the class of learned messages.)
 It is also possible to include other information:
 
-  sfid      -- unique lowercase letter to identify class (required)
-  sure      -- Subject: tag when mail definitely classified (defaults empty)
-  unsure    -- Subject: tag when mail in reinforcement zone (defaults '?')
-  threshold -- pR below which training is assumed needed (defaults 20)
-  pR_boost  -- during classification, a number added to pR for this class (default 0)
-  resend    -- if this message is trained, resend it with new headers (default true)
+  sfid        -- unique lowercase letter to identify class (required)
+  sure        -- Subject: tag when mail definitely classified (defaults empty)
+  unsure      -- Subject: tag when mail in reinforcement zone (defaults '?')
+  train_below -- confidence below which training is assumed needed (defaults 20)
+  conf_boost  -- during classification, a number added to confidence for this 
+                 class; larger boost makes the classifier more likely to choose
+                 the class (default 0)
+  resend      -- if this message is trained, resend it with new headers (default true)
 
 Sfids 's' and 'h' are reserved for 'spam' and 'ham', and sfids 'w',
 'b', and 'e' are reserved for whitelisting, blacklisting, and errors.
 
-Once the filter is well trained, thresholds should be reduced from the 
+Once the filter is well trained, training thresholds should be reduced from the 
 default value of 20 to something like 10, to reduce the burden of training.
 (We'd love to have an automatic reduction, but we don't have an algorithm.)
 ]]
@@ -398,12 +394,12 @@ local function set_class_defaults()
     else
       used[t.sfid] = class
     end
-    t.sure   = t.sure   or ''
-    t.unsure = t.unsure or '?'
-    t.db     = dirfilename('database', class .. '.cfc')
-    t.threshold = t.threshold or default_threshold
-    t.pR_boost  = t.pR_boost or 0
-    t.resend    = t.resend == nil and true or t.resend
+    t.sure        = t.sure   or ''
+    t.unsure      = t.unsure or '?'
+    t.db          = dirfilename('database', class .. '.cfc')
+    t.train_below = t.train_below or default_threshold
+    t.conf_boost  = t.conf_boost  or 0
+    t.resend      = t.resend == nil and true or t.resend
   end
 end
 

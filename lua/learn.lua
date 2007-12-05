@@ -91,7 +91,7 @@ do
       table.insert(dblist, tbl.db)
       class2index[class] = #dblist
       index2class[#dblist] = class
-      class_boost[class] = tbl.pR_boost
+      class_boost[class] = tbl.conf_boost
     end
   end
   cfg.after_loading_do(init)
@@ -140,7 +140,7 @@ return identical probabilities.
 
 
 
-local function tone_plus(text, target_class)
+local function tone_inner(text, target_class)
 
   local pR, class = most_likely_pR_and_class(text)
   local target_index = class2index[target_class]
@@ -185,7 +185,7 @@ end
 
 -- XXX we should be sure always to compute pR of a single class
 local function tone(text, target_class)
-  local orig_pR, new_pR, orig_class, new_class = tone_plus(text, target_class)
+  local orig_pR, new_pR, orig_class, new_class = tone_inner(text, target_class)
   debugf('Tone result: originally %s (pR %.2f), now %s (pR %.2f); target %s\n',
          orig_class, orig_pR, new_class, new_pR, target_class)
   assert(target_class == new_class)
@@ -200,7 +200,7 @@ local function tone_msg_and_reinforce_header(lim, target_class)
   -- train on the whole message if on or near error
   local lim_orig_msg = lim.msg
   local orig_pR, new_pR = tone(lim_orig_msg, target_class)
-  if new_pR < cfg.classes[target_class].threshold + threshold_offset
+  if new_pR < cfg.classes[target_class].train_below + threshold_offset
   and  math.abs(new_pR - orig_pR) < header_learn_threshold
   then 
     -- Iterative training on the header only (header reinforcement)
@@ -364,7 +364,7 @@ do
       end
     end
 --end
-    local train = max_pR < cfg.classes[most_likely].threshold
+    local train = max_pR < cfg.classes[most_likely].train_below
     debugf('Classified %s as class %s with confidence %.2f%s\n',
            table.concat(cfg.classlist(), '/'), most_likely, max_pR,
            train and ' (train)' or '')
