@@ -1,2 +1,5 @@
 libosbf.so.*
+libosbf3.so.*
 lib.so.?.?.?
+gmon.out
+osbf-lua
