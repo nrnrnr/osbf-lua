@@ -255,19 +255,20 @@ function change_file_status(sfid, status, classification)
   end
 end
 
-__doc.generate_sfid = [[function(sfid_tag, pR) returns string
+__doc.generate_sfid = [[function(sfid_tag, confidence) returns string
 Returns a new, unique sfid.  The tag is the sfid_tag from
-commands.classify, and the pR is the classification score,
-which may be a number or nil.
+commands.classify, and the confidence is the confidence in the classification,
+which may be a nonnegative number or nil.  Zero confidence indicates no
+information; 20 or above is high confidence.
 
 XXX this function is not atomic; to make it atomic, it ought to be 
 combined with cache.store XXX]]
 
-function generate_sfid(sfid_tag, pR)
+function generate_sfid(sfid_tag, confidence)
   -- returns a new SFID
-  -- if pR is not a number, 0 is used instead.
+  -- if confidence is not a number, 0 is used instead.
   assert(sfid_tag and is_valid_tag[sfid_tag], 'invalid sfid tag')
-  local t = { confidence = pR, tag = sfid_tag }
+  local t = { confidence = confidence, tag = sfid_tag }
   for i = 1, 10000 do 
     local sfid = sfid_of_table(t, i)
     -- for safety this should be an atomic test-and-set (using file locking?)

@@ -29,7 +29,10 @@ __doc.pR = [[function(p1, p2) returns log(p1/p2)
 Compute the logarithm of the ratio of two probabilities, where the
 base of the logarithm is chosen such that if p1 and p2 are (sums of)
 probabilities returned by core.classify, then pR of less than 20
-means that training is suggested (Train Near Error).]]
+means that training is suggested (Train Near Error).
+In the user documentation, the number returned by core.pR is
+called 'confidence'.
+]]
 
 __doc.classify = [=[function(text, dblist, flags, min_p_ratio, delimiters) 
      returns sum, probs, trainings
@@ -303,9 +306,3 @@ stuff.  Here are some example usages:
      io.write('spam with confidence ', core.pR(probs[2], probs[1]), '\n')
    end
 ]]
-
-__doc.pR = [[function(p1, p2) returns confidence
-Takes the logarithm of the ratio p1/p2, choosing a base such that a
-logarithm equal to 20.0 is a good initial threshold for training.
-In case rounding error results in a p2 or a ratio that is not positive,
-this function will substitute a very small positive number.]]

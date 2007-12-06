@@ -43,9 +43,10 @@ return {
   -- you can filter the same message with multiple instances of OSBF-Lua
   header_prefix = "X-OSBF-Lua", 
   header_suffixes = {
-    score = "Score",
+    summary = "Score",
     class = "Class",
     needs_training = "Train",
+    confidence = "Confidence",
   },
 
   -- To disable sfids, make false.

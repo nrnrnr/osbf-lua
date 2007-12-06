@@ -54,10 +54,12 @@ the reinforcement zones.
 
   header_prefix = [[Prefix of every header inserted by OSBF-Lua.]],
   header_suffixes = [[Table of suffixes used in different headers;
-  Key      Suffix   Content
-  score    Score    score(s) of the message
-  class    Class    ultimate classification
-  train    Train    'yes' if the message should be trained; 'no' otherwise
+  Key        Suffix      Content
+  summary    Score       summary of classification result
+  class      Class       ultimate classification
+  confidence Confidence  confidence in 'class' as a floating-point number
+  train      Train       'yes' if the message should be trained; 'no' otherwise
+The 'summary' header's default suffix is Score for legacy reasons.
 ]],
 
   use_sfid     = 'Flag to turn on or off use of SFID',

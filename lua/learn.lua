@@ -26,7 +26,8 @@ local error, ipairs =
 local io, string, table, math =
       io, string, table, math
 
-local use_old_pR = os.getenv 'OSBF_OLD_PR'
+local use_old_pR = os.getenv 'OSBF_OLD_PR' 
+  --- XXX todo: pick one or the other pR method; they're nearly indistinguishable
 
 local debug = os.getenv 'OSBF_DEBUG'
 local md5, debugf -- nontrivial only when debugging
@@ -308,7 +309,10 @@ local msgmod = msg
 __doc.classify = 
 [[function(msgspec) returns train, pR, sfid tag, subject tag, classification
 train is a boolean or nil; 
-pR the log of ratio of the probability for the chosen class
+pR is the log of ratio of the probability for the chosen class;
+it represents the confidence in the classification, where 0 is no
+confidence at all (zero information) and 20 is high confidence 
+(training not warranted).
 tags are always strings
 
 Note that these sfid tags are *classification* tags, not *learning* tags,

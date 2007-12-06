@@ -262,8 +262,8 @@ function learner(cmd)
                 'is set ' .. (cfg.use_sfid and 'not to save messages' or
                               'not to use sfids'))
         else
-          local train, pR, sfid_tag, subj_tag, classification = commands.classify(m)
-          sfid = cache.generate_sfid(sfid_tag, pR)
+          local train, conf, sfid_tag, subj_tag, classification = commands.classify(m)
+          sfid = cache.generate_sfid(sfid_tag, conf)
           cache.store(sfid, msg.to_orig_string(m))
         end
 
@@ -327,11 +327,11 @@ function resend(sfid)
   local message, err = cache.try_recover(sfid)
   if message then
     local m = msg.of_string(message)
-    local train, pR, sfid_tag, subj_tag, class = commands.classify(m)
+    local train, confidence, sfid_tag, subj_tag, class = commands.classify(m)
     sfid_tag = 'R' .. sfid_tag -- prefix tag to indicate a resent message
     local boost = cfg.classes[class].conf_boost
     local score_header =
-      string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', pR - boost,
+      string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', confidence - boost,
                     -boost, sfid_tag, core._VERSION, cfg.version)
     msg.add_osbf_header(m, cfg.score_header_suffix, score_header)
     msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
@@ -383,14 +383,16 @@ function classify(...)
   local show =
     options.tag 
       and
-    function(pR, tag) return tag end
+    function(confidence, tag) return tag end
       or
-    function(pR, tag, class)
+    function(confidence, tag, class)
       local what = commands.sfid_tags[tag] or class
-      if pR then
-        what = string.format('%s with score %4.2f', what, pR)
+      if confidence then
+        what = string.format('%s with confidence %4.2f, where 20 is high confidence',
+                             what, confidence)
       else
-        what = what .. ' and pR is ' .. tostring(pR) .. ' and tag is ' .. tostring(tag) .. '?!'
+        what = string.format('%s and confidence is %s and tag is %s?!',
+                             what, tostring(confidence), tostring(tag))
       end
       return what
     end 
@@ -398,11 +400,11 @@ function classify(...)
   for msgspec, what in msgspecs(unpack(argv)) do
     local m = msg.of_any(msgspec)
     io.stderr:write(string.sub(m.body, 1, 300), '...\n')
-    local train, pR, tag, _, class = commands.classify(m)
+    local train, confidence, tag, _, class = commands.classify(m)
     if options.cache then
-      cache.store(cache.generate_sfid(tag, pR), msg.to_orig_string(m))
+      cache.store(cache.generate_sfid(tag, confidence), msg.to_orig_string(m))
     end
-    util.write(what, ' is ', show(pR, tag, class),
+    util.write(what, ' is ', show(confidence, tag, class),
                train and ' [needs training]' or '', m.eol)
   end
 end
@@ -514,7 +516,7 @@ Valid options: -notag   => disables subject tagging
                -nosfid  => disables sfid (implies -nocache)
 ]]
 
-local function filter(...)
+function filter(...)
   local options, argv =
     options.parse({...},
       {nocache = options.std.bool, notag = options.std.bool,
@@ -522,15 +524,14 @@ local function filter(...)
 
   for msgspec, what in msgspecs(unpack(argv)) do
     local m, err = msg.of_any(msgspec)
-    local cmd = msg.parse_subject_command(m)
-    if type(cmd) == 'table' and subject_line_commands[cmd[1]] then
+    local have_subject_cmd, cmd = _G.pcall(msg.parse_subject_command, m)
+    if have_subject_cmd then
       exec_subject_line_command(cmd, m)
     else
       local function classify_and_insert() -- protect from errors
-        local train, pRs, sfid_tag, subj_tag, classification = commands.classify(m)
-        local min_pR = util.min_abs(pRs)
+        local train, confidence, sfid_tag, subj_tag, class = commands.classify(m)
         if not options.nosfid and cfg.use_sfid then
-          local sfid = cache.generate_sfid(sfid_tag, min_pR)
+          local sfid = cache.generate_sfid(sfid_tag, confidence)
           if not options.nocache and cfg.save_for_training then
             cache.store(sfid, msg.to_orig_string(m))
           end
@@ -540,13 +541,14 @@ local function filter(...)
           msg.tag_subject(m, subj_tag)
         end
         local classes = cfg.classes
-        local score_header =
+        local summary_header =
           string.format('%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
-                        min_pR, classes.ham and classes.ham.min_pR or 0,
+                        confidence, classes[class].train_below,
                         sfid_tag, core._VERSION, cfg.version)
         local suffixes = cfg.header_suffixes
-        msg.add_osbf_header(m, suffixes.score, score_header)
-        msg.add_osbf_header(m, suffixes.class, classification)
+        msg.add_osbf_header(m, suffixes.summary, summary_header)
+        msg.add_osbf_header(m, suffixes.class, class)
+        msg.add_osbf_header(m, suffixes.confidence, confidence or '0.0')
         msg.add_osbf_header(m, suffixes.needs_training, train and 'yes' or 'no')
       end
       local ok, err = pcall(classify_and_insert)
@@ -557,6 +559,16 @@ local function filter(...)
     end
   end
 end
+cfg.after_loading_do(
+  function()
+    local suffixes = cfg.header_suffixes
+    for _, s in ipairs { 'summary', 'class', 'confidence', 'needs_training' } do
+      if not suffixes[s] then
+        util.dief([[Incomplete config file: no field 'header_suffixes.%s']], s)
+      end
+    end
+  end)
+
 table.insert(usage_lines,
   'filter [-nosfid] [-nocache] [-notag] [<sfid|filename> ...]')
  

@@ -313,7 +313,8 @@ Adds a new header to the message with the given tag and contents.
 
 function add_header(msg, tag, contents)
   assert(is_rfc2822_field_name(tag), 'Not a valid RFC2822 field name')
-  assert(type(contents) == 'string', 'Header contents must be string')
+  assert(type(contents) == 'string' or type(contents) == 'number',
+         'Header contents must be string or number')
   msg = of_any(msg)
   table.insert(msg.headers, tag .. ': ' .. contents)
 end

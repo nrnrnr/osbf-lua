@@ -198,6 +198,9 @@ function die(...)
   end
 end
 
+__doc.dief = [[function(...) return util.die(string.format(...)) end]]
+      dief =   function(...) return      die(string.format(...)) end
+
 __doc.checkf = [[function(v, ...) may print error message and exit
 If v is nil or false, calls util.die(string.format(...)); otherwise returns v.]]
 
