@@ -23,18 +23,29 @@ function table_tab(t)
 end
 
 ----------------------------------------------------------------
+__doc.tablerep = [[function(v, n) returns array
+Returns a list containing n copies of v in slots
+1 through n.]]
+
 function tablerep(v, n)
   local data = { }
   for i = 1, n do data[i] = v end
   return data
 end
 ----------------------------------------------------------------
+__doc.tablemap = [[function(f, l, ...) returns array
+Takes the array l and applies f to every element.
+More exactly, the new element i is f(l[i], ...).]]
+
 function tablemap(f, l, ...)
   local data = { }
   for i = 1, #l do data[i] = f(l[i], ...) end
   return data
 end
 ----------------------------------------------------------------
+__doc.tablecopy = [[function(t) returns table
+Returns a fresh table that contains the keys and
+values obtained from pairs(t).]]
 function tablecopy(t)
   local data = { }
   for k, v in pairs(t) do data[k] = v end

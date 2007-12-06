@@ -7,8 +7,6 @@ local unpack, type, print, assert, tonumber
 
 module(...)
 
-pcall = _G.pcall -- exposed!!
-
 local util     = require (_PACKAGE .. 'util')
 local cfg      = require (_PACKAGE .. 'cfg')
 local core     = require (_PACKAGE .. 'core')
@@ -22,6 +20,9 @@ require(_PACKAGE .. 'learn') -- loaded into 'commands'
 local function eprintf(...) return util.write_error(string.format(...)) end
 
 __doc = __doc or { }
+
+pcall = _G.pcall -- exposed!!
+__doc.pcall = [[A version of pcall that is overridden by the -trace option.]]
 
 local usage_lines = { }
 
@@ -245,7 +246,7 @@ Learn messages as belonging to the specified class. The ... are the
 message specs.
 ]]
 
-function learner(cmd)
+local function learner(cmd)
   return function(classification, ...)
     local has_class = cfg.classes[classification]
     if cmd == commands.learn and not has_class then
@@ -599,7 +600,7 @@ table.insert(usage_lines, 'stats [-v|-verbose]')
 local valid_locale = { pt_BR = true, en_US = true }
 
 do
-  locales = {}
+  local locales = {}
   for l in pairs(valid_locale) do table.insert(locales, l) end
   table.sort(locales)
 

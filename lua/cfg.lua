@@ -16,7 +16,7 @@ local options = require (_PACKAGE .. 'options')
 local boot    = require (_PACKAGE .. 'boot')
 local core    = require (_PACKAGE .. 'core')
 
-default_threshold = 20
+local default_threshold = 20
 
 --- put default configuration in my configuration
 for k, v in pairs(d) do
@@ -376,6 +376,9 @@ default value of 20 to something like 10, to reduce the burden of training.
 ]]
 
 class_of_tag = { }
+
+__doc.class_of_tag = [[table mapping single-letter sfid tag to its class.
+Maps both uppercase and lowercase versions of the tag.]]
 
 local function set_class_defaults()
   local c = classes

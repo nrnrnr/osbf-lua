@@ -85,7 +85,7 @@ lang (optional) is a string with the language for report_locale in config.
 
 do
   
-  function id(x) return x end
+  local function id(x) return x end
   local to_buckets = { buckets = id, totalbuckets = id,
                        bytes = buckets_of_bytes, totalbytes = buckets_of_bytes }
   local divide = { totalbuckets = true, totalbytes = true }

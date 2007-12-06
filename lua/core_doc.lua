@@ -34,6 +34,8 @@ In the user documentation, the number returned by core.pR is
 called 'confidence'.
 ]]
 
+__doc.old_pR = [[old version of pR.  One or the other must go.]]
+
 __doc.classify = [=[function(text, dblist, flags, min_p_ratio, delimiters) 
      returns sum, probs, trainings
   or calls lua_error

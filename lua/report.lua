@@ -1,5 +1,3 @@
-local io = io -- dedbugging
-
 -- Command for creating a training-form email
 
 local require, print, pairs, ipairs, type, assert, setmetatable =
@@ -418,7 +416,7 @@ do
   local menu_items = { -- menu possibilities per each message
     "none", "resend", "remove", "whitelist_from", "whitelist_subject", "undo"
   }
-  function insert_classes_in_menu()
+  local function insert_classes_in_menu()
     for _, class in ipairs(cfg.classlist()) do
       table.insert(menu_items, #menu_items, class)
     end
@@ -561,10 +559,8 @@ function generate_training_message(email, temail, opt_locale)
   local sfids = {}
   local outside_minimum = {}
   for sfid in cache.two_days_sfids() do
-io.stderr:write('...')
     local t = cache.table_of_sfid(sfid)
     if not t.learned and not cache.tag_is_unlearnable(t.tag) then
-io.stderr:write('considering unlearned sfid ', sfid)
       if t.confidence < cfg.classes[t.class].train_below then -- should be train_below 
         table.insert(sfids, sfid)
         if #sfids >= max_sfids then
@@ -572,16 +568,7 @@ io.stderr:write('considering unlearned sfid ', sfid)
         end
       elseif t.confidence < math.max(train_below, cfg.classes[t.class].train_below) then
         table.insert(outside_minimum, sfid)
-else
-io.stderr:write('rejected sfid ', sfid, ' with confidence ', t.confidence, '\n')
-
       end
-else
-if t.learned then
-io.stderr:write('sfid ', sfid, ' is already learned\n')
-else
-io.stderr:write('sfid ', sfid, ' has unlearnable tag ', t.tag, '\n')
-end
     end
   end
   -- If still less than max_sfids, ompletes with sfids outside
@@ -593,8 +580,6 @@ end
       break
     end
   end
-
-io.stderr:write('Considering ', #sfids, ' sfids\n')
 
   cache.sort_sfids(sfids) -- should be redundant (but then should be cheap)
   return(message(sfids, email, temail, ready))
