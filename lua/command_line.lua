@@ -386,7 +386,7 @@ function classify(...)
     function(confidence, tag) return tag end
       or
     function(confidence, tag, class)
-      local what = commands.sfid_tags[tag] or class
+      local what = cache.sfid_tag_meaning[tag] or class
       if confidence then
         what = string.format('%s with confidence %4.2f, where 20 is high confidence',
                              what, confidence)
@@ -399,7 +399,6 @@ function classify(...)
   
   for msgspec, what in msgspecs(unpack(argv)) do
     local m = msg.of_any(msgspec)
-    io.stderr:write(string.sub(m.body, 1, 300), '...\n')
     local train, confidence, tag, _, class = commands.classify(m)
     if options.cache then
       cache.store(cache.generate_sfid(tag, confidence), msg.to_orig_string(m))

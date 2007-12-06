@@ -1,8 +1,8 @@
 local require, print, ipairs, pairs, type, assert, tostring, error, pcall =
       require, print, ipairs, pairs, type, assert, tostring, error, pcall
 
-local io, string, table, os, coroutine, math, tonumber =
-      io, string, table, os, coroutine, math, tonumber
+local io, string, table, os, coroutine, math, tonumber, setmetatable =
+      io, string, table, os, coroutine, math, tonumber, setmetatable
 
 module(...)
 
@@ -59,20 +59,23 @@ Where the meanings of the various fields are as follows:
 
 __doc.table_of_sfid = [[function(sfid) returns table
 Takes a spam filter id and returns a table with these fields:
-  tag   -- lower or upper case letter designating initial classification
-  time    -- time of initial classification as returned by os.time()
-  serial  -- a serial number that makes the sfid unique
-  rightid -- a string identifying the classifier
-  learned -- if the message has been trained, a lowercase letter
-             indicating the relevant class; nil otherwise
+  tag        -- lower or upper case letter designating initial classification
+  class      -- the dclass corresponding to the tag
+  confidence -- confidence we have in the classification (10-20 and above are high)
+  time       -- time of initial classification as returned by os.time()
+  serial     -- a serial number that makes the sfid unique
+  rightid    -- a string identifying the classifier
+  learned    -- if the message has been trained, a lowercase letter
+                indicating the relevant class; nil otherwise
 
 If sfid is not a string or if  the string is not well formed, 
 table_of_sfid() calls error().
 ]]
 
 __doc.sfid_of_table = [[function(table [, serial]) returns sfid
-Takes a table as returned by table_of_sfid and returns a sfid.
-All fields of the table are optional except 'tag'.
+Takes a table as returned by table_of_sfid, ignores the class field,
+and returns a sfid. All fields of the table are optional except 'tag',
+which is used in place of 'class'.
 Defaults are
   time       = current time
   confidence = 0
@@ -129,17 +132,22 @@ do
     if type(s) ~= 'string' then
       util.errorf('Non-string value %s used as sfid', tostring(s))
     end
-    local tag, year, month, day, hour, min, sec, confidence, serial, rightid, learned =
+    local tag, year, month, day, hour, min, sec, confidence,
+          serial, rightid, dash, learned =
       string.match(s, '^sfid%-(%a)%-(%d%d%d%d)(%d%d)(%d%d)%-(%d%d)(%d%d)(%d%d)%-' ..
-                      '([%+%-]%d+%.%d+)%-(%d+)%@(.-)%-?(%l?)$')
+                   '([%+%-]%d+%.%d+)%-(%d+)%@(.-)(%-?)(%l?)$')
     if not (tag and learned) then
       error("Ill-formed sfid " .. s)
+    end
+    if dash == '' then
+      rightid = rightid .. learned
+      learned = nil
     end
     local n = tonumber
     local time = os.time { year = n(year), month = n(month), day = n(day),
                            hour = n(hour), min = n(min), sec = n(sec) }
-    if learned == '' then learned = nil end
     last_t, last_s = { tag = tag, time = time, confidence = n(confidence),
+                       class = cfg.class_of_tag[tag],
                        serial = n(serial), rightid = rightid, learned = learned }, s
     return last_t
   end
@@ -273,6 +281,7 @@ function generate_sfid(sfid_tag, confidence)
     local sfid = sfid_of_table(t, i)
     -- for safety this should be an atomic test-and-set (using file locking?)
     if not file_and_status(sfid) then
+io.stderr:write('generated sfid ', sfid, '\n')
       return sfid
     end
   end
@@ -348,7 +357,7 @@ W (whitelisted), and E (error).]]
 
 function tag_is_unlearnable(tag)
   assert(string.len(tag) == 1 and string.find(tag, '%a'), 'ill-formed tag')
-  return (string.find(t.tag, '[WBE]'))
+  return (string.find(tag, '[WBE]'))
 end
 
 ----------------------------------------------------------------

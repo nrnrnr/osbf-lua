@@ -28,6 +28,8 @@ if options.trace then
   osbf.command_line.pcall = function(f, ...) return true, f(...) end
 end
 
+local pcall = osbf.command_line.pcall
+
 local ok, msg = pcall(osbf.init, options, args[1] == 'init')
 if not ok then
   die(arg[0], ' failed during initialization: ', msg, '\n')

@@ -1,3 +1,5 @@
+local io = io -- dedbugging
+
 -- Command for creating a training-form email
 
 local require, print, pairs, ipairs, type, assert, setmetatable =
@@ -28,11 +30,30 @@ local colors = {
   background = '#ffec8b',
   menubg = '#acac7c',
   border = '#3d0000',
-  spam = "#ff0000",
-  ham = "#0000aa",
+  class = {
+    spam = "#ff0000",
+    ham = "#0000aa",
+  },
   default = "#000000",
   invalid = "#ff0000", -- color for an invalid date
+  tag = { },
 }
+
+local class_of_tag = cfg.class_of_tag
+
+do
+  local function set_class_colors()
+    for class, tbl in pairs(cfg.classes) do
+      colors.tag[tbl.sfid] = colors.class[class] or colors.default
+    end
+  end
+  cfg.after_loading_do(set_class_colors)
+end
+
+local function tag_color(s)
+  return assert(colors.tag[string.lower(s)],
+                'Report: tag letter does not correspond to any class')
+end
 
 local function replace_dollar(s, t)
   s = string.gsub(s, '%$colors%.([%a_]+)', colors)
@@ -63,13 +84,14 @@ local English = {
     remove      = "Remove from cache",
     whitelist_from     = "Add 'From:' to whitelist",
     whitelist_subject = "Add 'Subject:' to whitelist",
-    ham  = "Train as Ham",
-    spam = "Train as Spam",
+    train_as  = "Train as %s",
     undo = "Undo training",
   },
+  class_names = { }, -- no mapping for class names
   train_nomsgs  = "No messages for training",
   table = 
-    { date  = "Date", from = "From", subject = "Subject", action = "Action" },
+    { date  = "Date", from = "From", subject = "Subject", action = "Action",
+      confidence = "Confidence" },
 
   stats = {
     stats     = "Statistics",
@@ -77,8 +99,6 @@ local English = {
     mistakes  = "Mistakes",
     learnings = "Learnings",
     accuracy  = "Accuracy",
-    spam      = "Spam",
-    ham       = "Ham",
     total     = "Total",
   },
 }
@@ -100,13 +120,16 @@ local Brazilian_Portuguese = {
     remove      = "Remover do cache",
     whitelist_from    = "P&ocirc;r remetente em whitelist",
     whitelist_subject = "P&ocirc;r 'Assunto:' em whitelist",
-    ham  = "Treinar como N&atilde;o-Spam",
-    spam = "Treinar como Spam",
+    train_as  = "Treinar como %s",
     undo = "Desfazer treinamento",
   },
+  class_names = { -- graciously map English class names to Portuguese if needed
+    ham = "N&atilde;o-Spam",
+  },
+    
   train_nomsgs  = "N&atilde;o h&aacute; mensagens para treinamento",
   table = { date  = "Data", from = "De", subject = "Assunto",
-            action = "A&ccedil;&atilde;o" },
+            action = "A&ccedil;&atilde;o", confidence = "Portuguese for 'confidence'" },
 
   stats = {
     stats     = "Estat&iacute;sticas",
@@ -289,17 +312,19 @@ tr.stats_footer {
 ----------------------------------------------------------
 ---- rows of the cache report (one per message)
 
-local max_widths = { date = 18, from = 23, subject = 45, action = 14 }
+local max_widths = { date = 18, from = 23, subject = 45, action = 14, confidence = 10 }
 
 -- template for row of the sfid table (one per message)
 local sfid_row = [[
 <tr class="msgs">
- <td style="width: 15%; max-width: $mwd%; color: $datecolor;"><small>$date</small></td>
- <td style="width: 26%; max-width: $mwf%; color: $fgcolor;"><small>$from</small></td>
- <td style="width: 45%; max-width: $mws%; color: $fgcolor;">
+ <td style="width: 13%; max-width: $mwd%; color: $datecolor;"><small>$date</small></td>
+ <td style="width: 24%; max-width: $mwf%; color: $fgcolor;"><small>$from</small></td>
+ <td style="width: 43%; max-width: $mws%; color: $fgcolor;">
                                                          <small>$subject</small></td>
- <td style="width: 14%; max-width: $mwa%; vertical-align: middle; color: $fgcolor;">
+ <td style="width: 13%; max-width: $mwa%; vertical-align: middle; color: $fgcolor;">
                                                         <p><small>$select</small></td>
+ <td style="width:  7%; max-width: $mwc%; vertical-align: middle; color: $fgcolor;">
+                                                        <p><small>$confidence</small></td>
  </tr>
 ]]
 do
@@ -321,7 +346,7 @@ do
 
   function html_first_row()
     local cols = { }
-    for _, what in ipairs { 'date', 'from', 'subject', 'action' } do
+    for _, what in ipairs { 'date', 'from', 'subject', 'action', 'confidence' } do
       local data = { mw = max_widths[what], contents = language.table[what] }
       table.insert(cols, replace_dollar(col, data))
     end
@@ -340,12 +365,10 @@ function html_sfid_rows(sfids, ready) -- declared local above
                                          string.upper(c))
         end)
   end
-  local tag_colors =
-    { S = colors.spam, H = colors.ham, ['-'] = colors.spam, ['+'] = colors.ham }
-
   rows = { html_first_row() }
   for _, sfid in ipairs(sfids) do
     local m, status = msg.of_sfid(sfid)
+    local sfid_table = cache.table_of_sfid(sfid)
     util.validate(m, 'Sudden disappearance of sfid from the cache')
     local function header(tag)
       return msg.header_tagged(m, tag) or string.format('(no %s)', tag)
@@ -372,8 +395,8 @@ function html_sfid_rows(sfids, ready) -- declared local above
     local subject, from, date  = header 'subject', header 'from', header 'date'
     from, subject = htmlify(from, 32), htmlify(subject, 40)
 
-    local tag       = string.match(sfid, "sfid%-(.)") or '?'
-    local fgcolor   = ready and tag_colors[tag] or colors.default
+    local tag       = assert(sfid_table.tag)
+    local fgcolor   = ready and assert(tag_color(tag)) or colors.default
     local lts       = msg.rfc2822_to_localtime_or_nil(date) 
     local date      = lts and os.date("%Y/%m/%d %H:%M", lts) or date
     local datecolor = lts and fgcolor or colors.invalid
@@ -381,6 +404,7 @@ function html_sfid_rows(sfids, ready) -- declared local above
     local data = {
       datecolor = datecolor, fgcolor = fgcolor,
       from = from, subject = subject, date = date,
+      confidence = sfid_table.confidence,
       select = sfid_menu(sfid, tag, ready)
     }
 
@@ -391,21 +415,26 @@ function html_sfid_rows(sfids, ready) -- declared local above
 end
 
 do
-  local default_selections = { ['-'] = 'spam', S = 'spam', ['+'] = 'ham', H = 'ham' }
-
   local menu_items = { -- menu possibilities per each message
-    "none", "resend", "remove", "whitelist_from", "whitelist_subject", 
-    "spam", "ham", "undo",
+    "none", "resend", "remove", "whitelist_from", "whitelist_subject", "undo"
   }
+  function insert_classes_in_menu()
+    for _, class in ipairs(cfg.classlist()) do
+      table.insert(menu_items, #menu_items, class)
+    end
+  end
+  cfg.after_loading_do(insert_classes_in_menu)
 
   function sfid_menu(sfid, tag, ready) -- declared local above
     local selected = { }
-    selected[ready and default_selections[tag] or 'none'] = true
+    selected[ready and class_of_tag[tag] or 'none'] = true
 
     local function menu_item(choice)
+      local label = language[choice] or
+                    cfg.classes[choice] and string.format(language.train_as, choice) or
+                    '(Nothing for ' .. choice .. '?!)'
       return string.format([[<option class="menu" value="%s"%s>%s]],
-                           choice, selected[choice] and ' selected' or '',
-                           language[choice] or ('(Nothing for ' .. choice .. '?!)'))
+                           choice, selected[choice] and ' selected' or '', label)
     end
 
     local select = 
@@ -425,28 +454,40 @@ end
 -- return an HTML table with statistics
 function html_stat_table() -- declared local above
   local verbose = false
-  local hstats, sstats, herr, serr, spam_rate, gerr = stats(verbose)
-  local stats = language.stats
-  stats.bcolor = colors.border --- what a hack!
+  local cstats, errs, rates, gerr = stats(verbose)
+  language.stats.bcolor = colors.border --- what a hack!
 
-  local columns = { 'stats', 'num_class', 'mistakes', 'learnings', 'accuracy' }
-  local widths = {
-    stats = 136, num_class = 109, mistakes = 75, learnings = 111, accuracy = 92
-  }
 
   local function pct(x)
     return string.format('%5.2f%%', 100 * x)
   end
 
-  local hams   = {stats.ham, hstats.classifications, hstats.mistakes,
-                  hstats.learnings, pct(1-herr)}
-  local spams  = {stats.spam, sstats.classifications, sstats.mistakes,
-                  sstats.learnings, pct(1-serr)}
-  local totals = {stats.total, hstats.classifications + sstats.classifications,
-                  hstats.mistakes + sstats.mistakes,
-                  hstats.learnings + sstats.learnings, pct(1-gerr)}
+  local classlines = { }
+  local totals = { language.stats.total, 0, 0, 0, pct(1-gerr) }
+  do
+    local function classline(class) -- information reported for a class
+      return { language.class_names[class] or class,
+               cstats[class].classifications,
+               cstats[class].mistakes,
+               cstats[class].learnings,
+               pct(1-errs[class]),
+             }
+    end
+    for class, s in pairs(cstats) do
+      classlines[class] = classline(class)
+      totals[2] = totals[2] + s.classifications
+      totals[3] = totals[3] + s.mistakes
+      totals[4] = totals[4] + s.learnings
+    end
+  end
 
-  local headers, cols, hspams, hhams, footers = { }, { }, { }, { }, { }
+  local headers, cols, footers = { }, { }, { }, { }, { }
+  local columns = { 'stats', 'num_class', 'mistakes', 'learnings', 'accuracy' }
+  local widths = {
+    stats = 136, num_class = 109, mistakes = 75, learnings = 111, accuracy = 92
+  }
+  local hclasses = { }
+  for class in pairs(cstats) do hclasses[class] = { } end -- html for the class
   for i = 1, #columns do
     local c = columns[i]
     local wtab = {width = widths[c]}
@@ -454,22 +495,24 @@ function html_stat_table() -- declared local above
     if c == 'stats' then text = html.i(text) end
     table.insert(headers, html.td (wtab, html.p(html.center(html.b(text)))))
     table.insert(cols,    html.col(wtab))
-    table.insert(hspams,  html.td (wtab, html.p(spams [i])))
-    table.insert(hhams,   html.td (wtab, html.p(hams [i])))
+    for class in pairs(cstats) do
+      table.insert(hclasses[class], html.td (wtab, html.p(classlines[class][i])))
+    end
     table.insert(footers, html.td (wtab, html.p(totals [i])))
   end
   local function row(l, class)
     return html.tr({class=class, valign="middle", height="25"}, table.concat(l))
   end
   local function linecat(l) return table.concat(l, '\n') end
+  local rows = {row(headers, "stats_header")}
+  for _, class in ipairs(cfg.classlist()) do
+    table.insert(rows, row(hclasses[class], "stats_row"))
+  end
+  table.insert(rows, row(footers, "stats_footer"))
   local tbl =
     html.table({always="", border=1, bordercolor=colors.border,
                 cellpadding=4, cellspacing=0},
-              linecat {table.concat(cols),
-                html.tbody(linecat {row(headers, "stats_header"),
-                                    row(hspams, "stats_row"),
-                                    row(hhams, "stats_row"),
-                                    row(footers, "stats_footer")})})
+               linecat {table.concat(cols), html.tbody(linecat(rows))})
   return html.center(tbl)
 end
 
@@ -487,8 +530,19 @@ function generate_training_message(email, temail, opt_locale)
   set_language(opt_locale)
   temail = temail or email
 
-  local hstats, sstats = stats()
-  local ready = hstats.learnings >= 10 and sstats.learnings >= 10
+  local ready
+  local cstats = stats()
+  local min_learnings = 10e100 -- a big number
+  do
+    local num_classes_with_10_learnings = 0
+    for _, s in pairs(cstats) do
+      if s.learnings >= 10 then
+        min_learnings = math.min(min_learnings, s.learnings)
+        num_classes_with_10_learnings = num_classes_with_10_learnings + 1
+      end
+    end
+    ready = num_classes_with_10_learnings >= 2
+  end
 
   if not ready then language.title = language.title_nready end
 
@@ -498,10 +552,7 @@ function generate_training_message(email, temail, opt_locale)
   -- possible value (307) and decreases exponentially down.
   -- However if the threshold specified by the user is larger, 
   -- we use that instead (local variable ct below).
-  local min_learnings = math.min(hstats.learnings, sstats.learnings)
   local train_below = 350 / math.sqrt(2*min_learnings+0.1)
-
-  if not ready then language.title = language.title_nready end
 
   local max_sfids = cfg.cache_report_limit
 
@@ -510,8 +561,10 @@ function generate_training_message(email, temail, opt_locale)
   local sfids = {}
   local outside_minimum = {}
   for sfid in cache.two_days_sfids() do
-    local t = cache.table_of_sfid
+io.stderr:write('...')
+    local t = cache.table_of_sfid(sfid)
     if not t.learned and not cache.tag_is_unlearnable(t.tag) then
+io.stderr:write('considering unlearned sfid ', sfid)
       if t.confidence < cfg.classes[t.class].train_below then -- should be train_below 
         table.insert(sfids, sfid)
         if #sfids >= max_sfids then
@@ -519,7 +572,16 @@ function generate_training_message(email, temail, opt_locale)
         end
       elseif t.confidence < math.max(train_below, cfg.classes[t.class].train_below) then
         table.insert(outside_minimum, sfid)
+else
+io.stderr:write('rejected sfid ', sfid, ' with confidence ', t.confidence, '\n')
+
       end
+else
+if t.learned then
+io.stderr:write('sfid ', sfid, ' is already learned\n')
+else
+io.stderr:write('sfid ', sfid, ' has unlearnable tag ', t.tag, '\n')
+end
     end
   end
   -- If still less than max_sfids, ompletes with sfids outside
@@ -531,6 +593,8 @@ function generate_training_message(email, temail, opt_locale)
       break
     end
   end
+
+io.stderr:write('Considering ', #sfids, ' sfids\n')
 
   cache.sort_sfids(sfids) -- should be redundant (but then should be cheap)
   return(message(sfids, email, temail, ready))

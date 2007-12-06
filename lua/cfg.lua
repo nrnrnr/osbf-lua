@@ -329,7 +329,7 @@ Sets OSBF-Lua directories, databases and loads user's config file.
 __doc.after_loading_do = [[function(f)
 After the user's config file is loaded, call f passing the cfg table.
 ]]
-local postloads = { }
+local postloads, loaded = { }, false
 function after_loading_do(f)
   table.insert(postloads, f)
 end
@@ -375,6 +375,8 @@ default value of 20 to something like 10, to reduce the burden of training.
 (We'd love to have an automatic reduction, but we don't have an algorithm.)
 ]]
 
+class_of_tag = { }
+
 local function set_class_defaults()
   local c = classes
   local used = { s = 'spam', h = 'ham', w = true, b = true, e = true }
@@ -402,6 +404,8 @@ local function set_class_defaults()
     t.train_below = t.train_below or default_threshold
     t.conf_boost  = t.conf_boost  or 0
     t.resend      = t.resend == nil and true or t.resend
+    class_of_tag[t.sfid]               = class
+    class_of_tag[string.upper(t.sfid)] = class
   end
 end
 
@@ -410,6 +414,7 @@ do
   local the_classes
   function classlist()
     if not the_classes then
+      assert(loaded)
       the_classes = { }
       for c, v in pairs(classes) do
         assert(type(c) == 'string' and type(v) == 'table' and v.sfid)
@@ -429,6 +434,7 @@ local function init(options, no_dirs_ok)
   set_dirs(options, no_dirs_ok)
   load_if_readable(configfile)
   set_class_defaults()
+  loaded = true
   for _, f in ipairs(postloads) do
     f(_M)
   end

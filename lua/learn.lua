@@ -409,8 +409,11 @@ function classify (msg)
   local pR, class, train =
     most_likely_pR_and_class(msg.lim.msg, count_classifications_flags)
   local t = assert(cfg.classes[class], 'missing configuration for class')
-  sfid_tag = sfid_tag or
-    string.upper(util.insistf(t.sfid, 'missing sfid tag for %s', class))
+  
+  if not sfid_tag then
+    local tag = util.insistf(t.sfid, 'missing sfid tag for %s', class)
+    sfid_tag = train and tag or string.upper(tag)
+  end
   subj_tag = wrap_subj_tag(subj_tag or t[train and 'unsure' or 'sure'])
   return train, pR, sfid_tag, subj_tag, class
 end
