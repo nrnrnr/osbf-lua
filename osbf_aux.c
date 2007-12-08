@@ -1362,7 +1362,8 @@ osbf_increment_false_positives (const char *database, int delta, char *errmsg)
     class.header->false_positives += delta;
 
   error = osbf_close_class (&class, errmsg);
-  fprintf (stderr, "Couldn't close %s.", database);
+  if (error != 0)
+    fprintf (stderr, "Couldn't close %s.", database);
   
   return error;
 }

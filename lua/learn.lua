@@ -125,28 +125,29 @@ local msgmod = msg
 __doc.tone = [[function(text, class) returns old_pR, new_pR or errors
 Conditionally train 'text' as belonging to 'class'.  Training is done
 'on or near error' (TONE): if the classifier produces the wrong
-classification (different from 'original'), we train with the MISTAKE
-flag.  Otherwise, if pR (confidence) is below the training threshold
-('near error' or 'within the reinforcement zone'), we train without
-the MISTAKE flag.
+classification (different from 'original'), we train with the
+FALSE_NEGATIVE flag.  Otherwise, if pR (confidence) is below the training
+threshold ('near error' or 'within the reinforcement zone'), we train
+without the FALSE_NEGATIVE flag.
 
-XXX --- need to define the exact meaning of old_pR and new_pR.  In
-particular they should *always* refer to the same class, which means
-the target class, no matter what the initial classification of the
-message.
-
-If training was not necessary (correct and not near error), 
-return identical probabilities.
+class is the target class.
+old_pR and new pR are the before-training and after-training pRs of the 
+target class. If training was not necessary (correct and not near error), 
+return identical probability ratios.
 ]]
 
 
 
 local function tone_inner(text, target_class)
 
-  local pR, class = most_likely_pR_and_class(text)
+  local k = cfg.constants
+  local old_pR, class, _, target_pR =
+    most_likely_pR_and_class(text, k.classify_flags, target_class)
   local target_index = class2index[target_class]
 
   if class ~= target_class then
+    -- old_pR must be old pR of target_class
+    old_pR = target_pR
     -- core.FALSE_NEGATIVE indicates that the false negative counter in
     -- the database must be incremented. This is an approximate counting
     -- because there can be cases where there was no false negative in the
@@ -157,32 +158,32 @@ local function tone_inner(text, target_class)
     core.increment_false_positives(dblist[wrong_index])
 
     -- guarantee that starting class for tone-hr is the target class
-    local new_pR, new_class = most_likely_pR_and_class(text)
-    debugf("Tone after 1 MISTAKE training: classified %s (pR %.2f); target class %s\n",
+    local new_pR, new_class = most_likely_pR_and_class(text, k.classify_flags)
+    debugf("Tone after 1 FALSE_NEGATIVE training: classified %s (pR %.2f); target class %s\n",
            new_class, new_pR, target_class)
     for i = 1, mistake_limit do
       if new_class == target_class then break end
       core.learn(text, dblist, target_index) -- no FALSE_NEGATIVE flag here
-      new_pR, new_class = most_likely_pR_and_class(text)
+      new_pR, new_class = most_likely_pR_and_class(text, k.classify_flags)
       debugf(" Tone %d - forcing right class: classified %s (pR %.2f); target class %s\n",
            i, new_class, new_pR, target_class)
     end
     util.insistf(new_class == target_class, 
                  "%d trainings insufficient to reclassify %s as %s",
                  mistake_limit, class, target_class)
-    return pR, new_pR, class, new_class
-  elseif math.abs(pR) < overtraining_protection_threshold then
+    return old_pR, new_pR, class, new_class
+  elseif math.abs(old_pR) < overtraining_protection_threshold then
     -- N.B. We don't test 'train' here because if we reach this point,
     -- the user has decided training is needed.  Thus we use only the
     -- overtraining-protection threshold in order to protect the integrity
     -- of the database.
     core.learn(text, dblist, target_index)
-    local new_pR, new_class = most_likely_pR_and_class(text)
+    local new_pR, new_class = most_likely_pR_and_class(text, k.classify_flags)
     debugf("Tone - near error, after training: classified %s (pR %.2f -> %.2f); target class %s\n",
            new_class, pR, new_pR, target_class)
-    return pR, new_pR, class, new_class
+    return old_pR, new_pR, class, new_class
   else
-    return pR, pR, class, class
+    return old_pR, pR, class, class
   end
 end
 
@@ -286,7 +287,7 @@ but the message was previously learned as %s.]],
   local k = cfg.constants
   local old_pR = most_likely_pR_and_class(lim.msg, k.classify_flags)
   local index = class2index[status]
-  core.unlearn(lim.msg, dblist, index, k.learn_flags+core.MISTAKE)
+  core.unlearn(lim.msg, dblist, index, k.learn_flags+core.FALSE_NEGATIVE)
   local pR, class = most_likely_pR_and_class(lim.msg, k.classify_flags)
   for i = 1, parms.reinforcement_limit do
     if class == status and pR > threshold_offset then
@@ -326,9 +327,10 @@ local function wrap_subj_tag(s)
 end
 
 __doc.most_likely_pR_and_class = 
-[[function(text, flags) returns pR, classification, train
+[[function(text, flags, target_class) returns pR, classification, train, target_pR
 train is a boolean or nil; 
-pR the log of ratio of the probability for the chosen class
+pR the log of ratio of the probability for the chosen class;
+target_pR is the pR of target_class
 ]]
 
 do
@@ -341,7 +343,7 @@ do
     return sum
   end
 
-  function most_likely_pR_and_class(msg, flags)
+  function most_likely_pR_and_class(msg, flags, target_class)
     -- find the class with the largest pR
     local max_pR, most_likely = -10000, 'this cannot happen'
 
@@ -359,6 +361,7 @@ do
     local k = #probs - 1
     assert(k > 0, 'Must decide most likely among two or more things')
 
+    local target_index, target_pR = class2index[target_class]
     for i, P in pairs(probs) do
       local class = index2class[i]
       local notP = prob_not(i)
@@ -368,13 +371,16 @@ do
       if pR > max_pR then
         max_pR, most_likely = pR, class
       end
+      if i == target_index then
+        target_pR = pR
+      end
     end
 --end
     local train = max_pR < cfg.classes[most_likely].train_below
     debugf('Classified %s as class %s with confidence %.2f%s\n',
            table.concat(cfg.classlist(), '/'), most_likely, max_pR,
            train and ' (train)' or '')
-    return max_pR, most_likely, train
+    return max_pR, most_likely, train, target_pR
   end
 end
 
@@ -503,7 +509,7 @@ function write_stats(verbose)
   hline()
   writef(sfmt, 'Database Statistics', unpack(classes))
   hline()
-  writef(sfmt, 'Database version', unpack(util.tablerep(core._VERSION, #classes)))
+  writef(sfmt, 'Database version', classmap(function(c) return 'OSBF ' .. tostring(stats[c].version)  end))
   report('Total buckets in database', 'buckets')
   local function hbytes(class) return util.human_of_bytes(stats[class].bytes) end
   writef(sfmt, 'Size of database', classmap(hbytes))
