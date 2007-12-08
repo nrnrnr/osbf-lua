@@ -371,10 +371,10 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 		  class.header->learnings += 1;
 		}
 
-	      /* increment mistakes counter */
-	      if (flags & MISTAKE)
+	      /* increment false negative counter */
+	      if (flags & FALSE_NEGATIVE)
 		{
-		  class.header->mistakes += 1;
+		  class.header->false_negatives += 1;
 		}
 	    }
 	}
@@ -391,9 +391,9 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 	      /* decrement learnings counter */
 	      if (class.header->learnings > 0)
 		class.header->learnings -= 1;
-	      /* decrement mistakes counter */
-	      if ((flags & MISTAKE) && class.header->mistakes > 0)
-		class.header->mistakes -= 1;
+	      /* decrement false negative counter */
+	      if ((flags & FALSE_NEGATIVE) && class.header->false_negatives > 0)
+		class.header->false_negatives -= 1;
 	    }
 	}
     }
@@ -581,10 +581,10 @@ int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
 		  class[ctbt].header->learnings += 1;
 		}
 
-	      /* increment mistakes counter */
-	      if (flags & MISTAKE)
+	      /* increment false negative counter */
+	      if (flags & FALSE_NEGATIVE)
 		{
-		  class[ctbt].header->mistakes += 1;
+		  class[ctbt].header->false_negatives += 1;
 		}
 	    }
 	}
@@ -601,9 +601,9 @@ int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
 	      /* decrement learnings counter */
 	      if (class[ctbt].header->learnings > 0)
 		class[ctbt].header->learnings -= 1;
-	      /* decrement mistakes counter */
-	      if ((flags & MISTAKE) && class[ctbt].header->mistakes > 0)
-		class[ctbt].header->mistakes -= 1;
+	      /* decrement false negative counter */
+	      if ((flags & FALSE_NEGATIVE) && class[ctbt].header->false_negatives > 0)
+		class[ctbt].header->false_negatives -= 1;
 	    }
 	}
     }

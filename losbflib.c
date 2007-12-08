@@ -441,6 +441,28 @@ lua_osbf_old_unlearn (lua_State * L)
 /**********************************************************/
 
 static int
+lua_osbf_increment_false_positives (lua_State * L)
+{
+  const char *cfcfile;
+  int delta;
+  char errmsg[OSBF_ERROR_MESSAGE_LEN];
+
+  cfcfile = luaL_checkstring (L, 1);
+  delta  = luaL_optint(L, 2, 1);
+
+  if (osbf_increment_false_positives (cfcfile, delta, errmsg) == 0)
+    {
+      return 0;
+    }
+  else
+    {
+      return luaL_error (L, "%s", errmsg);
+    }
+}
+
+/**********************************************************/
+
+static int
 lua_osbf_dump (lua_State * L)
 {
   const char *cfcfile, *csvfile;
@@ -550,8 +572,12 @@ lua_osbf_stats (lua_State * L)
       lua_pushnumber (L, (lua_Number) class.extra_learnings);
       lua_settable (L, -3);
 
-      lua_pushliteral (L, "mistakes");
-      lua_pushnumber (L, (lua_Number) class.mistakes);
+      lua_pushliteral (L, "false_positives");
+      lua_pushnumber (L, (lua_Number) class.false_positives);
+      lua_settable (L, -3);
+
+      lua_pushliteral (L, "false_negatives");
+      lua_pushnumber (L, (lua_Number) class.false_negatives);
       lua_settable (L, -3);
 
       lua_pushliteral (L, "classifications");
@@ -636,7 +662,7 @@ set_info (lua_State * L, int idx)
   add_const(NO_EDDC);
   add_const(COUNT_CLASSIFICATIONS);
   add_const(NO_MICROGROOM);
-  add_const(MISTAKE);
+  add_const(FALSE_NEGATIVE);
   add_const(EXTRA_LEARNING);
 
 #undef add_const
@@ -759,6 +785,7 @@ static const struct luaL_reg osbf[] = {
   {"learn", lua_osbf_old_learn},
   {"unlearn", lua_osbf_old_unlearn},
   {"train", lua_osbf_train},
+  {"increment_false_positives", lua_osbf_increment_false_positives},
   {"pR", lua_osbf_pR},
   {"old_pR", lua_osbf_old_pR},
   {"dump", lua_osbf_dump},

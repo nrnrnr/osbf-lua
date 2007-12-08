@@ -27,7 +27,8 @@ typedef struct
   uint32_t buckets_start;	/* offset to first bucket in bucket size units */
   uint32_t num_buckets;		/* number of buckets in the file */
   uint32_t learnings;		/* number of trainings done */
-  uint32_t mistakes;		/* number of wrong classifications */
+  uint32_t false_positives;	/* number of false classifications as this class */
+  uint32_t false_negatives;	/* number of false not classifications as this class */
   uint64_t classifications;	/* number of classifications */
   uint32_t extra_learnings;	/* number of extra trainings done */
 } OSBF_HEADER_STRUCT;
@@ -71,7 +72,8 @@ typedef struct
   uint32_t header_size;
   uint32_t learnings;
   uint32_t extra_learnings;
-  uint32_t mistakes;
+  uint32_t false_positives;
+  uint32_t false_negatives;
   uint64_t classifications;
   uint32_t num_chains;
   uint32_t max_chain;
@@ -174,7 +176,7 @@ extern const char *db_version_names[];
 
 enum learn_flags {
   NO_MICROGROOM	 = 1,
-  MISTAKE	 = 2,	/* increase mistake counter */
+  FALSE_NEGATIVE = 2,	/* increase false_negative counter */
   EXTRA_LEARNING = 4	/* flag for extra learning */
 };
 
@@ -248,3 +250,6 @@ osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
 extern int osbf_close_class (CLASS_STRUCT * class, char *errmsg);
 extern int osbf_lock_file (int fd, uint32_t start, uint32_t len);
 extern int osbf_unlock_file (int fd, uint32_t start, uint32_t len);
+extern int
+osbf_increment_false_positives (const char *cfcfile, int delta, char *errmsg);
+

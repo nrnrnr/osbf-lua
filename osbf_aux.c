@@ -1081,7 +1081,7 @@ osbf_import (const char *cfcfile_to, const char *cfcfile_from, char *errmsg)
     class_to.header->learnings += class_from.header->learnings;
     class_to.header->extra_learnings += class_from.header->extra_learnings;
     class_to.header->classifications += class_from.header->classifications;
-    class_to.header->mistakes += class_from.header->mistakes;
+    class_to.header->false_negatives += class_from.header->false_negatives;
 
     for (i = 0; i < class_from.header->num_buckets; i++)
       {
@@ -1317,7 +1317,8 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
       stats->header_size = header.buckets_start * sizeof (OSBF_BUCKET_STRUCT);
       stats->learnings = header.learnings;
       stats->extra_learnings = header.extra_learnings;
-      stats->mistakes = header.mistakes;
+      stats->false_negatives = header.false_negatives;
+      stats->false_positives = header.false_positives;
       stats->classifications = header.classifications;
       if (verbose == 1)
         {
@@ -1337,3 +1338,31 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
 }
 
 /*****************************************************************/
+
+int
+osbf_increment_false_positives (const char *database, int delta, char *errmsg)
+{
+
+  CLASS_STRUCT class;
+  int error = 0;
+
+  /* open the class and mmap it into memory */
+  error = osbf_open_class (database, O_RDWR, &class, errmsg);
+  if (error != 0)
+    {
+      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "Couldn't open %s.",
+                database);
+      fprintf (stderr, "Couldn't open %s.", database);
+      return error;
+    }
+
+  /* add delta to false positive counter */
+  if (delta >= 0 || class.header->false_positives >= (uint32_t) (-delta))
+    class.header->false_positives += delta;
+
+  error = osbf_close_class (&class, errmsg);
+  fprintf (stderr, "Couldn't close %s.", database);
+  
+  return error;
+}
+

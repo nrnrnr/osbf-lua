@@ -99,14 +99,14 @@ Arguments are as follows:
   flags: Number with the flags to control the learning operation.
      Each bit is a flag. The available flags are:
        * core.NO_MICROGROOM  - disable microgrooming
-       * core.MISTAKE        - increment the mistake counter, 
+       * core.FALSE_NEGATIVE - increment the false negative counter, 
                                in addition to the learning counter
        * core.EXTRA_LEARNING - increment the extra-learning, or
                                reinforcement, counter, in addition to
                                the learning counter
      The NO_MICROGROOM flag is more intended for tests because the
      databases have fixed size and the pruning mechanism is necessary
-     to guarantee space for new learnings. The MISTAKE and the
+     to guarantee space for new learnings. The FALSE_NEGATIVE and the
      EXTRA_LEARNING flags shouldn't be used simultaneously.
 
   delimiters: optional extra delimiters as in core.classify
@@ -174,7 +174,9 @@ database. The keys of the table are:
    * extra_learnings - number of extra learnings done internally
      when a single learning is not enough
    * classifications - number of classifications
-   * mistakes - number of learnings done because
+   * false_positives - number of learnings done to other classes because
+     of misclassifications as this one
+   * false_negatives - number of learnings done because
      of misclassifications
    * chains - number of bucket chains
    * max_chain - length of the longest chain
@@ -192,9 +194,9 @@ Arguments are as follows:
     the values already in the header of the database are returned,
     that is, the values for the keys version, buckets, bucket_size,
     header_size, learnings, extra_learnings, classifications and
-    mistakes. If full is equal to true, or not given, the complete
-    statistics are returned. For large databases, core.stats is much
-    faster when full is equal to false.  
+    false negatives and false positives. If full is equal to true, or
+    not given, the complete statistics are returned. For large databases,
+    core.stats is much faster when full is equal to false.  
 
 In case of error, core.stats calls lua_error.
 ]]
@@ -228,8 +230,8 @@ Imports the buckets in from_dbfile into to_dbfile. from_dbfile
 must exist. Buckets originally present in to_dbfile will be
 preserved as long as the microgroomer doesn't delete them to make
 room for the new ones. The counters (learnings, classifications,
-mistakes, etc), in the destination database will be incremented by
-the respective values in the origin database. The main purpose of
+false negatives, etc), in the destination database will be incremented
+by the respective values in the origin database. The main purpose of
 this function is to expand or shrink a database, importing into a
 larger or smaller empty one.
 
@@ -273,13 +275,13 @@ __doc.COUNT_CLASSIFICATIONS = [[Flag for core.classify
 Turns on the classficiation counter.]]
 __doc.NO_MICROGROOM = [[Flag for core.learn
 Intended for tests only (explanation not understood).]]
-__doc.MISTAKE = [[Flag for core.learn
-Increments the mistake counter in addition to the learning counter.
+__doc.FALSE_NEGATIVE = [[Flag for core.learn
+Increments the false negative counter in addition to the learning counter.
 Do not use in conjuction with EXTRA_LEARNING.]]
 __doc.EXTRA_LEARNING = [[Flag for core.learn
 Increment the extra-learning, or reinforcement, counter, 
 in addition to the learning counter.  Do not use in conjunction
-with MISTAKE.]]
+with FALSE_NEGATIVE.]]
 
 
 

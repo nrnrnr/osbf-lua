@@ -147,12 +147,14 @@ local function tone_inner(text, target_class)
   local target_index = class2index[target_class]
 
   if class ~= target_class then
-    -- core.MISTAKE indicates that the mistake counter in the database
-    -- must be incremented. This is an approximate counting because there
-    -- can be cases where there was no mistake in the first
-    -- classification, but because of other trainings in between, the
-    -- present classification is wrong. And vice-versa.
-    core.learn(text, dblist, target_index, core.MISTAKE)
+    -- core.FALSE_NEGATIVE indicates that the false negative counter in
+    -- the database must be incremented. This is an approximate counting
+    -- because there can be cases where there was no false negative in the
+    -- first classification, but, because of other trainings in between,
+    -- the present classification is wrong. And vice-versa.
+    core.learn(text, dblist, target_index, core.FALSE_NEGATIVE)
+    local wrong_index = class2index[class]
+    core.increment_false_positives(dblist[wrong_index])
 
     -- guarantee that starting class for tone-hr is the target class
     local new_pR, new_class = most_likely_pR_and_class(text)
@@ -160,7 +162,7 @@ local function tone_inner(text, target_class)
            new_class, new_pR, target_class)
     for i = 1, mistake_limit do
       if new_class == target_class then break end
-      core.learn(text, dblist, target_index) -- no mistake flag here
+      core.learn(text, dblist, target_index) -- no FALSE_NEGATIVE flag here
       new_pR, new_class = most_likely_pR_and_class(text)
       debugf(" Tone %d - forcing right class: classified %s (pR %.2f); target class %s\n",
            i, new_class, new_pR, target_class)
@@ -437,11 +439,11 @@ function stats(full)
   for class in pairs(cfg.classes) do
     stats[class] = core.stats(class2db[class], full)
   end
-  local classifications, mistakes, rates, error_rates, global_error_rate =
-    0, 0, { }, { }, 0
+  local classifications, false_negatives, rates, error_rates,
+        global_error_rate = 0, 0, { }, { }, 0
   for class in pairs(cfg.classes) do
     classifications = classifications + stats[class].classifications
-    mistakes        = mistakes        + stats[class].mistakes     
+    false_negatives = false_negatives + stats[class].false_negatives
 
     -- defaults in case of no classifications
     error_rates[class] = 0
@@ -450,13 +452,13 @@ function stats(full)
   if classifications > 0 then
     for class in pairs(cfg.classes) do
       local s = stats[class]
-      local corrected = s.classifications + 2 * s.mistakes - mistakes
-      if corrected > 0 then
-        error_rates[class] = s.mistakes / corrected
+      local true_positives = s.classifications + s.false_negatives - s.false_positives
+      if true_positives > 0 then
+        error_rates[class] = s.false_negatives / true_positives
       end
-      rates[class] = corrected / classifications
+      rates[class] = true_positives / classifications
     end
-    global_error_rate = mistakes / classifications
+    global_error_rate = false_negatives / classifications
   end
   return stats, error_rates, rates, global_error_rate
 end
@@ -517,7 +519,8 @@ function write_stats(verbose)
   end
 
   report('Classifications', 'classifications', ffmt)
-  report('Mistakes', 'mistakes')
+  report('False negatives', 'false_negatives')
+  report('False positives', 'false_positives')
   report('Trainings', 'learnings')
 
   if verbose then

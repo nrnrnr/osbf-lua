@@ -92,12 +92,13 @@ local English = {
       confidence = "Confidence" },
 
   stats = {
-    stats     = "Statistics",
+    stats = "Statistics",
     num_class = "Classifications",
-    mistakes  = "Mistakes",
+    false_negatives = "False negatives",
+    false_positives = "False positives",
     learnings = "Learnings",
-    accuracy  = "Accuracy",
-    total     = "Total",
+    accuracy = "Accuracy",
+    total = "Total",
   },
 }
 
@@ -132,7 +133,8 @@ local Brazilian_Portuguese = {
   stats = {
     stats     = "Estat&iacute;sticas",
     num_class = "Classifica&ccedil;&otilde;es",
-    mistakes  = "Erros",
+    false_negatives  = "Falsos negativos",
+    false_positives  = "Falsos positivos",
     learnings = "Treinamentos",
     accuracy  = "Precis&atilde;o",
     spam      = "Spam",
@@ -466,7 +468,8 @@ function html_stat_table() -- declared local above
     local function classline(class) -- information reported for a class
       return { language.class_names[class] or class,
                cstats[class].classifications,
-               cstats[class].mistakes,
+               cstats[class].false_negatives,
+               cstats[class].false_positives,
                cstats[class].learnings,
                pct(1-errs[class]),
              }
@@ -474,15 +477,15 @@ function html_stat_table() -- declared local above
     for class, s in pairs(cstats) do
       classlines[class] = classline(class)
       totals[2] = totals[2] + s.classifications
-      totals[3] = totals[3] + s.mistakes
+      totals[3] = totals[3] + s.false_negatives
       totals[4] = totals[4] + s.learnings
     end
   end
 
   local headers, cols, footers = { }, { }, { }, { }, { }
-  local columns = { 'stats', 'num_class', 'mistakes', 'learnings', 'accuracy' }
+  local columns = { 'stats', 'num_class', 'false_negatives', 'false_positives', 'learnings', 'accuracy' }
   local widths = {
-    stats = 136, num_class = 109, mistakes = 75, learnings = 111, accuracy = 92
+    stats = 136, num_class = 109, false_negatives = 75, false_positives = 75, learnings = 111, accuracy = 92
   }
   local hclasses = { }
   for class in pairs(cstats) do hclasses[class] = { } end -- html for the class
