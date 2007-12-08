@@ -36,6 +36,7 @@ const char *db_version_names[] = {
   "OSB-Winnow",
   "OSBF-Bayes",
   "Unknown"
+  "OSBF-Bayes with false positives and false negatives",
 };
 
 uint32_t microgroom_chain_length = OSBF_MICROGROOM_CHAIN_LENGTH;
@@ -766,10 +767,10 @@ osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
     }
 
   /* check file version */
-  if (class->header->version != OSBF_VERSION || class->header->db_flags != 0)
+  if (class->header->version != OSBF_FP_FN_VERSION || class->header->db_flags != 0)
     {
       snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"%s is not an OSBF_Bayes-spectrum file.", classname);
+		"%s is not an OSBF_Bayes-spectrum file with false positives and negatives.", classname);
       return (-5);
     }
 
@@ -1151,9 +1152,9 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
 	  uint32_t bucket_buffer_size = 0;
 
 	  /* Check version */
-	  if (header.version != OSBF_VERSION || header.db_flags != 0)
+	  if (header.version != OSBF_FP_FN_VERSION || header.db_flags != 0)
 	    {
-	      strncpy (errmsg, "Error: not a valid OSBF-Bayes file",
+	      strncpy (errmsg, "Error: not a valid OSBF-Bayes/FP-FN file",
 		       OSBF_ERROR_MESSAGE_LEN);
 	      error = 1;
 	    }

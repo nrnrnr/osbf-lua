@@ -190,7 +190,7 @@ function show_op(op)
          end
 end
 
-__doc.show_add = [[function(listname) shows thei necessary commands to
+__doc.show_add = [[function(listname) shows the necessary commands to
 rebuild the list.]]
 
 show_add = show_op 'add'
@@ -214,6 +214,16 @@ Commands should not be called directly but only through 'run'.
 ]]
 
 show_cmd = { show = show, ['show-add'] = show_add, ['show-del'] = show_del }
+
+do
+  local cmds = { }
+  for c in pairs(show_cmd) do
+    table.insert(cmds, c)
+  end
+  table.sort(cmds)
+  __doc.show_cmd =
+    __doc.show_cmd .. 'The commands include: ' .. table.concat(cmds, ' ') .. '\n'
+end
 
 local list_cmd  = { add = add, ['add-pat'] = add,
                     del = del, ['del-pat'] = del }

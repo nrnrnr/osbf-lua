@@ -92,6 +92,7 @@ typedef struct
 #define OSB_WINNOW_VERSION	4
 #define OSBF_VERSION		5
 #define UNKNOWN_VERSION		6
+#define OSBF_FP_FN_VERSION      7
 
 #define BUCKET_LOCK_MASK  0x80
 #define BUCKET_FREE_MASK  0x40

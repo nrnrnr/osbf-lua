@@ -19,7 +19,10 @@ require(_PACKAGE .. 'learn') -- loaded into 'commands'
 
 local function eprintf(...) return util.write_error(string.format(...)) end
 
-__doc = __doc or { }
+__doc  = __doc  or { } -- internal documentation
+
+__help = __help or { } -- the detailed help
+    -- still to come: overview help
 
 pcall = _G.pcall -- exposed!!
 __doc.pcall = [[A version of pcall that is overridden by the -trace option.]]
@@ -114,6 +117,16 @@ Prints command syntax of commands which contain pattern to stdout and exits.
 If pattern is nil prints syntax of all commands.
 ]] 
 
+__help.help = [[
+$prog help    
+
+  Gives overview of commands on command line
+
+$prog help <command>
+
+  Gives detailed help about particular command
+]]
+
 function help(pattern)
   if util.is_output_set_to_message() then
     filter_help()
@@ -192,6 +205,43 @@ local function listfun(listname)
            end
          end
 end
+
+local listhelp = [[
+The $list is a list of key-value pairs... XXX FINISH ME
+
+$prog $list add <tag> <string>
+
+  Ensures that any message with a header of <tag> and a value of
+  string will be on the $list.
+
+$prog $list add-pat <tag> <string>
+
+  Ensures that any message with a header of <tag> and a value of
+  string will be on the $list. I THINK NOT!!!
+
+$prog $list del <tag> <string>
+
+  Ensures that any message with a header of <tag> and a value of
+  string will be on the $list.
+
+$prog $list del-pat <tag> <string>
+
+  Ensures that any message with a header of <tag> and a value of
+  string will be on the $list. I THINK NOT!!!
+
+$prog $list show
+
+$prog $list show-add
+
+  Give a list of add commands that could be used to reconstruct the $list
+  starting from an empty $list.
+
+$prog $list show-del
+
+  Give a list of del commands that could be used to remove all the 
+  key-value pairs from the $list.
+]]
+
 
 __doc.blacklist = 'Closure to perform operations on the blacklist.\n'
 

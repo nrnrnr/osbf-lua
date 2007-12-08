@@ -164,7 +164,7 @@ lua_osbf_createdb (lua_State * L)
   uint32_t minor = 0;
   char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
 
-  if (osbf_create_cfcfile (cfcname, buckets, OSBF_VERSION,
+  if (osbf_create_cfcfile (cfcname, buckets, OSBF_FP_FN_VERSION,
                            minor, errmsg) == EXIT_SUCCESS) {
     return 0;
   } else {
@@ -217,20 +217,27 @@ static void check_sum_is_one(double *p_classes, unsigned num_classes);
 #ifdef NDEBUG
 static void check_sum_is_one(double *p_classes, unsigned num_classes) { exit(99); }
 #else
+static int compare_doubles(const void *p1, const void *p2) {
+  double x1 = *(const double *)p1;
+  double x2 = *(const double *)p2;
+  return x1 < x2 ? -1 : x1 > x2 ? 1 : 0;
+}
+
 static void check_sum_is_one(double *p_classes, unsigned num_classes) { 
   /* sort before adding to avoid rounding error */
   double sorted[OSBF_MAX_CLASSES], sum, badsum;
-  unsigned i, n;
-  for (n = 0; n < num_classes; n++) {
-    sorted[n] = p_classes[n];
-    /* insertion sort; fastest for num_classes < 12 (Sedgewick PhD thesis) */
-    for (i = n - 1; i <= 0 && p_classes[i] > p_classes[i+1]; i--) {
-      double tmp;
-      tmp = sorted[i]; sorted[i] = sorted[i+1]; sorted[i+1] = tmp;
+  unsigned i;
+  for (i = 0; i < num_classes; i++) {
+    sorted[i] = p_classes[i];
+  }
+  qsort(sorted, num_classes, sizeof(sorted[0]), compare_doubles);
+  for (i = 0; i < num_classes - 1; i++) {
+    if (!(sorted[i] <= sorted[i+1])) {
+      fprintf(stderr, "Array not sorted: sorted[%d] = %.5g and sorted[%d] = %.5g\n",
+              i, sorted[i], i+1, sorted[i+1]);
+      assert(0);
     }
   }
-  for (i = 0; i < num_classes - 1; i++)
-    assert(sorted[i] <= sorted[i+1]);
   badsum = sum = 0.0;
   /* add small numbers first to avoid rounding error */
   for (i = 0; i < num_classes; i++) {
@@ -652,9 +659,6 @@ set_info (lua_State * L, int idx)
   lua_settable (L, idx);
   lua_pushliteral (L, "bucket_size");
   lua_pushnumber (L, (lua_Number) sizeof(OSBF_BUCKET_STRUCT));
-  lua_settable (L, idx);
-  lua_pushliteral(L, "smallP");
-  lua_pushnumber (L, (lua_Number) OSBF_SMALLP);
   lua_settable (L, idx);
 
 #define add_const(C) lua_pushliteral(L, #C); lua_pushnumber(L, (lua_Number) C); \
