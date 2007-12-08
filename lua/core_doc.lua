@@ -175,7 +175,9 @@ Return the number of options set.
 __doc.stats = [[function(dbfile [, full]) returns stats_table
 Returns a table with information and statistics of the specified
 database. The keys of the table are:
-   * version - version of the module
+   * db_id - identification of the database
+   * db_version - version of the database
+   * db_flags - database flags
    * buckets - total number of buckets in the database
    * bucket_size - size of the bucket, in bytes
    * header_size - size of the header, in buckets
@@ -201,8 +203,8 @@ Arguments are as follows:
 
   full: optional boolean argument. If present and equal to false, only
     the values already in the header of the database are returned,
-    that is, the values for the keys version, buckets, bucket_size,
-    header_size, learnings, extra_learnings, classifications and
+    that is, the values for the keys db_id, db_version, db_flags, buckets,
+    bucket_size, header_size, learnings, extra_learnings, classifications,
     false negatives and false positives. If full is equal to true, or
     not given, the complete statistics are returned. For large databases,
     core.stats is much faster when full is equal to false.  

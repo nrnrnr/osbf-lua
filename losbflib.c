@@ -161,11 +161,11 @@ lua_osbf_createdb (lua_State * L)
 {
   const char *cfcname = luaL_checkstring(L, 1);
   uint32_t buckets    = (uint32_t) luaL_checkint(L, 2);
-  uint32_t minor = 0;
+  uint32_t db_flags = 0;
   char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
 
-  if (osbf_create_cfcfile (cfcname, buckets, OSBF_FP_FN_VERSION,
-                           minor, errmsg) == EXIT_SUCCESS) {
+  if (osbf_create_cfcfile (cfcname, buckets, OSBF_DB_ID, OSBF_DB_FP_FN_VERSION,
+                           db_flags, errmsg) == EXIT_SUCCESS) {
     return 0;
   } else {
     return luaL_error (L, "%s: %s", cfcname, errmsg);
@@ -551,8 +551,16 @@ lua_osbf_stats (lua_State * L)
     {
       lua_newtable (L);
 
-      lua_pushliteral (L, "version");
-      lua_pushnumber (L, (lua_Number) class.version);
+      lua_pushliteral (L, "db_id");
+      lua_pushnumber (L, (lua_Number) class.db_id);
+      lua_settable (L, -3);
+
+      lua_pushliteral (L, "db_version");
+      lua_pushnumber (L, (lua_Number) class.db_version);
+      lua_settable (L, -3);
+
+      lua_pushliteral (L, "db_flags");
+      lua_pushnumber (L, (lua_Number) class.db_flags);
       lua_settable (L, -3);
 
       lua_pushliteral (L, "buckets");

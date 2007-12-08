@@ -29,14 +29,10 @@
 
 /* Version names */
 const char *db_version_names[] = {
-  "SBPH-Markovian",
-  "OSB-Bayes",
-  "Correlate",
-  "Neural",
-  "OSB-Winnow",
-  "OSBF-Bayes",
-  "Unknown"
-  "OSBF-Bayes with false positives and false negatives",
+  "OSBF-Basic",
+  "Unknown",
+  "Unknown",
+  "OSBF-FP-FN",
 };
 
 uint32_t microgroom_chain_length = OSBF_MICROGROOM_CHAIN_LENGTH;
@@ -614,7 +610,8 @@ strnhash (unsigned char *str, uint32_t len)
 static OSBF_HEADER_BUCKET_UNION hu;
 int
 osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
-		     uint32_t major, uint32_t minor, char *errmsg)
+		     uint32_t db_id, uint32_t db_version, uint32_t db_flags,
+                     char *errmsg)
 {
   FILE *f;
   uint32_t i_aux;
@@ -649,8 +646,9 @@ osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
     }
 
   /* Set the header. */
-  hu.header.version = major;
-  hu.header.db_flags = minor;
+  hu.header.db_id = db_id;
+  hu.header.db_version = db_version;
+  hu.header.db_flags = db_flags;
   hu.header.buckets_start = OSBF_CFC_HEADER_SIZE;
   hu.header.num_buckets = num_buckets;
   hu.header.learnings = 0;
@@ -766,8 +764,10 @@ osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
       return (-4);
     }
 
-  /* check file version */
-  if (class->header->version != OSBF_FP_FN_VERSION || class->header->db_flags != 0)
+  /* check db id and version */
+  if (class->header->db_id != OSBF_DB_ID ||
+      class->header->db_version != OSBF_DB_FP_FN_VERSION ||
+      class->header->db_flags != 0)
     {
       snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
 		"%s is not an OSBF_Bayes-spectrum file with false positives and negatives.", classname);
@@ -992,7 +992,7 @@ osbf_restore (const char *cfcfile, const char *csvfile, char *errmsg)
       if (5 ==
 	  fscanf (fp_csv,
 		  "%" SCNu32 ";%" SCNu32 ";%" SCNu32 "\n%" SCNu32 ";%" SCNu32
-		  "\n", &header->version, &header->db_flags,
+		  "\n", &header->db_id, &header->db_flags,
 		  &header->buckets_start, &header->num_buckets,
 		  &header->learnings))
 	{
@@ -1083,6 +1083,7 @@ osbf_import (const char *cfcfile_to, const char *cfcfile_from, char *errmsg)
     class_to.header->extra_learnings += class_from.header->extra_learnings;
     class_to.header->classifications += class_from.header->classifications;
     class_to.header->false_negatives += class_from.header->false_negatives;
+    class_to.header->false_positives += class_from.header->false_positives;
 
     for (i = 0; i < class_from.header->num_buckets; i++)
       {
@@ -1151,8 +1152,10 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
 	  uint32_t buckets_in_buffer = 0, buffer_readings = 0;
 	  uint32_t bucket_buffer_size = 0;
 
-	  /* Check version */
-	  if (header.version != OSBF_FP_FN_VERSION || header.db_flags != 0)
+	  /* Check db id and version */
+	  if (header.db_id != OSBF_DB_ID ||
+              header.db_version != OSBF_DB_FP_FN_VERSION ||
+              header.db_flags != 0)
 	    {
 	      strncpy (errmsg, "Error: not a valid OSBF-Bayes/FP-FN file",
 		       OSBF_ERROR_MESSAGE_LEN);
@@ -1312,7 +1315,9 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
 
   if (error == 0)
     {
-      stats->version = header.version;
+      stats->db_id = header.db_id;
+      stats->db_version = header.db_version;
+      stats->db_flags = header.db_flags;
       stats->total_buckets = header.num_buckets;
       stats->bucket_size = sizeof (OSBF_BUCKET_STRUCT);
       stats->header_size = header.buckets_start * sizeof (OSBF_BUCKET_STRUCT);

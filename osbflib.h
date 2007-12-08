@@ -22,15 +22,16 @@ typedef struct
 
 typedef struct
 {
-  uint32_t version;		/* database version */
+  uint32_t db_id;		/* database identification */
   uint32_t db_flags;		/* for future use */
   uint32_t buckets_start;	/* offset to first bucket in bucket size units */
   uint32_t num_buckets;		/* number of buckets in the file */
   uint32_t learnings;		/* number of trainings done */
-  uint32_t false_positives;	/* number of false classifications as this class */
   uint32_t false_negatives;	/* number of false not classifications as this class */
   uint64_t classifications;	/* number of classifications */
   uint32_t extra_learnings;	/* number of extra trainings done */
+  uint32_t db_version;		/* database version */
+  uint32_t false_positives;	/* number of false classifications as this class */
 } OSBF_HEADER_STRUCT;
 
 
@@ -65,7 +66,9 @@ typedef struct
 /* database statistics structure */
 typedef struct
 {
-  uint32_t version;
+  uint32_t db_id;
+  uint32_t db_version;
+  uint32_t db_flags;
   uint32_t total_buckets;
   uint32_t bucket_size;
   uint32_t used_buckets;
@@ -85,14 +88,9 @@ typedef struct
 #define NELEMS(A) (sizeof(A)/sizeof((A)[0]))
 
 /* Database version */
-#define SBPH_VERSION		0
-#define OSB_VERSION		1
-#define CORRELATE_VERSION	2
-#define NEURAL_VERSION		3
-#define OSB_WINNOW_VERSION	4
-#define OSBF_VERSION		5
-#define UNKNOWN_VERSION		6
-#define OSBF_FP_FN_VERSION      7
+#define OSBF_DB_ID              5
+#define OSBF_DB_BASIC_VERSION   0
+#define OSBF_DB_FP_FN_VERSION   3
 
 #define BUCKET_LOCK_MASK  0x80
 #define BUCKET_FREE_MASK  0x40
@@ -214,7 +212,8 @@ osbf_insert_bucket (CLASS_STRUCT * dbclass, uint32_t bindex,
 		    uint32_t hash, uint32_t key, int value);
 extern int
 osbf_create_cfcfile (const char *cfcfile, uint32_t buckets,
-		     uint32_t major, uint32_t minor, char *errmsg);
+		     uint32_t db_id, uint32_t db_version,
+                     uint32_t db_flags, char *errmsg);
 
 int osbf_dump (const char *cfcfile, const char *csvfile, char *errmsg);
 int osbf_restore (const char *cfcfile, const char *csvfile, char *errmsg);

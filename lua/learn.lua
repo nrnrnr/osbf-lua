@@ -180,10 +180,10 @@ local function tone_inner(text, target_class)
     core.learn(text, dblist, target_index)
     local new_pR, new_class = most_likely_pR_and_class(text, k.classify_flags)
     debugf("Tone - near error, after training: classified %s (pR %.2f -> %.2f); target class %s\n",
-           new_class, pR, new_pR, target_class)
+           new_class, old_pR, new_pR, target_class)
     return old_pR, new_pR, class, new_class
   else
-    return old_pR, pR, class, class
+    return old_pR, old_pR, class, class
   end
 end
 
@@ -328,8 +328,13 @@ end
 
 __doc.most_likely_pR_and_class = 
 [[function(text, flags, target_class) returns pR, classification, train, target_pR
-train is a boolean or nil; 
+text is the text to be classified.
+flags are the flags for classification.
+target_class is optional. If given, its pR will be returned as the last argument.
+
 pR the log of ratio of the probability for the chosen class;
+classification is the most likely class
+train is a boolean or nil; 
 target_pR is the pR of target_class
 ]]
 
@@ -509,12 +514,14 @@ function write_stats(verbose)
   hline()
   writef(sfmt, 'Database Statistics', unpack(classes))
   hline()
-  writef(sfmt, 'Database version', classmap(function(c) return 'OSBF ' .. tostring(stats[c].version)  end))
+  writef(sfmt, 'Database version', classmap(function(c) return 'OSBF ' .. tostring(stats[c].db_version)  end))
   report('Total buckets in database', 'buckets')
   local function hbytes(class) return util.human_of_bytes(stats[class].bytes) end
   writef(sfmt, 'Size of database', classmap(hbytes))
   writef(pfmt, 'Buckets used', classmap(function(c) return stats[c].use * 100 end))
   if verbose then
+    writef(sfmt, 'Database flags',
+      classmap(function(c) return string.format('0x%04x', stats[c].db_flags) end))
     report('Bucket size (bytes)', 'bucket_size')
     report('Header size (bytes)', 'header_size')
     report('Number of chains', 'chains')
