@@ -22,13 +22,15 @@ options.register { long = 'o', type = options.std.val, usage = '-o <outfile>' }
 
 options.register { long = 'keep', type = options.std.bool, help = 'keep temporary directory and files' }
 
+options.register { long = 'ctimes', type = options.std.bool, help = 'compute classification rate without training' }
+
 local opts, args  = options.parse(arg)
 
 local debug = os.getenv 'OSBF_DEBUG'
 
 local trecdir = args[1] 
 if not trecdir then
-  print('Usage: trec.lua [-buckets <number>|small|large] [-max <n>] [-keep] [-o outfile] <trec_index_dir>')
+  print('Usage: trec.lua [-ctimes] [-buckets <number>|small|large] [-max <n>] [-keep] [-o outfile] <trec_index_dir>')
   os.exit(1)
 end
 trecdir = util.append_slash(trecdir)
@@ -76,6 +78,7 @@ local max_lines = opts.max or 5000
 local num_lines = 0
 local learnings = 0
 local start_time = os.time()
+local files = { }
 if md5sum then os.remove(test_dir .. '/md5sums') end
 for l in assert(io.lines(trecdir .. 'index')) do
   md5run('md5sum ' .. test_dir .. '/*.cfc >> ' .. test_dir .. '/md5sums')
@@ -85,6 +88,7 @@ for l in assert(io.lines(trecdir .. 'index')) do
   end
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')
   if debug then io.stderr:write("\nMsg ", file) end 
+  table.insert(files, file)
   local m = msg.of_any(trecdir .. file)
   local train, pR, tag, _, class = commands.classify(m)
   pR = class == 'ham' and pR or (pR > 0 and -pR or pR)
@@ -108,10 +112,27 @@ local info = string.format(
   'Using %d buckets, %d classifications (%.1f/s) require %d learnings',
   num_buckets, nclass, (nclass / os.difftime(end_time, start_time)), learnings)
 result:write('# ', info, '\n')
+io.stderr:write(info, '\n')
+
+if opts.ctimes then
+  local start_time = os.time()
+  for _, file in ipairs(files) do
+    local m = msg.of_any(trecdir .. file)
+    commands.classify(m)
+  end
+  local end_time = os.time()
+  local sec = os.difftime(end_time, start_time)
+  local info = string.format(
+    'Without training, %d classifications (%.1f/s) in %d:%02d',
+    nclass, (nclass / sec), math.floor(sec / 60), sec % 60)
+  result:write('# ', info, '\n')
+  io.stderr:write(info, '\n')
+end
+
 if result ~= io.stdout then
   result:close()
 end
-io.stderr:write(info, '\n')
+
 if not opts.keep then
   os.execute('/bin/rm -rf ' .. test_dir)
 end
