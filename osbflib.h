@@ -13,7 +13,9 @@
 #include <float.h>
 #include <inttypes.h>
 
-enum db_version { OSBF_DB_BASIC_VERSION = 0, OSBF_DB_FP_FN_VERSION = 5 };
+enum db_version { OSBF_DB_BASIC_VERSION = 0, OSBF_DB_2007_11_VERSION = 5,
+                  OSBF_DB_FP_FN_VERSION = 6 };
+#define OSBF_CURRENT_VERSION OSBF_DB_FP_FN_VERSION
 extern const char *db_version_names[];
   /* Array pointing to names, indexable by any enum_db_version */
 
@@ -27,8 +29,8 @@ typedef struct
 
 typedef struct /* used for disk image, so avoiding enum type for db_version */
 {
-  uint32_t db_id;		/* database identification -- which is what, exactly?*/
   uint32_t db_version;		/* database version */
+  uint32_t db_id;		/* database identification -- which is what, exactly?*/
   uint32_t db_flags;		/* for future use */
   uint32_t num_buckets;		/* number of buckets in the file */
   uint32_t learnings;		/* number of trainings done */
@@ -46,6 +48,7 @@ typedef struct
   const char *classname;
   OSBF_HEADER_STRUCT *header;
   OSBF_BUCKET_STRUCT *buckets;
+  int mmapped;
   unsigned char *bflags;	/* bucket flags */
   int fd;
   int flags;			/* open flags, O_RDWR, O_RDONLY */
@@ -272,8 +275,7 @@ typedef struct
   uint32_t buckets_start;       /* offset to first bucket in bucket size units */
   uint32_t num_buckets;         /* number of buckets in the file */
   uint32_t learnings;           /* number of trainings done */
-  uint32_t false_positives;     /* number of false classifications as this class */
-  uint32_t false_negatives;     /* number of false not classifications as this class */
+  uint32_t mistakes;            /* number of wrong classifications */
   uint64_t classifications;     /* number of classifications */
   uint32_t extra_learnings;     /* number of extra trainings done */
 } OSBF_HEADER_STRUCT_2007_11;  /* structure through Nov 2007 */

@@ -32,15 +32,6 @@
 
 #define BUCKET_BUFFER_SIZE 5000
 
-/* Version names */
-const char *db_version_names[] = {
-  "OSBF-Basic",
-  "Unknown",
-  "Unknown",
-  "OSBF-FP-FN with union header",
-  "OSBF-FP-FN",
-};
-
 uint32_t microgroom_chain_length = OSBF_MICROGROOM_CHAIN_LENGTH;
 uint32_t microgroom_stop_after = OSBF_MICROGROOM_STOP_AFTER;
 

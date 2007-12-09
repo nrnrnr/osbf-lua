@@ -10,6 +10,7 @@ ifeq (pkg-config,$(findstring pkg-config,$(PKG_CONFIG)))
 else
   LUA_CFLAGS=-I /usr/local/include -I/usr/local/include/lua
 endif
+PGDIR=/usr
 LUA_LIBS=
 LUABIN=$(shell which lua5.1)
 ifeq (,$(findstring lua5.1,$(firstword $(LUABIN))))
@@ -50,7 +51,9 @@ PIC=-fPIC
 #PIC=-fpic
 
 # Compilation directives
-OPTIONS= -O3 -Wall ${PIC} -fomit-frame-pointer -pedantic-errors -W -Waggregate-return -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings
+OPTIONS=-Wall ${PIC} -fomit-frame-pointer -pedantic-errors -W -Waggregate-return -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings
+# OPTIONS += -O3
+OPTIONS += -g
 CFLAGS= $(OPTIONS) $(LUA_CFLAGS) -DLIB_VERSION=\"$(LIB_VERSION)\"
 LIBS= $(LUA_LIBS) -lm
 CC= gcc

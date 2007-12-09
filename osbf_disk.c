@@ -57,7 +57,18 @@ static int good_image(const OSBF_DISK_IMAGE *image) {
 }
 
 static OSBF_BUCKET_STRUCT *image_buckets(const OSBF_DISK_IMAGE *image) {
-  return (OSBF_BUCKET_STRUCT *) &image->headers[1];
+  switch (image->headers->db_version)
+    {
+    case OSBF_DB_FP_FN_VERSION:
+      return (OSBF_BUCKET_STRUCT *) &image->headers[1];
+    case OSBF_DB_2007_11_VERSION:
+      { OSBF_HEADER_STRUCT_2007_11 *header = (OSBF_HEADER_STRUCT_2007_11 *) image;
+        OSBF_BUCKET_STRUCT *buckets = (OSBF_BUCKET_STRUCT *) image;
+        return buckets + header-> buckets_start;
+      }
+    default:
+      return NULL;
+    }
 }
 
 /*****************************************************************/
@@ -98,6 +109,23 @@ osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
   fclose (f);
   return 0;
 }
+
+/* Version names */
+const char *db_version_names[] = {
+  "OSBF-Basic",
+  "Unknown",
+  "Unknown",
+  "Unknown",
+  "OSBF-FP-FN with union header",
+  "OSBF-old",
+  "OSBF-FP-FN",
+};
+
+static int can_cvt [] = { 0, 0, 0, 0, 0, 1, 0 };
+/* can convert from a previous version */
+
+static int set_header(OSBF_HEADER_STRUCT *header, void *image, char *err_buf);
+
 
 /*****************************************************************/
 
@@ -149,28 +177,73 @@ osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
   CHECKF(image != MAP_FAILED, -4,
          (close(class->fd), "Couldn't mmap %s."), classname);
  
-  /* check db id and version */
-  CHECKF(good_image(image), -5,
-         "%s is not an OSBF_Bayes-spectrum file with false positives and negatives.",
-          classname);
+  if (image->headers[0].db_version == OSBF_DB_FP_FN_VERSION) {
+    /* check db id and version */
+    CHECKF(good_image(image), -5,
+           "%s is not an OSBF_Bayes-spectrum file with false positives and negatives.",
+            classname);
 
-  class->header = &image->headers[0];
+    class->header = &image->headers[0];
+    class->mmapped = 1;
 
-  CHECK(image_size(class->header) == fsize, -7,
-        "Internally inconsistent size calculation");
+    CHECK(image_size(class->header) == fsize, -7,
+          "Internally inconsistent size calculation");
 
-  class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
-  if (!class->bflags) {
+    class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
+    if (!class->bflags) {
       close (class->fd);
       munmap (image, fsize);
       CHECK(0, -6, "Couldn't allocate memory for seen features array.");
+    }
+
+    class->classname = classname;
+    class->buckets = image_buckets(image);
+    CHECK(class->buckets, -10, "This can't happen: failed to find buckets in image");
+  } else {
+    uint32_t version = image->headers[0].db_version;
+#define CLEANUP close(class->fd), munmap(image, fsize)
+    CHECKF(version < NELEMS(can_cvt) && can_cvt[version],
+           (CLEANUP, -1),
+           "Cannot read %s database format",
+           version < NELEMS(db_version_names)
+             ? db_version_names[version]
+             : "unknown (version number out of range)");
+
+    { char *c = malloc(strlen(classname)+1);
+      CHECK(c != NULL, -10, "Could not allocate memory for class name");
+      strcpy(c, classname);
+      class->classname = c;
+    }
+
+    class->header = malloc(sizeof(*class->header));
+    CHECK(class->header != NULL, -7, "Could not allocate memory for header");
+    CHECK(set_header(class->header, image, err_buf), -8, err_buf);
+
+    class->buckets = malloc(class->header->num_buckets * sizeof(*class->buckets));
+    CHECK(class->buckets != NULL, -8, "Could not allocate memory for buckets");
+    {
+      OSBF_BUCKET_STRUCT *ibuckets = image_buckets(image);
+      CHECK(ibuckets != NULL, -9, "This can't happen: failed find buckets to convert");
+      memcpy(class->buckets, ibuckets, class->header->num_buckets * sizeof(*ibuckets));
+      CLEANUP;
+      class->mmapped = 0;
+      class->fd = -1;
+    }
+
+    class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
+    if (!class->bflags) {
+      free(class->header);
+      free(class->buckets);
+      class->header = NULL;
+      class->buckets = NULL;
+      CHECK(0, -6, "Couldn't allocate memory for seen features array.");
+    }
+
   }
-
-  class->classname = classname;
-  class->buckets = image_buckets(image);
-
   return 0;
 }
+#undef CLEANUP
+
 
 /*****************************************************************/
 
@@ -180,9 +253,25 @@ osbf_close_class (CLASS_STRUCT * class, char *err_buf)
   int err = 0;
 
   if (class->header) {
+    if (class->mmapped) {
       munmap (class->header, image_size(class->header));
       class->header = NULL;
       class->buckets = NULL;
+    } else {
+#define CLEANUP free(class->header), free(class->buckets)
+      FILE *fp = fopen(class->classname, "wb");
+      CHECKF(fp != NULL, (CLEANUP, -1),
+             "Could not open class file %s for writing", class->classname);
+      CHECKF(fwrite(class->header, sizeof(*class->header), 1, fp) == 1,
+             (CLEANUP, -1),
+             "Could not write header to class file %s", class->classname);
+      CHECKF(fwrite(class->buckets, sizeof(*class->buckets),
+                    class->header->num_buckets, fp) == class->header->num_buckets,
+             (CLEANUP, remove(class->classname), -1), /* salvage is impossible */
+             "Could not write buckets to class file %s", class->classname);
+      CLEANUP;
+#undef CLEANUP
+    }
   }
 
   if (class->bflags) {
@@ -527,6 +616,7 @@ static FILE *create_file_if_absent(const char *filename, char *err_buf) {
 
 /*****************************************************************/
 
+
 /* Check if a file exists. Return its length if yes and < 0 if no */
 off_t
 check_file (const char *file)
@@ -544,4 +634,24 @@ check_file (const char *file)
 
   return fsize;
 }
+
+/*****************************************************************/
+
+static int set_header(OSBF_HEADER_STRUCT *header, void *image, char *err_buf) {
+  OSBF_HEADER_STRUCT_2007_11 *oheader = image;
+  CHECKF(oheader->version == OSBF_DB_2007_11_VERSION, 0,
+         "Tried to convert a version other than %d", OSBF_DB_2007_11_VERSION);
+  memset(header, 0, sizeof(*header));
+  header->db_version	= OSBF_CURRENT_VERSION;
+  header->db_id 	= OSBF_DB_ID;
+  header->db_flags	= oheader->db_flags;
+  header->num_buckets	= oheader->num_buckets;
+  header->learnings	= oheader->learnings;
+  header->false_negatives = oheader->mistakes;
+  header->false_positives = 0;  /* information not easily available */
+  header->classifications = oheader->classifications;
+  header->extra_learnings = oheader->extra_learnings;
+  return 1;
+}
+
 

@@ -16,6 +16,7 @@ OBJS= losbflib.o osbf_bayes.o osbf_aux.o osbf_disk.o
 
 CFLAGS += -DOPENFUN=luaopen_$(MODNAME)_core
 CFLAGS += -DLUA_USE_LINUX
+CFLAGS += -g
 
 lib: $(LIBNAME)
 
@@ -28,7 +29,10 @@ $(LIBNAME): $(OBJS)
 	$(CC) $(CFLAGS) $(LIB_OPTION) -o $(LIBNAME) $(OBJS) $(LIBS)
 
 osbf-lua: $(OBJS) lua.o main.o
-	$(CC) $(CFLAGS) -o osbf-lua main.o $(OBJS) lua.o -L$(PGDIR)/lib -llua -ldl -lreadline -lhistory -lncurses $(LIBS) 
+	$(CC) $(CFLAGS) -o osbf-lua main.o $(OBJS) lua.o -L$(PGDIR)/lib -llua5.1 -ldl -lreadline -lhistory -lncurses $(LIBS) 
+
+lua.o: config
+main.o: config
 
 install: $(LIBNAME)
 	mkdir -p $(LUAMODULE_DIR)/$(MODNAME)
