@@ -13,6 +13,11 @@
 #include <float.h>
 #include <inttypes.h>
 
+enum db_version { OSBF_DB_BASIC_VERSION = 0, OSBF_DB_FP_FN_VERSION = 5 };
+extern const char *db_version_names[];
+  /* Array pointing to names, indexable by any enum_db_version */
+
+
 typedef struct
 {
   uint32_t hash;
@@ -20,32 +25,20 @@ typedef struct
   uint32_t value;
 } OSBF_BUCKET_STRUCT;
 
-typedef struct
+typedef struct /* used for disk image, so avoiding enum type for db_version */
 {
-  uint32_t db_id;		/* database identification */
+  uint32_t db_id;		/* database identification -- which is what, exactly?*/
+  uint32_t db_version;		/* database version */
   uint32_t db_flags;		/* for future use */
-  uint32_t buckets_start;	/* offset to first bucket in bucket size units */
   uint32_t num_buckets;		/* number of buckets in the file */
   uint32_t learnings;		/* number of trainings done */
   uint32_t false_negatives;	/* number of false not classifications as this class */
+  uint32_t false_positives;	/* number of false classifications as this class */
   uint64_t classifications;	/* number of classifications */
   uint32_t extra_learnings;	/* number of extra trainings done */
-  uint32_t db_version;		/* database version */
-  uint32_t false_positives;	/* number of false classifications as this class */
-} OSBF_HEADER_STRUCT;
+} OSBF_HEADER_STRUCT_2007_12;
 
-
-/* define header size to be a multiple of the bucket size, approx. 4 Kbytes */
-#define OSBF_CFC_HEADER_SIZE (4096 / sizeof(OSBF_BUCKET_STRUCT))
-
-/* complete header */
-typedef union
-{
-  OSBF_HEADER_STRUCT header;
-  /*   buckets in header - not really buckets, but the header size is */
-  /*   a multiple of the bucket size */
-  OSBF_BUCKET_STRUCT bih[OSBF_CFC_HEADER_SIZE];
-} OSBF_HEADER_BUCKET_UNION;
+typedef OSBF_HEADER_STRUCT_2007_12 OSBF_HEADER_STRUCT;
 
 /* class structure */
 typedef struct
@@ -89,8 +82,6 @@ typedef struct
 
 /* Database version */
 #define OSBF_DB_ID              5
-#define OSBF_DB_BASIC_VERSION   0
-#define OSBF_DB_FP_FN_VERSION   3
 
 #define BUCKET_LOCK_MASK  0x80
 #define BUCKET_FREE_MASK  0x40
@@ -117,12 +108,6 @@ typedef struct
                                           ((cd)->buckets[i].key)  == (k))
 #define NEXT_BUCKET(cd, i) ((i) == (NUM_BUCKETS(cd) - 1) ? 0 : i + 1)
 #define PREV_BUCKET(cd, i) ((i) == 0 ?  (NUM_BUCKETS(cd) - 1) : (i) - 1)
-
-/*
-  Array with pointers to version names, indexed with the
-  database version numbers above.
-*/
-extern const char *db_version_names[];
 
 /* define for CRM114 COMPATIBILITY */
 #define CRM114_COMPATIBILITY
@@ -193,16 +178,16 @@ osbf_packchain (CLASS_STRUCT * dbclass, uint32_t packstart, uint32_t packlen);
 extern uint32_t osbf_microgroom (CLASS_STRUCT * dbclass, uint32_t bindex);
 
 
-extern uint32_t osbf_next_bindex (CLASS_STRUCT * dbclass, uint32_t bindex);
+extern uint32_t osbf_next_bindex    (CLASS_STRUCT * dbclass, uint32_t bindex);
 
-extern uint32_t osbf_prev_bindex (CLASS_STRUCT * dbclass, uint32_t bindex);
+extern uint32_t osbf_prev_bindex    (CLASS_STRUCT * dbclass, uint32_t bindex);
 
 extern uint32_t osbf_first_in_chain (CLASS_STRUCT * dbclass, uint32_t bindex);
 
-extern uint32_t osbf_last_in_chain (CLASS_STRUCT * dbclass, uint32_t bindex);
+extern uint32_t osbf_last_in_chain  (CLASS_STRUCT * dbclass, uint32_t bindex);
 
 extern uint32_t
-osbf_find_bucket (CLASS_STRUCT * dbclass, uint32_t hash, uint32_t key);
+osbf_find_bucket   (CLASS_STRUCT * dbclass, uint32_t hash, uint32_t key);
 
 extern void
 osbf_update_bucket (CLASS_STRUCT * dbclass, uint32_t bindex, int delta);
@@ -213,13 +198,13 @@ osbf_insert_bucket (CLASS_STRUCT * dbclass, uint32_t bindex,
 extern int
 osbf_create_cfcfile (const char *cfcfile, uint32_t buckets,
 		     uint32_t db_id, uint32_t db_version,
-                     uint32_t db_flags, char *errmsg);
+                     uint32_t db_flags, char *err_buf);
 
-int osbf_dump (const char *cfcfile, const char *csvfile, char *errmsg);
-int osbf_restore (const char *cfcfile, const char *csvfile, char *errmsg);
-int osbf_import (const char *cfcfile, const char *csvfile, char *errmsg);
-int osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
-		char *errmsg, int full);
+int osbf_dump    (const char *cfcfile, const char *csvfile, char *err_buf);
+int osbf_restore (const char *cfcfile, const char *csvfile, char *err_buf);
+int osbf_import  (const char *cfcfile, const char *csvfile, char *err_buf);
+int osbf_stats   (const char *cfcfile, STATS_STRUCT * stats,
+		  char *err_buf, int full);
 
 extern int
 osbf_bayes_classify (const unsigned char *text,
@@ -228,28 +213,76 @@ osbf_bayes_classify (const unsigned char *text,
 		     const char *classes[],
 		     enum classify_flags flags,
 		     double min_pmax_pmin_ratio, double ptc[],
-		     uint32_t ptt[], char *errmsg);
+		     uint32_t ptt[], char *err_buf);
 
 extern int
 old_osbf_bayes_learn (const unsigned char *text,
 		  unsigned long len,
 		  const char *pattern,
 		  const char *classes[],
-		  unsigned tc, int sense, enum learn_flags flags, char *errmsg);
+		  unsigned tc, int sense, enum learn_flags flags, char *err_buf);
 
 extern int
 osbf_bayes_train (const unsigned char *text,
 		  unsigned long len,
 		  const char *pattern,
 		  const char *class,
-		  int sense, enum learn_flags flags, char *errmsg);
+		  int sense, enum learn_flags flags, char *err_buf);
 
 extern int
 osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
-		 char *errmsg);
-extern int osbf_close_class (CLASS_STRUCT * class, char *errmsg);
+		 char *err_buf);
+extern int osbf_close_class (CLASS_STRUCT * class, char *err_buf);
 extern int osbf_lock_file (int fd, uint32_t start, uint32_t len);
 extern int osbf_unlock_file (int fd, uint32_t start, uint32_t len);
 extern int
-osbf_increment_false_positives (const char *cfcfile, int delta, char *errmsg);
+osbf_increment_false_positives (const char *cfcfile, int delta, char *err_buf);
+
+/* We can't use assert() because the mail must be filtered no matter what.
+   The CHECK and CHECKF macros help. */
+
+#define CHECK(p, code, message) \
+  do { \
+    if (!(p)) { \
+      strncpy (err_buf, (message), OSBF_ERROR_MESSAGE_LEN); \
+      return (code); \
+    } \
+  } while (0)
+
+#define CHECKF(p, code, fmt, arg) \
+  do { \
+    if (!(p)) { \
+      snprintf (err_buf, OSBF_ERROR_MESSAGE_LEN, fmt, arg); \
+      return (code); \
+    } \
+  } while (0)
+		
+
+
+/* complete header */
+/* define header size to be a multiple of the bucket size, approx. 4 Kbytes */
+#define OBSOLETE_OSBF_CFC_HEADER_SIZE (4096 / sizeof(OSBF_BUCKET_STRUCT))
+
+/* obsolete headers */
+
+typedef struct
+{
+  uint32_t version;             /* database version */
+  uint32_t db_flags;            /* for future use */
+  uint32_t buckets_start;       /* offset to first bucket in bucket size units */
+  uint32_t num_buckets;         /* number of buckets in the file */
+  uint32_t learnings;           /* number of trainings done */
+  uint32_t false_positives;     /* number of false classifications as this class */
+  uint32_t false_negatives;     /* number of false not classifications as this class */
+  uint64_t classifications;     /* number of classifications */
+  uint32_t extra_learnings;     /* number of extra trainings done */
+} OSBF_HEADER_STRUCT_2007_11;  /* structure through Nov 2007 */
+
+typedef union obsolete_disk_rep
+{
+  OSBF_HEADER_STRUCT_2007_11 header;
+  /*   buckets in header - not really buckets, but the header size is */
+  /*   a multiple of the bucket size */
+  OSBF_BUCKET_STRUCT bih[OBSOLETE_OSBF_CFC_HEADER_SIZE];
+} OBSOLETE_OSBF_HEADER_BUCKET_UNION;
 

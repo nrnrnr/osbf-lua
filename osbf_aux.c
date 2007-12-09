@@ -25,6 +25,11 @@
 
 #include "osbflib.h"
 
+#ifndef DEBUG_packchain
+#define DEBUG_packchain 0
+#endif
+
+
 #define BUCKET_BUFFER_SIZE 5000
 
 /* Version names */
@@ -32,6 +37,7 @@ const char *db_version_names[] = {
   "OSBF-Basic",
   "Unknown",
   "Unknown",
+  "OSBF-FP-FN with union header",
   "OSBF-FP-FN",
 };
 
@@ -55,8 +61,7 @@ osbf_packchain (CLASS_STRUCT * class, uint32_t packstart, uint32_t packlen)
   if (packend >= NUM_BUCKETS (class))
     packend -= NUM_BUCKETS (class);
 
-#ifdef DEBUG_packchain
-  {
+  if (DEBUG_packchain) {
     uint32_t i, rp, d, h;
     fprintf (stderr, "Before packing\n");
     for (i = packstart; i != packend; i = NEXT_BUCKET (class, i))
@@ -72,7 +77,7 @@ osbf_packchain (CLASS_STRUCT * class, uint32_t packstart, uint32_t packlen)
 		 h, BUCKET_FLAGS (class, i));
       }
   }
-#endif
+
 
   /* search the first marked-free bucket */
   for (free_start = packstart;
@@ -109,8 +114,7 @@ osbf_packchain (CLASS_STRUCT * class, uint32_t packstart, uint32_t packlen)
 	}
     }
 
-#ifdef DEBUG_packchain
-  {
+  if (DEBUG_packchain) {
     uint32_t i, rp, d, h;
     fprintf (stderr, "Before zeroing\n");
     for (i = packstart; i != packend; i = NEXT_BUCKET (class, i))
@@ -126,7 +130,6 @@ osbf_packchain (CLASS_STRUCT * class, uint32_t packstart, uint32_t packlen)
 		 h, BUCKET_FLAGS (class, i));
       }
   }
-#endif
 
   for (ito = packstart; ito != packend; ito = NEXT_BUCKET (class, ito))
     if (MARKED_FREE (class, ito))
@@ -135,8 +138,7 @@ osbf_packchain (CLASS_STRUCT * class, uint32_t packstart, uint32_t packlen)
 	UNMARK_IT_FREE (class, ito);
       }
 
-#ifdef DEBUG_packchain
-  {
+  if (DEBUG_packchain) {
     uint32_t i, rp, d, h;
     fprintf (stderr, "After packing\n");
     for (i = packstart; i != packend; i = NEXT_BUCKET (class, i))
@@ -152,7 +154,6 @@ osbf_packchain (CLASS_STRUCT * class, uint32_t packstart, uint32_t packlen)
 		 h, BUCKET_FLAGS (class, i));
       }
   }
-#endif
 
 }
 
@@ -607,7 +608,8 @@ strnhash (unsigned char *str, uint32_t len)
 
 /*****************************************************************/
 
-static OSBF_HEADER_BUCKET_UNION hu;
+#if 0
+static OBSOLETE_OSBF_HEADER_BUCKET_UNION hu;
 int
 osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
 		     uint32_t db_id, uint32_t db_version, uint32_t db_flags,
@@ -649,7 +651,7 @@ osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
   hu.header.db_id = db_id;
   hu.header.db_version = db_version;
   hu.header.db_flags = db_flags;
-  hu.header.buckets_start = OSBF_CFC_HEADER_SIZE;
+  hu.header.buckets_start = OBSOLETE_OSBF_CFC_HEADER_SIZE;
   hu.header.num_buckets = num_buckets;
   hu.header.learnings = 0;
 
@@ -1059,6 +1061,8 @@ osbf_restore (const char *cfcfile, const char *csvfile, char *errmsg)
   return error;
 }
 
+#endif
+
 /*****************************************************************/
 
 int
@@ -1123,6 +1127,8 @@ osbf_import (const char *cfcfile_to, const char *cfcfile_from, char *errmsg)
 
   return error;
 }
+
+#if 0
 
 /*****************************************************************/
 
@@ -1373,3 +1379,4 @@ osbf_increment_false_positives (const char *database, int delta, char *errmsg)
   return error;
 }
 
+#endif

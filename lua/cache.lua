@@ -281,7 +281,6 @@ function generate_sfid(sfid_tag, confidence)
     local sfid = sfid_of_table(t, i)
     -- for safety this should be an atomic test-and-set (using file locking?)
     if not file_and_status(sfid) then
-io.stderr:write('generated sfid ', sfid, '\n')
       return sfid
     end
   end

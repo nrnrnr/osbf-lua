@@ -20,7 +20,7 @@ options.register { long = 'max', type = options.std.num, usage = '-max <number>'
 
 options.register { long = 'o', type = options.std.val, usage = '-o <outfile>' }
 
-options.register { long = 'keep', type = options.std.val, help = 'keep temporary directory and files' }
+options.register { long = 'keep', type = options.std.bool, help = 'keep temporary directory and files' }
 
 local opts, args  = options.parse(arg)
 
@@ -28,7 +28,7 @@ local debug = os.getenv 'OSBF_DEBUG'
 
 local trecdir = args[1] 
 if not trecdir then
-  print('Usage: trec.lua <trec_index_dir>')
+  print('Usage: trec.lua [-buckets <number>|small|large] [-max <n>] [-keep] [-o outfile] <trec_index_dir>')
   os.exit(1)
 end
 trecdir = util.append_slash(trecdir)
@@ -47,7 +47,7 @@ end
 
 
 -- try to avoid collisions on multiple tests
-local test_dir = os.capture 'tempfile -p osbf' or '/tmp/osbf-lua'
+local test_dir = os.capture 'tempfile -p osbf-' or '/tmp/osbf-lua'
 os.execute('/bin/rm -rf ' .. test_dir)
 os.execute('/bin/mkdir ' .. test_dir)
 

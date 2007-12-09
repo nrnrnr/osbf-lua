@@ -663,7 +663,7 @@ set_info (lua_State * L, int idx)
   lua_pushliteral (L, LIB_VERSION);
   lua_settable (L, idx);
   lua_pushliteral (L, "header_size");
-  lua_pushnumber (L, (lua_Number) OSBF_CFC_HEADER_SIZE * sizeof(OSBF_BUCKET_STRUCT));
+  lua_pushnumber (L, (lua_Number) sizeof(OSBF_HEADER_STRUCT));
   lua_settable (L, idx);
   lua_pushliteral (L, "bucket_size");
   lua_pushnumber (L, (lua_Number) sizeof(OSBF_BUCKET_STRUCT));
