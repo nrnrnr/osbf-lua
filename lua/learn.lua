@@ -355,7 +355,7 @@ do
 --for classification_count = 1, (debug and 5 or 1) do
 
     local sum, probs, trainings = core.classify(msg, dblist, flags)
-    assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table')
+    assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table', 'bad results from core.classify')
     local function prob_not(i) --- probability that it's not dblist[i]
       local others = util.tablecopy(probs)
       table.remove(others, i)

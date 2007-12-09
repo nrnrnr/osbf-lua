@@ -275,6 +275,7 @@ lua_osbf_classify (lua_State * L)
   uint32_t p_trainings[OSBF_MAX_CLASSES];
   char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
   unsigned i, num_classes;
+  int rc;
 
   /* get the arguments */
   text        = (const unsigned char *) luaL_checklstring (L, 1, &text_len);
@@ -285,11 +286,11 @@ lua_osbf_classify (lua_State * L)
   delimiters  = luaL_optlstring (L, 5, "", &delimiters_len);
 
   /* call osbf_classify */
-  if (osbf_bayes_classify (text, text_len, delimiters, classes,
+  if ((rc = osbf_bayes_classify (text, text_len, delimiters, classes,
 			   flags, min_p_ratio, p_classes, p_trainings,
-			   errmsg) < 0)
+			   errmsg)) < 0)
     {
-      return luaL_error(L, "%s", errmsg);
+      return luaL_error(L, "core.classify failed with code %d: %s", rc, errmsg);
     }
   else
     {

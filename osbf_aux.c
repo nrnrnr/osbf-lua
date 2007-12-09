@@ -1064,10 +1064,10 @@ osbf_import (const char *cfcfile_to, const char *cfcfile_from, char *errmsg)
   int error = 0;
 
   /* open the class to be trained and mmap it into memory */
-  error = osbf_open_class (cfcfile_to, O_RDWR, &class_to, errmsg);
+  error = osbf_open_class (cfcfile_to, OSBF_WRITE_ALL, &class_to, errmsg);
   if (error != 0)
     return 1;
-  error = osbf_open_class (cfcfile_from, O_RDONLY, &class_from, errmsg);
+  error = osbf_open_class (cfcfile_from, OSBF_READ_ONLY, &class_from, errmsg);
   if (error != 0)
     return 1;
 
@@ -1371,3 +1371,10 @@ osbf_increment_false_positives (const char *database, int delta, char *errmsg)
 }
 
 #endif
+
+/****************************************************************/
+void append_error_message(char *err1, const char *err2) {
+  int n = strlen(err1);
+  strncat(err1+n, err2, OSBF_ERROR_MESSAGE_LEN - n - 1);
+}
+

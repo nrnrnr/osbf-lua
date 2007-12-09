@@ -29,7 +29,7 @@ typedef struct
 
 typedef struct /* used for disk image, so avoiding enum type for db_version */
 {
-  uint32_t db_version;		/* database version */
+  uint32_t db_version;		/* database version as it was on disk */
   uint32_t db_id;		/* database identification -- which is what, exactly?*/
   uint32_t db_flags;		/* for future use */
   uint32_t num_buckets;		/* number of buckets in the file */
@@ -42,16 +42,32 @@ typedef struct /* used for disk image, so avoiding enum type for db_version */
 
 typedef OSBF_HEADER_STRUCT_2007_12 OSBF_HEADER_STRUCT;
 
+/* what the client promises to do with a class */
+typedef enum osbf_class_usage {
+  OSBF_READ_ONLY = 0, OSBF_WRITE_HEADER = 1, OSBF_WRITE_ALL = 2
+} osbf_class_usage;
+
+
+/* three possible representations of class: 
+      1. Mapped through mmap(), close via unmap()
+      2. Copied into memory, read only so do not write on close
+      3. Copied into memory and mutated, write on close
+*/
+
+typedef enum osbf_class_state {
+  OSBF_MAPPED, OSBF_COPIED_R, OSBF_COPIED_RW, OSBF_COPIED_RWH, OSBF_CLOSED
+} osbf_class_state;
+
 /* class structure */
 typedef struct
 {
   const char *classname;
   OSBF_HEADER_STRUCT *header;
   OSBF_BUCKET_STRUCT *buckets;
-  int mmapped;
+  osbf_class_state state;
   unsigned char *bflags;	/* bucket flags */
   int fd;
-  int flags;			/* open flags, O_RDWR, O_RDONLY */
+  osbf_class_usage usage;
   uint32_t learnings;
   double hits;
   uint32_t totalhits;
@@ -84,10 +100,14 @@ typedef struct
 #define NELEMS(A) (sizeof(A)/sizeof((A)[0]))
 
 /* Database version */
-#define OSBF_DB_ID              5
+enum osbf_database_ids {  /* NR is very puzzled about what 5 means */
+  OSBF_DB_ID = 5
+};
 
-#define BUCKET_LOCK_MASK  0x80
-#define BUCKET_FREE_MASK  0x40
+/****************************************************************/
+
+enum osbf_bucket_flags { BUCKET_LOCK_MASK = 0x80, BUCKET_FREE_MASK = 0x40 };
+
 #define HASH_INDEX(cd, h) (h % NUM_BUCKETS(cd))
 #define NUM_BUCKETS(cd) ((cd)->header->num_buckets)
 #define VALID_BUCKET(cd, i) (i < NUM_BUCKETS(cd))
@@ -111,6 +131,8 @@ typedef struct
                                           ((cd)->buckets[i].key)  == (k))
 #define NEXT_BUCKET(cd, i) ((i) == (NUM_BUCKETS(cd) - 1) ? 0 : i + 1)
 #define PREV_BUCKET(cd, i) ((i) == 0 ?  (NUM_BUCKETS(cd) - 1) : (i) - 1)
+
+/****************************************************************/
 
 /* define for CRM114 COMPATIBILITY */
 #define CRM114_COMPATIBILITY
@@ -172,6 +194,8 @@ enum classify_flags {
   COUNT_CLASSIFICATIONS		= 2
 };
 
+/****************************************************************/
+
 extern uint32_t strnhash (unsigned char *str, uint32_t len);
 extern off_t check_file (const char *file);
 
@@ -209,6 +233,8 @@ int osbf_import  (const char *cfcfile, const char *csvfile, char *err_buf);
 int osbf_stats   (const char *cfcfile, STATS_STRUCT * stats,
 		  char *err_buf, int full);
 
+extern void append_error_message(char *err1, const char *err2);
+
 extern int
 osbf_bayes_classify (const unsigned char *text,
 		     unsigned long len,
@@ -233,7 +259,7 @@ osbf_bayes_train (const unsigned char *text,
 		  int sense, enum learn_flags flags, char *err_buf);
 
 extern int
-osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
+osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * class,
 		 char *err_buf);
 extern int osbf_close_class (CLASS_STRUCT * class, char *err_buf);
 extern int osbf_lock_file (int fd, uint32_t start, uint32_t len);

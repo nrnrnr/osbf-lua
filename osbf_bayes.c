@@ -243,7 +243,7 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
     }
 
   /* open the class to be trained and mmap it into memory */
-  err = osbf_open_class (database, O_RDWR, &class, errmsg);
+  err = osbf_open_class (database, OSBF_WRITE_ALL, &class, errmsg);
   if (err != 0)
     {
       snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "Couldn't open %s.",
@@ -452,7 +452,7 @@ int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
     }
 
   /* open the class to be trained and mmap it into memory */
-  err = osbf_open_class (classnames[ctbt], O_RDWR, &class[ctbt], errmsg);
+  err = osbf_open_class (classnames[ctbt], OSBF_WRITE_ALL, &class[ctbt], errmsg);
   if (err != 0)
     {
       snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "Couldn't open %s.",
@@ -682,13 +682,9 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 	}
 
       /*  mmap the hash file into memory */
-      err = osbf_open_class (classnames[i], O_RDONLY, &class[i], errmsg);
+      err = osbf_open_class (classnames[i], OSBF_READ_ONLY, &class[i], errmsg);
       if (err != 0)
-	{
-	  snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		    "Couldn't open the file %s.", classnames[i]);
-	  return err;
-	}
+        return err;
 
       ptt[i] = class[i].learnings = class[i].header->learnings;
       /* increment learnings to avoid division by 0 */
@@ -1148,50 +1144,34 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
   {
     int max_ptc_idx = 0;
     double max_ptc = 0;
-    OSBF_HEADER_STRUCT header;
 
     for (class_idx = 0; class_idx < num_classes; class_idx++)
       {
+        int err2;
+        char err_buf[OSBF_ERROR_MESSAGE_LEN+1];
 	if (ptc[class_idx] > max_ptc)
 	  {
 	    max_ptc_idx = class_idx;
 	    max_ptc = ptc[class_idx];
 	  }
-	err = osbf_close_class (&class[class_idx], errmsg);
+	err2 = osbf_close_class (&class[class_idx], err ? err_buf : errmsg);
+        if (err && err2) {
+          append_error_message(errmsg, " and ");
+          append_error_message(errmsg, err_buf);
+        }
+        err = err ? err : err2;
       }
 
     if (err == 0 && (flags & COUNT_CLASSIFICATIONS))
       {
-	int fd;
+        CLASS_STRUCT newclass;
+        err = osbf_open_class (class[max_ptc_idx].classname,
+                               OSBF_WRITE_HEADER, &newclass, errmsg);
 
-	fd = open (class[max_ptc_idx].classname, O_RDWR);
-	if (fd >= 0)
-	  {
-	    if (osbf_lock_file (fd, 0, sizeof (header)) == 0)
-	      {
-		read (fd, &header, sizeof (header));
-		header.classifications += 1;
-		lseek (fd, 0, SEEK_SET);
-		write (fd, &header, sizeof (header));
-
-		if (osbf_unlock_file (fd, 0, sizeof (header)) != 0)
-		  {
-		    snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-			      "Couldn't Unlock file: %s.",
-			      class[max_ptc_idx].classname);
-		    err = -1;
-		  }
-	      }
-	    /* for now, ignore if file couldn't be locked */
-	    close (fd);
-	  }
-	else
-	  {
-	    snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		      "Couldn't open file RDWR for locking: %s.",
-		      class[max_ptc_idx].classname);
-	  }
-	/* for now, ignore if file couldn't be locked */
+        if (err == 0) {
+          newclass.header->classifications += 1;
+          err = osbf_close_class(&newclass, errmsg);
+        }
       }
   }
 

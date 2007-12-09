@@ -130,35 +130,39 @@ static int set_header(OSBF_HEADER_STRUCT *header, void *image, char *err_buf);
 /*****************************************************************/
 
 int
-osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
+osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * class,
 		 char *err_buf)
 {
+  static int open_flags[] = { O_RDONLY, O_RDWR, O_RDWR };
+     /* map useage to flags */
   int prot;
   off_t fsize;
   OSBF_DISK_IMAGE *image;
 
   /* clear class structure */
   class->fd = -1;
-  class->flags = O_RDONLY;
+  class->usage = usage;
   class->classname = NULL;
   class->header = NULL;
   class->buckets = NULL;
   class->bflags = NULL;
 
   fsize = check_file (classname);
-  CHECKF(fsize >= 0, -1, "Couldn't open the file %s.", classname);
+  CHECKF(fsize >= 0, -1, "File %s cannot be opened for read.", classname);
 
   /* open the class to be trained and mmap it into memory */
-  class->fd = open (classname, flags);
-  CHECKF(class->fd >= 0, -1, "Couldn't open the file %s.", classname);
+  
+  CHECK((unsigned)usage < NELEMS(open_flags), -1,
+        "This can't happen: usage w/o flags");
+  class->fd = open (classname, open_flags[(unsigned)usage]);
+  CHECKF(class->fd >= 0, -1, "Couldn't open the file %s for read/write.", classname);
 
-  if (flags == O_RDWR)
+  if (usage != OSBF_READ_ONLY)
     {
-      class->flags = O_RDWR;
       prot = PROT_READ + PROT_WRITE;
 
       if (USE_LOCKING) {
-        if (osbf_lock_file (class->fd, 0, 0) != 0) {
+        if (osbf_lock_file (class->fd, 0, sizeof(*class->header)) != 0) {
 	  fprintf (stderr, "Couldn't lock the file %s.", classname);
 	  close (class->fd);
 	  snprintf (err_buf, OSBF_ERROR_MESSAGE_LEN,
@@ -169,7 +173,6 @@ osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
     }
   else
     {
-      class->flags = O_RDONLY;
       prot = PROT_READ;
     }
 
@@ -184,10 +187,16 @@ osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
             classname);
 
     class->header = &image->headers[0];
-    class->mmapped = 1;
+    class->state = OSBF_MAPPED;
 
-    CHECK(image_size(class->header) == fsize, -7,
-          "Internally inconsistent size calculation");
+    if (image_size(class->header) != fsize) {
+      fprintf(stderr, "Expected %s to be %ld bytes with %u buckets but saw %ld bytes instead (db version %d)\n",
+              classname, image_size(class->header), class->header->num_buckets, fsize, image->headers[0].db_version);
+    }
+
+    CHECKF(image_size(class->header) == fsize, -7,
+          "Calculated size %ld bytes more than actual size", 
+           image_size(class->header) - fsize);
 
     class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
     if (!class->bflags) {
@@ -222,11 +231,15 @@ osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
     class->buckets = malloc(class->header->num_buckets * sizeof(*class->buckets));
     CHECK(class->buckets != NULL, -8, "Could not allocate memory for buckets");
     {
+      static osbf_class_state states[] = 
+        { OSBF_COPIED_R, OSBF_COPIED_RWH, OSBF_COPIED_RW };
+          
       OSBF_BUCKET_STRUCT *ibuckets = image_buckets(image);
       CHECK(ibuckets != NULL, -9, "This can't happen: failed find buckets to convert");
       memcpy(class->buckets, ibuckets, class->header->num_buckets * sizeof(*ibuckets));
       CLEANUP;
-      class->mmapped = 0;
+      CHECK((unsigned)usage < NELEMS(states), -99, "This can't happen: bad usage");
+      class->state = states[(unsigned)usage];
       class->fd = -1;
     }
 
@@ -247,31 +260,80 @@ osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
 
 /*****************************************************************/
 
+static int class_good_on_disk(CLASS_STRUCT * class, char *err_buf);
+  /* turns nonzero on success and zero on failure */
+static int class_good_on_disk(CLASS_STRUCT * class, char *err_buf) {
+  FILE *fp;
+
+  /* if a new version and we are writing, write everything */
+  if (class->state != OSBF_COPIED_R &&
+      class->header->db_version != OSBF_CURRENT_VERSION)
+    class->state = OSBF_COPIED_RW;
+
+  switch (class->state) {
+    case OSBF_COPIED_R:
+      return 1;  /* read-only; disk is good */
+    case OSBF_COPIED_RW: 
+      /* write a complete new file */
+      fp = fopen(class->classname, "wb");
+      CHECKF(fp != NULL, 0,
+             "Could not open class file %s for writing", class->classname);
+      class->header->db_version = OSBF_CURRENT_VERSION;  /* what we're writing now */
+      CHECKF(fwrite(class->header, sizeof(*class->header), 1, fp) == 1,
+             0,
+             "Could not write header to class file %s", class->classname);
+      CHECKF(fwrite(class->buckets, sizeof(*class->buckets),
+                    class->header->num_buckets, fp) == class->header->num_buckets,
+             (remove(class->classname), 0), /* salvage is impossible */
+             "Could not write buckets to class file %s", class->classname);
+      CHECKF(image_size(class->header) == ftell(fp), 0,
+          "Wrote %ld bytes less than expected size", 
+           ftell(fp) - image_size(class->header));
+      return 1;
+    case OSBF_COPIED_RWH:
+      /* overwrite a new header onto the existing new file */
+      fp = fopen(class->classname, "a+b");
+      CHECKF(fp != NULL, 0,
+             "Could not open class file %s for read/write", class->classname);
+      CHECK(fseek(fp, 0, SEEK_SET) == 0, 0, "Couldn't seek to start of class file");
+      class->header->db_version = OSBF_CURRENT_VERSION;  /* what we're writing now */
+      CHECKF(fwrite(class->header, sizeof(*class->header), 1, fp) == 1,
+             0,
+             "Could not write header to class file %s", class->classname);
+      CHECK(fseek(fp, 0, SEEK_END) == 0, 0, "Couldn't seek to end of class file");
+      CHECKF(image_size(class->header) == ftell(fp), 0,
+          "Wrote %ld bytes less than expected size", 
+           ftell(fp) - image_size(class->header));
+      return 1;
+    default:
+      CHECK(0, 0, "This can't happen: bad class state in class_good_on_disk()");
+    }
+}
+
+static void touch_fd(int fd);
+
 int
 osbf_close_class (CLASS_STRUCT * class, char *err_buf)
 {
   int err = 0;
 
   if (class->header) {
-    if (class->mmapped) {
-      munmap (class->header, image_size(class->header));
-      class->header = NULL;
-      class->buckets = NULL;
-    } else {
-#define CLEANUP free(class->header), free(class->buckets)
-      FILE *fp = fopen(class->classname, "wb");
-      CHECKF(fp != NULL, (CLEANUP, -1),
-             "Could not open class file %s for writing", class->classname);
-      CHECKF(fwrite(class->header, sizeof(*class->header), 1, fp) == 1,
-             (CLEANUP, -1),
-             "Could not write header to class file %s", class->classname);
-      CHECKF(fwrite(class->buckets, sizeof(*class->buckets),
-                    class->header->num_buckets, fp) == class->header->num_buckets,
-             (CLEANUP, remove(class->classname), -1), /* salvage is impossible */
-             "Could not write buckets to class file %s", class->classname);
-      CLEANUP;
-#undef CLEANUP
+    switch (class->state) {
+      case OSBF_CLOSED:
+        CHECK(0, -1, "This can't happen: close class with non-NULL header field");
+        break;
+      case OSBF_MAPPED:
+        munmap (class->header, image_size(class->header));
+        break;
+      case OSBF_COPIED_R: case OSBF_COPIED_RW: case OSBF_COPIED_RWH:
+        err = class_good_on_disk(class, err_buf) ? err : -1;
+        free(class->header);
+        free(class->buckets);
+        break;
     }
+    class->header = NULL;
+    class->buckets = NULL;
+    class->state = OSBF_CLOSED;
   }
 
   if (class->bflags) {
@@ -280,14 +342,9 @@ osbf_close_class (CLASS_STRUCT * class, char *err_buf)
   }
 
   if (class->fd >= 0) {
-      if (class->flags == O_RDWR)
+      if (class->usage != OSBF_READ_ONLY)
 	{
-          /* XXX what does this do exactly? why not use utime(2)? */
-	  /* "touch" the file */
-	  OSBF_HEADER_STRUCT foo;
-	  read (class->fd, &foo, sizeof (foo));
-	  lseek (class->fd, 0, SEEK_SET);
-	  write (class->fd, &foo, sizeof (foo));
+          touch_fd(class->fd); /* workaround for snarky NFS problems; see below */
 
           if (USE_LOCKING) {
             if (osbf_unlock_file (class->fd, 0, 0) != 0)
@@ -462,7 +519,7 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
   CLASS_STRUCT class;
   OSBF_BUCKET_STRUCT *buckets;
 
-  CHECK(osbf_open_class(cfcfile, O_RDONLY, &class, err_buf) == 0, 1, err_buf);
+  CHECK(osbf_open_class(cfcfile, OSBF_READ_ONLY, &class, err_buf) == 0, 1, err_buf);
 
   if (verbose == 1) {
     buckets = class.buckets;
@@ -571,7 +628,7 @@ osbf_increment_false_positives (const char *database, int delta, char *err_buf)
   int error = 0;
 
   /* open the class and mmap it into memory */
-  CHECK(osbf_open_class(database, O_RDWR, &class, err_buf) == 0, 1,
+  CHECK(osbf_open_class(database, OSBF_WRITE_HEADER, &class, err_buf) == 0, 1,
         (fprintf (stderr, "Couldn't open %s.", database), err_buf));
 
   /* add delta to false positive counter */
@@ -642,7 +699,7 @@ static int set_header(OSBF_HEADER_STRUCT *header, void *image, char *err_buf) {
   CHECKF(oheader->version == OSBF_DB_2007_11_VERSION, 0,
          "Tried to convert a version other than %d", OSBF_DB_2007_11_VERSION);
   memset(header, 0, sizeof(*header));
-  header->db_version	= OSBF_CURRENT_VERSION;
+  header->db_version	= oheader->version;
   header->db_id 	= OSBF_DB_ID;
   header->db_flags	= oheader->db_flags;
   header->num_buckets	= oheader->num_buckets;
@@ -652,6 +709,22 @@ static int set_header(OSBF_HEADER_STRUCT *header, void *image, char *err_buf) {
   header->classifications = oheader->classifications;
   header->extra_learnings = oheader->extra_learnings;
   return 1;
+}
+
+/*****************************************************************/
+
+/* This code works around an old problem in CRM114, for some unknown
+   reason to me and to the other developers there, in some OSs and
+   under some conditions (NFS was one of them IIRR) the timestamp of
+   mmapped files didn't change after an update.  Read/write after
+   unmapping seems to do the job on *any* OS.
+*/
+
+static void touch_fd(int fd) {
+  uint32_t foo;
+  read (fd, &foo, sizeof (foo));
+  lseek (fd, 0, SEEK_SET);
+  write (fd, &foo, sizeof (foo));
 }
 
 
