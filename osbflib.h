@@ -12,6 +12,7 @@
 
 #include <float.h>
 #include <inttypes.h>
+#include <sys/types.h>
 
 enum db_version { OSBF_DB_BASIC_VERSION = 0, OSBF_DB_2007_11_VERSION = 5,
                   OSBF_DB_FP_FN_VERSION = 6 };
@@ -196,9 +197,6 @@ enum classify_flags {
 
 /****************************************************************/
 
-extern uint32_t strnhash (unsigned char *str, uint32_t len);
-extern off_t check_file (const char *file);
-
 extern void
 osbf_packchain (CLASS_STRUCT * dbclass, uint32_t packstart, uint32_t packlen);
 
@@ -264,6 +262,11 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
 extern int osbf_close_class (CLASS_STRUCT * class, char *err_buf);
 extern int osbf_lock_file (int fd, uint32_t start, uint32_t len);
 extern int osbf_unlock_file (int fd, uint32_t start, uint32_t len);
+extern off_t check_file (const char *file);
+  /* Check if a file exists. Return its length if yes and < 0 if no */
+
+uint32_t strnhash (unsigned char *str, uint32_t len);
+
 extern int
 osbf_increment_false_positives (const char *cfcfile, int delta, char *err_buf);
 

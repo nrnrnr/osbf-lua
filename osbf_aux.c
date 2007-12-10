@@ -600,6 +600,10 @@ strnhash (unsigned char *str, uint32_t len)
 /*****************************************************************/
 
 #if 0
+
+/* These functions moved to osbf_disk.c.
+   Old versions kept for archaeological purposes. */
+
 static OBSOLETE_OSBF_HEADER_BUCKET_UNION hu;
 int
 osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
@@ -667,26 +671,6 @@ osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
     }
   fclose (f);
   return 0;
-}
-
-/*****************************************************************/
-
-/* Check if a file exists. Return its length if yes and < 0 if no */
-off_t
-check_file (const char *file)
-{
-  int fd;
-  off_t fsize;
-
-  fd = open (file, O_RDONLY);
-  if (fd < 0)
-    return -1;
-  fsize = lseek (fd, 0L, SEEK_END);
-  if (fsize < 0)
-    return -2;
-  close (fd);
-
-  return fsize;
 }
 
 /*****************************************************************/
@@ -835,6 +819,29 @@ osbf_close_class (CLASS_STRUCT * class, char *errmsg)
   return err;
 }
 
+#endif
+
+/*****************************************************************/
+
+/* Check if a file exists. Return its length if yes and < 0 if no */
+off_t
+check_file (const char *file)
+{
+  int fd;
+  off_t fsize;
+
+  fd = open (file, O_RDONLY);
+  if (fd < 0)
+    return -1;
+  fsize = lseek (fd, 0L, SEEK_END);
+  if (fsize < 0)
+    return -2;
+  close (fd);
+
+  return fsize;
+}
+
+
 /*****************************************************************/
 
 int
@@ -885,174 +892,6 @@ osbf_unlock_file (int fd, uint32_t start, uint32_t len)
   else
     return 0;
 }
-
-
-/*****************************************************************/
-
-int
-osbf_dump (const char *cfcfile, const char *csvfile, char *errmsg)
-{
-  FILE *fp_cfc, *fp_csv;
-  OSBF_BUCKET_STRUCT buckets[BUCKET_BUFFER_SIZE];
-  OSBF_HEADER_STRUCT header;
-  int32_t i, size_in_buckets;
-  int error = 0;
-
-  fp_cfc = fopen (cfcfile, "rb");
-  if (fp_cfc != NULL)
-    {
-      int32_t num_buckets;
-
-      if (1 == fread (&header, sizeof (header), 1, fp_cfc))
-	{
-	  size_in_buckets = header.num_buckets + header.buckets_start;
-	  fp_csv = fopen (csvfile, "w");
-	  if (fp_csv != NULL)
-	    {
-	      fseek (fp_cfc, 0, SEEK_SET);
-	      while (size_in_buckets > 0)
-		{
-		  num_buckets = fread (buckets, sizeof (OSBF_BUCKET_STRUCT),
-				       BUCKET_BUFFER_SIZE, fp_cfc);
-		  if (num_buckets > 0)
-		    {
-		      for (i = 0; i < num_buckets; i++)
-			{
-			  fprintf (fp_csv,
-				   "%" PRIu32 ";%" PRIu32 ";%" PRIu32 "\n",
-				   buckets[i].hash, buckets[i].key,
-				   buckets[i].value);
-			}
-		    }
-		  size_in_buckets -= num_buckets;
-		}
-	      fclose (fp_cfc);
-	      fclose (fp_csv);
-	      if (size_in_buckets != 0)
-		{
-		  error = 1;
-		  strncpy (errmsg, "Not a valid cfc file",
-			   OSBF_ERROR_MESSAGE_LEN);
-		}
-	    }
-	  else
-	    {
-	      error = 1;
-	      strncpy (errmsg, "Can't create csv file",
-		       OSBF_ERROR_MESSAGE_LEN);
-	    }
-	}
-      else
-	{
-	  error = 1;
-	  strncpy (errmsg, "Error reading cfc file", OSBF_ERROR_MESSAGE_LEN);
-	}
-    }
-  else
-    {
-      error = 1;
-      strncpy (errmsg, "Can't open cfc file", OSBF_ERROR_MESSAGE_LEN);
-    }
-
-  return error;
-}
-
-/*****************************************************************/
-
-int
-osbf_restore (const char *cfcfile, const char *csvfile, char *errmsg)
-{
-  FILE *fp_cfc, *fp_csv;
-  OSBF_BUCKET_STRUCT buckets[BUCKET_BUFFER_SIZE];
-  OSBF_HEADER_STRUCT *header = (OSBF_HEADER_STRUCT *) (void *) buckets;
-    /* assignment is wildly unsafe, but we're careful, and (void *)
-       keeps gcc from complaining */
-  int32_t size_in_buckets;
-  int error = 0;
-
-/*
-  if (check_file(cfcfile) >= 0)
-    {
-      strncpy (errmsg, "The .cfc file already exists!", OSBF_ERROR_MESSAGE_LEN);
-      return 1;
-    }
-*/
-
-  fp_csv = fopen (csvfile, "r");
-  if (fp_csv != NULL)
-    {
-      /* read header */
-      if (5 ==
-	  fscanf (fp_csv,
-		  "%" SCNu32 ";%" SCNu32 ";%" SCNu32 "\n%" SCNu32 ";%" SCNu32
-		  "\n", &header->db_id, &header->db_flags,
-		  &header->buckets_start, &header->num_buckets,
-		  &header->learnings))
-	{
-	  size_in_buckets = header->buckets_start + header->num_buckets;
-	  fp_cfc = fopen (cfcfile, "wb");
-	  fseek (fp_csv, 0, SEEK_SET);
-	  if (fp_cfc != NULL)
-	    {
-
-	      while (error == 0
-		     && 3 == fscanf (fp_csv,
-				     "%" SCNu32 ";%" SCNu32 ";%" SCNu32
-				     "\n", (uint32_t *) & buckets[0].hash,
-				     (uint32_t *) & buckets[0].key,
-				     (uint32_t *) & buckets[0].value))
-		{
-		  if (1 ==
-		      fwrite (buckets, sizeof (OSBF_BUCKET_STRUCT), 1,
-			      fp_cfc))
-		    {
-		      size_in_buckets--;
-		    }
-		  else
-		    {
-		      error = 1;
-		      strncpy (errmsg, "Error writing to cfc file",
-			       OSBF_ERROR_MESSAGE_LEN);
-		    }
-		}
-	      if (!(feof (fp_csv) && size_in_buckets == 0))
-		{
-		  remove (cfcfile);
-		  error = 1;
-		  strncpy (errmsg,
-			   "Error reading csv or not a valid csv file",
-			   OSBF_ERROR_MESSAGE_LEN);
-		}
-	      fclose (fp_cfc);
-	      fclose (fp_csv);
-	    }
-	  else
-	    {
-	      fclose (fp_csv);
-	      error = 1;
-	      strncpy (errmsg, "Can't create cfc file",
-		       OSBF_ERROR_MESSAGE_LEN);
-	    }
-	}
-      else
-	{
-	  fclose (fp_csv);
-	  remove (cfcfile);
-	  error = 1;
-	  strncpy (errmsg, "csv file doesn't have a valid header",
-		   OSBF_ERROR_MESSAGE_LEN);
-	}
-    }
-  else
-    {
-      error = 1;
-      strncpy (errmsg, "Can't open csv file", OSBF_ERROR_MESSAGE_LEN);
-    }
-
-  return error;
-}
-
-#endif
 
 /*****************************************************************/
 
@@ -1119,258 +958,25 @@ osbf_import (const char *cfcfile_to, const char *cfcfile_from, char *errmsg)
   return error;
 }
 
-#if 0
-
 /*****************************************************************/
 
-int
-osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
-	    char *errmsg, int verbose)
-{
-
-  FILE *fp_cfc;
-  OSBF_BUCKET_STRUCT *buckets = NULL;
-  OSBF_HEADER_STRUCT header;
-  uint32_t i = 0, j = 0;
-  int error = 0;
-
-  uint32_t used_buckets = 0, unreachable = 0;
-  uint32_t max_chain = 0, num_chains = 0;
-  uint32_t max_value = 0, first_chain_len = 0;
-  uint32_t max_displacement = 0, chain_len_sum = 0;
-
-  fp_cfc = fopen (cfcfile, "rb");
-  if (fp_cfc != NULL)
-    {
-
-      if (1 == fread (&header, sizeof (header), 1, fp_cfc))
-	{
-	  uint32_t chain_len = 0, value;
-	  uint32_t buckets_in_buffer = 0, buffer_readings = 0;
-	  uint32_t bucket_buffer_size = 0;
-
-	  /* Check db id and version */
-	  if (header.db_id != OSBF_DB_ID ||
-              header.db_version != OSBF_DB_FP_FN_VERSION ||
-              header.db_flags != 0)
-	    {
-	      strncpy (errmsg, "Error: not a valid OSBF-Bayes/FP-FN file",
-		       OSBF_ERROR_MESSAGE_LEN);
-	      error = 1;
-	    }
-	  else
-	    {
-	      bucket_buffer_size =
-		header.num_buckets * sizeof (OSBF_BUCKET_STRUCT);
-	      buckets = malloc (bucket_buffer_size);
-	      if (buckets == NULL)
-		{
-		  strncpy (errmsg, "Error allocating memory",
-			   OSBF_ERROR_MESSAGE_LEN);
-		  error = 1;
-		}
-	      else if (error == 0)
-		{
-		  error = fseek (fp_cfc,
-				 header.buckets_start *
-				 sizeof (OSBF_BUCKET_STRUCT), SEEK_SET);
-		  if (error == 0)
-		    {
-		      buckets_in_buffer =
-			fread (buckets, sizeof (OSBF_BUCKET_STRUCT),
-			       header.num_buckets, fp_cfc);
-		      if (buckets_in_buffer != header.num_buckets)
-			{
-			  error = 1;
-			  snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-				    "Wrong number of buckets read from '%s'",
-				    cfcfile);
-			}
-		    }
-		  else
-		    {
-		      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-				"'%s': fseek error", cfcfile);
-		    }
-
-		  buffer_readings = chain_len = j = 0;
-		}
-	    }
-
-	  if (verbose == 1) {
-	  while (error == 0 && buckets_in_buffer > 0)
-	    {
-	      j++;		/* number of reads */
-	      if (buckets_in_buffer > 0)
-		{
-		  for (i = 0; i < buckets_in_buffer; i++)
-		    {
-		      if ((value = buckets[i].value) != 0)
-			{
-			  uint32_t distance, right_position;
-			  uint32_t real_position, rp;
-
-			  used_buckets++;
-			  chain_len++;
-			  if (value > max_value)
-			    max_value = value;
-
-			  /* calculate max displacement */
-			  right_position = buckets[i].hash %
-			    header.num_buckets;
-			  real_position = i;
-			  if (right_position <= real_position)
-			    distance = real_position - right_position;
-			  else
-			    distance = header.num_buckets + real_position -
-			      right_position;
-			  if (distance > max_displacement)
-			    max_displacement = distance;
-
-			  /* check if the bucket is unreachable */
-			  for (rp = right_position; rp != real_position; rp++)
-			    {
-			      if (rp >= header.num_buckets)
-				{
-				  rp = 0;
-				  if (rp == real_position)
-				    break;
-				}
-			      if (buckets[rp].value == 0)
-				break;
-			    }
-			  if (rp != real_position)
-			    {
-			      unreachable++;
-			    }
-			}
-		      else
-			{
-			  if (chain_len > 0)
-			    {
-			      if (chain_len > max_chain)
-				max_chain = chain_len;
-			      chain_len_sum += chain_len;
-			      num_chains++;
-			      chain_len = 0;
-			      /* check if the first chain starts */
-			      /* at the the first bucket */
-			      if (j == 1 && num_chains == 1 &&
-				  buckets[0].value != 0)
-				first_chain_len = chain_len;
-			    }
-			}
-		    }
-		  buckets_in_buffer = fread (buckets,
-					     sizeof (OSBF_BUCKET_STRUCT),
-					     bucket_buffer_size, fp_cfc);
-		  if (feof (fp_cfc))
-		    buckets_in_buffer = 0;
-		  if (buckets_in_buffer > 0)
-		    buffer_readings++;
-		}
-	    }
-	  }
-
-	  if (error != 0)
-	    {
-	      if (ferror (fp_cfc))
-		{
-		  error = 1;
-		  strncpy (errmsg, "Error reading cfc file",
-			   OSBF_ERROR_MESSAGE_LEN);
-		}
-	    }
-	  else
-	    {
-	      /* check if last and first chains are the same */
-	      if (chain_len > 0)
-		{
-		  if (first_chain_len == 0)
-		    num_chains++;
-		  else
-		    chain_len += first_chain_len;
-		  chain_len_sum += chain_len;
-		  if (chain_len > max_chain)
-		    max_chain = chain_len;
-		}
-	    }
-	  fclose (fp_cfc);
-	}
-      else
-	{
-	  error = 1;
-	  fclose (fp_cfc);
-	  strncpy (errmsg, "Error reading cfc file", OSBF_ERROR_MESSAGE_LEN);
-	}
-    }
-  else
-    {
-      error = 1;
-      strncpy (errmsg, "Can't open cfc file", OSBF_ERROR_MESSAGE_LEN);
-    }
-
-  if (error == 0)
-    {
-      stats->db_id = header.db_id;
-      stats->db_version = header.db_version;
-      stats->db_flags = header.db_flags;
-      stats->total_buckets = header.num_buckets;
-      stats->bucket_size = sizeof (OSBF_BUCKET_STRUCT);
-      stats->header_size = header.buckets_start * sizeof (OSBF_BUCKET_STRUCT);
-      stats->learnings = header.learnings;
-      stats->extra_learnings = header.extra_learnings;
-      stats->false_negatives = header.false_negatives;
-      stats->false_positives = header.false_positives;
-      stats->classifications = header.classifications;
-      if (verbose == 1)
-        {
-          stats->used_buckets = used_buckets;
-          stats->num_chains = num_chains;
-          stats->max_chain = max_chain;
-          if (num_chains > 0)
-	    stats->avg_chain = (double) chain_len_sum / num_chains;
-          else
-	    stats->avg_chain = 0;
-          stats->max_displacement = max_displacement;
-          stats->unreachable = unreachable;
-        }
-    }
-
-  return error;
-}
-
-/*****************************************************************/
 
 int
-osbf_increment_false_positives (const char *database, int delta, char *errmsg)
+osbf_increment_false_positives (const char *database, int delta, char *err_buf)
 {
-
   CLASS_STRUCT class;
-  int error = 0;
 
   /* open the class and mmap it into memory */
-  error = osbf_open_class (database, O_RDWR, &class, errmsg);
-  if (error != 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "Couldn't open %s.",
-                database);
-      fprintf (stderr, "Couldn't open %s.", database);
-      return error;
-    }
+  CHECK(osbf_open_class(database, OSBF_WRITE_HEADER, &class, err_buf) == 0, 1,
+        (fprintf (stderr, "Couldn't open %s.", database), err_buf));
 
   /* add delta to false positive counter */
   if (delta >= 0 || class.header->false_positives >= (uint32_t) (-delta))
     class.header->false_positives += delta;
 
-  error = osbf_close_class (&class, errmsg);
-  if (error != 0)
-    fprintf (stderr, "Couldn't close %s.", database);
-  
-  return error;
+  CHECK(osbf_close_class(&class, err_buf) == 0, 1, err_buf);
+  return 0;
 }
-
-#endif
 
 /****************************************************************/
 void append_error_message(char *err1, const char *err2) {
