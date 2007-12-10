@@ -11,8 +11,8 @@ BINNAME=osbf3
 
 MAILFILE = $(shell ./mailfile)
 
-SRCS= losbflib.c osbf_bayes.c osbf_aux.c osbf_disk.c
-OBJS= losbflib.o osbf_bayes.o osbf_aux.o osbf_disk.o
+SRCS= losbflib.c osbf_bayes.c osbf_aux.c osbf_disk.c osbf_csv.c
+OBJS= losbflib.o osbf_bayes.o osbf_aux.o osbf_disk.o osbf_csv.o
 
 CFLAGS += -DOPENFUN=luaopen_$(MODNAME)_core
 CFLAGS += -DLUA_USE_LINUX
