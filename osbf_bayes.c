@@ -205,18 +205,17 @@ get_next_hash (struct token_search *pts)
 /******************************************************************/
 /* Train the specified class with the text pointed to by "p_text" */
 /******************************************************************/
-int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
-		      unsigned long text_len,	/* length of text */
-		      const char *delims,	/* token delimiters */
-		      const char *database,	/* database to be trained */
-		      int sense,	/* 1 => learn;  -1 => unlearn */
-		      uint32_t flags,	/* flags */
-		      char *errmsg)
+void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
+		       unsigned long text_len,  /* length of text */
+                       const char *delims,      /* token delimiters */
+                       const char *database,    /* database to be trained */
+                       int sense,       /* 1 => learn;  -1 => unlearn */
+                       uint32_t flags,  /* flags */
+                       OSBF_HANDLER *h)
 {
-  int err;
   uint32_t window_idx;
   int32_t learn_error;
-  int32_t h;
+  int32_t i;
   off_t fsize;
   uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1];
   int32_t num_hash_paddings;
@@ -235,26 +234,14 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
   microgroom = (flags & NO_MICROGROOM) == 0;
 
   fsize = check_file (database);
-  if (fsize < 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "File not available: %s.",
-		database);
-      return (-1);
-    }
+  osbf_raise_unless (fsize >= 0, h, "File not available: %s.", database);
 
   /* open the class to be trained and mmap it into memory */
-  err = osbf_open_class (database, OSBF_WRITE_ALL, &class, errmsg);
-  if (err != 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "Couldn't open %s.",
-		database);
-      fprintf (stderr, "Couldn't open %s.", database);
-      return err;
-    }
+  osbf_open_class (database, OSBF_WRITE_ALL, &class, h);
 
   /*   init the hashpipe with 0xDEADBEEF  */
-  for (h = 0; h < OSB_BAYES_WINDOW_LEN; h++)
-    hashpipe[h] = 0xDEADBEEF;
+  for (i = 0; i < OSB_BAYES_WINDOW_LEN; i++)
+    hashpipe[i] = 0xDEADBEEF;
 
   learn_error = 0;
   /* experimental code - set num_hash_paddings = 0 to disable */
@@ -274,8 +261,8 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 	}
 
       /*  Shift the hash pipe down one and insert new hash */
-      for (h = OSB_BAYES_WINDOW_LEN - 1; h > 0; h--)
-	hashpipe[h] = hashpipe[h - 1];
+      for (i = OSB_BAYES_WINDOW_LEN - 1; i > 0; i--)
+	hashpipe[i] = hashpipe[i - 1];
       hashpipe[0] = ts.hash;
 
 #if (DEBUG > 2)
@@ -326,84 +313,74 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 	      }
 	    else
 	      {
-		snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-			  ".cfc file is full!");
-		learn_error = -1;
-		break;
+                osbf_close_class(&class, h);
+                osbf_raise(h, ".cfc file %s is full!", database);
+		return;
 	      }
 	  }
       }
     }				/*   end the while k==0 */
 
 
-  if (learn_error == 0)
-    {
+    if (sense > 0)
+      {
+        /* extra learnings are all those done with the  */
+        /* same document, after the first learning */
+        if (flags & EXTRA_LEARNING)
+          {
+            /* increment extra learnings counter */
+            class.header->extra_learnings += 1;
+          }
+        else
+          {
+            /* increment normal learnings counter */
 
-      if (sense > 0)
-	{
-	  /* extra learnings are all those done with the  */
-	  /* same document, after the first learning */
-	  if (flags & EXTRA_LEARNING)
-	    {
-	      /* increment extra learnings counter */
-	      class.header->extra_learnings += 1;
-	    }
-	  else
-	    {
-	      /* increment normal learnings counter */
+            /* old code disabled because the databases are disjoint and
+               this correction should be applied to both simultaneously
 
-	      /* old code disabled because the databases are disjoint and
-	         this correction should be applied to both simultaneously
+               class.header->learnings += 1;
+               if (class.header->learnings >= OSBF_MAX_BUCKET_VALUE)
+               {
+               uint32_t i;
 
-	         class.header->learnings += 1;
-	         if (class.header->learnings >= OSBF_MAX_BUCKET_VALUE)
-	         {
-	         uint32_t i;
+               class.header->learnings >>= 1;
+               for (i = 0; i < NUM_BUCKETS (&class); i++)
+               BUCKET_VALUE (&class, i) = BUCKET_VALUE (&class, i) >> 1;
+               }
+             */
 
-	         class.header->learnings >>= 1;
-	         for (i = 0; i < NUM_BUCKETS (&class); i++)
-	         BUCKET_VALUE (&class, i) = BUCKET_VALUE (&class, i) >> 1;
-	         }
-	       */
+            if (class.header->learnings < OSBF_MAX_BUCKET_VALUE)
+              {
+                class.header->learnings += 1;
+              }
 
-	      if (class.header->learnings < OSBF_MAX_BUCKET_VALUE)
-		{
-		  class.header->learnings += 1;
-		}
+            /* increment false negative counter */
+            if (flags & FALSE_NEGATIVE)
+              {
+                class.header->false_negatives += 1;
+              }
+          }
+      }
+    else
+      {
+        if (flags & EXTRA_LEARNING)
+          {
+            /* decrement extra learnings counter */
+            if (class.header->extra_learnings > 0)
+              class.header->extra_learnings -= 1;
+          }
+        else
+          {
+            /* decrement learnings counter */
+            if (class.header->learnings > 0)
+              class.header->learnings -= 1;
+            /* decrement false negative counter */
+            if ((flags & FALSE_NEGATIVE) && class.header->false_negatives > 0)
+              class.header->false_negatives -= 1;
+          }
+      }
 
-	      /* increment false negative counter */
-	      if (flags & FALSE_NEGATIVE)
-		{
-		  class.header->false_negatives += 1;
-		}
-	    }
-	}
-      else
-	{
-	  if (flags & EXTRA_LEARNING)
-	    {
-	      /* decrement extra learnings counter */
-	      if (class.header->extra_learnings > 0)
-		class.header->extra_learnings -= 1;
-	    }
-	  else
-	    {
-	      /* decrement learnings counter */
-	      if (class.header->learnings > 0)
-		class.header->learnings -= 1;
-	      /* decrement false negative counter */
-	      if ((flags & FALSE_NEGATIVE) && class.header->false_negatives > 0)
-		class.header->false_negatives -= 1;
-	    }
-	}
-    }
-
-  err = osbf_close_class (&class, errmsg);
-
-  if (learn_error != 0)
-    return (learn_error);
-
-  return (err);
+    osbf_close_class (&class, h);
 
 }
 
@@ -411,19 +388,18 @@ int osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 /******************************************************************/
 /* Train the specified class with the text pointed to by "p_text" */
 /******************************************************************/
-int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
-			  unsigned long text_len,	/* length of text */
-			  const char *delims,	/* token delimiters */
-			  const char *classnames[],	/* class file names */
-			  uint32_t ctbt,	/* index of the class to be trained */
-			  int sense,	/* 1 => learn;  -1 => unlearn */
-			  uint32_t flags,	/* flags */
-			  char *errmsg)
+void old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
+			   unsigned long text_len,      /* length of text */
+                           const char *delims,  /* token delimiters */
+                           const char *classnames[],    /* class file names */
+                           uint32_t ctbt,       /* index of the class to be trained */
+                           int sense,   /* 1 => learn;  -1 => unlearn */
+                           uint32_t flags,      /* flags */
+			   OSBF_HANDLER *h)
 {
-  int err;
   uint32_t window_idx;
   int32_t learn_error;
-  int32_t h;
+  int32_t i;
   off_t fsize;
   uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1];
   int32_t num_hash_paddings;
@@ -444,26 +420,14 @@ int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
     microgroom = 0;
 
   fsize = check_file (classnames[ctbt]);
-  if (fsize < 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "File not available: %s.",
-		classnames[ctbt]);
-      return (-1);
-    }
+  osbf_raise_unless(fsize >= 0, h, "File not available: %s.", classnames[ctbt]);
 
   /* open the class to be trained and mmap it into memory */
-  err = osbf_open_class (classnames[ctbt], OSBF_WRITE_ALL, &class[ctbt], errmsg);
-  if (err != 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "Couldn't open %s.",
-		classnames[ctbt]);
-      fprintf (stderr, "Couldn't open %s.", classnames[ctbt]);
-      return err;
-    }
+  osbf_open_class (classnames[ctbt], OSBF_WRITE_ALL, &class[ctbt], h);
 
   /*   init the hashpipe with 0xDEADBEEF  */
-  for (h = 0; h < OSB_BAYES_WINDOW_LEN; h++)
-    hashpipe[h] = 0xDEADBEEF;
+  for (i = 0; i < OSB_BAYES_WINDOW_LEN; i++)
+    hashpipe[i] = 0xDEADBEEF;
 
   learn_error = 0;
   /* experimental code - set num_hash_paddings = 0 to disable */
@@ -483,15 +447,15 @@ int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
 	}
 
       /*  Shift the hash pipe down one and insert new hash */
-      for (h = OSB_BAYES_WINDOW_LEN - 1; h > 0; h--)
-	hashpipe[h] = hashpipe[h - 1];
+      for (i = OSB_BAYES_WINDOW_LEN - 1; i > 0; i--)
+	hashpipe[i] = hashpipe[i - 1];
       hashpipe[0] = ts.hash;
 
 #if (DEBUG > 2)
       {
 	fprintf (stderr, "  Hashpipe contents: ");
-	for (h = 0; h < OSB_BAYES_WINDOW_LEN; h++)
-	  fprintf (stderr, " %" PRIu32, hashpipe[h]);
+	for (i = 0; i < OSB_BAYES_WINDOW_LEN; i++)
+	  fprintf (stderr, " %" PRIu32, hashpipe[i]);
 	fprintf (stderr, "\n");
       }
 #endif
@@ -535,86 +499,75 @@ int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
 	      }
 	    else
 	      {
-		snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-			  ".cfc file is full!");
-		learn_error = -1;
-		break;
+                osbf_close_class(&class[ctbt], h);
+                osbf_raise(h, ".cfc file %s is full!", classnames[ctbt]);
+		return;
 	      }
 	  }
       }
     }				/*   end the while k==0 */
 
 
-  if (learn_error == 0)
+  if (sense > 0)
     {
-
-      if (sense > 0)
-	{
-	  /* extra learnings are all those done with the  */
-	  /* same document, after the first learning */
-	  if (flags & EXTRA_LEARNING)
-	    {
-	      /* increment extra learnings counter */
-	      class[ctbt].header->extra_learnings += 1;
-	    }
-	  else
-	    {
-	      /* increment normal learnings counter */
-
-	      /* old code disabled because the databases are disjoint and
-	         this correction should be applied to both simultaneously
-
-	         class[ctbt].header->learnings += 1;
-	         if (class[ctbt].header->learnings >= OSBF_MAX_BUCKET_VALUE)
-	         {
-	         uint32_t i;
-
-	         class[ctbt].header->learnings >>= 1;
-	         for (i = 0; i < NUM_BUCKETS (&class[ctbt]); i++)
-	         BUCKET_VALUE (&class[ctbt], i) =
-	         BUCKET_VALUE (&class[ctbt], i) >> 1;
-	         }
-	       */
-
-	      if (class[ctbt].header->learnings < OSBF_MAX_BUCKET_VALUE)
-		{
-		  class[ctbt].header->learnings += 1;
-		}
-
-	      /* increment false negative counter */
-	      if (flags & FALSE_NEGATIVE)
-		{
-		  class[ctbt].header->false_negatives += 1;
-		}
-	    }
-	}
+      /* extra learnings are all those done with the  */
+      /* same document, after the first learning */
+      if (flags & EXTRA_LEARNING)
+        {
+          /* increment extra learnings counter */
+          class[ctbt].header->extra_learnings += 1;
+        }
       else
-	{
-	  if (flags & EXTRA_LEARNING)
-	    {
-	      /* decrement extra learnings counter */
-	      if (class[ctbt].header->extra_learnings > 0)
-		class[ctbt].header->extra_learnings -= 1;
-	    }
-	  else
-	    {
-	      /* decrement learnings counter */
-	      if (class[ctbt].header->learnings > 0)
-		class[ctbt].header->learnings -= 1;
-	      /* decrement false negative counter */
-	      if ((flags & FALSE_NEGATIVE) && class[ctbt].header->false_negatives > 0)
-		class[ctbt].header->false_negatives -= 1;
-	    }
-	}
+        {
+          /* increment normal learnings counter */
+
+          /* old code disabled because the databases are disjoint and
+             this correction should be applied to both simultaneously
+
+             class[ctbt].header->learnings += 1;
+             if (class[ctbt].header->learnings >= OSBF_MAX_BUCKET_VALUE)
+             {
+             uint32_t i;
+
+             class[ctbt].header->learnings >>= 1;
+             for (i = 0; i < NUM_BUCKETS (&class[ctbt]); i++)
+             BUCKET_VALUE (&class[ctbt], i) =
+             BUCKET_VALUE (&class[ctbt], i) >> 1;
+             }
+           */
+
+          if (class[ctbt].header->learnings < OSBF_MAX_BUCKET_VALUE)
+    	{
+    	  class[ctbt].header->learnings += 1;
+    	}
+
+          /* increment false negative counter */
+          if (flags & FALSE_NEGATIVE)
+    	{
+    	  class[ctbt].header->false_negatives += 1;
+    	}
+        }
+    }
+  else
+    {
+      if (flags & EXTRA_LEARNING)
+        {
+          /* decrement extra learnings counter */
+          if (class[ctbt].header->extra_learnings > 0)
+    	class[ctbt].header->extra_learnings -= 1;
+        }
+      else
+        {
+          /* decrement learnings counter */
+          if (class[ctbt].header->learnings > 0)
+    	class[ctbt].header->learnings -= 1;
+          /* decrement false negative counter */
+          if ((flags & FALSE_NEGATIVE) && class[ctbt].header->false_negatives > 0)
+    	class[ctbt].header->false_negatives -= 1;
+        }
     }
 
-  err = osbf_close_class (&class[ctbt], errmsg);
-
-  if (learn_error != 0)
-    return (learn_error);
-
-  return (err);
-
+  osbf_close_class (&class[ctbt], h);
 }
 
 
@@ -622,7 +575,7 @@ int old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
 /* Find out the best class for the text pointed to by     */
 /* "p_text", among those listed in the array "classnames" */
 /**********************************************************/
-int
+void
 osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 		     unsigned long text_len,	/* length of text */
 		     const char *delims,	/* token delimiters */
@@ -632,14 +585,12 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 		     /* returned values */
 		     double ptc[],	/* class probs */
 		     uint32_t ptt[],	/* number trainings per class */
-		     char *errmsg	/* err message, if any */
+		     OSBF_HANDLER *h	/* error handler */
   )
 {
-  int err = 0;
   int32_t i, window_idx, class_idx;
-  int32_t h;			/* we use h for our hashpipe counter, as needed. */
+  int32_t hh;			/* we use hh for our hashpipe counter, as needed. */
 
-  off_t fsize;
   double htf;			/* hits this feature got. */
   double renorm = 0.0;
   uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1];
@@ -668,23 +619,17 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 
   /* fprintf(stderr, "Starting classification...\n"); */
 
+  osbf_raise_unless (text_len > 0, h, "Attempt to classify an empty text.");
+
   if (flags & NO_EDDC)
     voodoo = 0;
 
-  for (i = 0; (classnames[i] != NULL) && (i < OSBF_MAX_CLASSES); i++)
-    {
-      fsize = check_file (classnames[i]);
-      if (fsize < 0)
-	{
-	  snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		    "Couldn't open the file %s.", classnames[i]);
-	  return (-1);
-	}
+  for (i = 0; (classnames[i] != NULL) && (i < OSBF_MAX_CLASSES); i++) {
+      osbf_raise_unless(check_file (classnames[i]) >= 0, h,
+                        "Couldn't open the file %s.", classnames[i]);
 
       /*  mmap the hash file into memory */
-      err = osbf_open_class (classnames[i], OSBF_READ_ONLY, &class[i], errmsg);
-      if (err != 0)
-        return err;
+      osbf_open_class (classnames[i], OSBF_READ_ONLY, &class[i], h);
 
       ptt[i] = class[i].learnings = class[i].header->learnings;
       /* increment learnings to avoid division by 0 */
@@ -697,17 +642,10 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 
   num_classes = i;
 
-  if (num_classes == 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"At least one class must be given.");
-      return (-1);
-    }
-  else
-    {
-      /* a-priori, zero-knowledge, class probability */
-      a_priori_prob = 1.0 / (double) num_classes;
-    }
+  osbf_raise_unless(num_classes > 0, h, "At least one class must be given.");
+
+  /* a-priori, zero-knowledge, class probability */
+  a_priori_prob = 1.0 / (double) num_classes;
 
   exponent = pow (total_learnings * 3, 0.2);
   if (exponent < 5)
@@ -728,29 +666,14 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
       ptc[i] = (double) class[i].learnings / total_learnings;	/* a priori probability after some knowledge */
     }
 
-  /* do we have at least 1 valid .cfc files? */
-  if (num_classes == 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"Couldn't open at least 2 .cfc files for classify().");
-      return (-1);
-    }
-
   /*   now all of the files are mmapped into memory, */
   /*   and we can do the polynomials and add up points. */
   i = 0;
 
-  if (text_len == 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"Attempt to classify an empty text.");
-      return (-1);
-    }
-
   /* init the hashpipe with 0xDEADBEEF  */
-  for (h = 0; h < OSB_BAYES_WINDOW_LEN; h++)
+  for (hh = 0; hh < OSB_BAYES_WINDOW_LEN; hh++)
     {
-      hashpipe[h] = 0xDEADBEEF;
+      hashpipe[hh] = 0xDEADBEEF;
     }
 
   totalfeatures = 0;
@@ -761,9 +684,9 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 	break;
 
       /* Shift the hash pipe down one and insert new hash */
-      for (h = OSB_BAYES_WINDOW_LEN - 1; h > 0; h--)
+      for (hh = OSB_BAYES_WINDOW_LEN - 1; hh > 0; hh--)
 	{
-	  hashpipe[h] = hashpipe[h - 1];
+	  hashpipe[hh] = hashpipe[hh - 1];
 	}
 
       hashpipe[0] = ts.hash;
@@ -1141,37 +1064,29 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 
 
   /* find class with max probability and close all open files */
+  /* XXX if any one file fails to close, the rest are left hanging;
+     with more work this could be fixed */
   {
     int max_ptc_idx = 0;
     double max_ptc = 0;
 
     for (class_idx = 0; class_idx < num_classes; class_idx++)
       {
-        int err2;
-        char err_buf[OSBF_ERROR_MESSAGE_LEN+1];
 	if (ptc[class_idx] > max_ptc)
 	  {
 	    max_ptc_idx = class_idx;
 	    max_ptc = ptc[class_idx];
 	  }
-	err2 = osbf_close_class (&class[class_idx], err ? err_buf : errmsg);
-        if (err && err2) {
-          append_error_message(errmsg, " and ");
-          append_error_message(errmsg, err_buf);
-        }
-        err = err ? err : err2;
+        
+	osbf_close_class (&class[class_idx], h);
       }
 
-    if (err == 0 && (flags & COUNT_CLASSIFICATIONS))
+    if (flags & COUNT_CLASSIFICATIONS)
       {
         CLASS_STRUCT newclass;
-        err = osbf_open_class (class[max_ptc_idx].classname,
-                               OSBF_WRITE_HEADER, &newclass, errmsg);
-
-        if (err == 0) {
-          newclass.header->classifications += 1;
-          err = osbf_close_class(&newclass, errmsg);
-        }
+        osbf_open_class (class[max_ptc_idx].classname, OSBF_WRITE_HEADER, &newclass,h);
+        newclass.header->classifications += 1;
+        osbf_close_class(&newclass, h);
       }
   }
 
@@ -1184,5 +1099,4 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
   }
 #endif
 
-  return (err);
 }

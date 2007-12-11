@@ -895,20 +895,14 @@ osbf_unlock_file (int fd, uint32_t start, uint32_t len)
 
 /*****************************************************************/
 
-int
-osbf_import (const char *cfcfile_to, const char *cfcfile_from, char *errmsg)
+void
+osbf_import (const char *cfcfile_to, const char *cfcfile_from, OSBF_HANDLER *h)
 {
-  uint32_t bindex;
   CLASS_STRUCT class_to, class_from;
-  int error = 0;
 
   /* open the class to be trained and mmap it into memory */
-  error = osbf_open_class (cfcfile_to, OSBF_WRITE_ALL, &class_to, errmsg);
-  if (error != 0)
-    return 1;
-  error = osbf_open_class (cfcfile_from, OSBF_READ_ONLY, &class_from, errmsg);
-  if (error != 0)
-    return 1;
+  osbf_open_class (cfcfile_to, OSBF_WRITE_ALL, &class_to, h);
+  osbf_open_class (cfcfile_from, OSBF_READ_ONLY, &class_from, h);
 
   {
     uint32_t i = 0;
@@ -921,6 +915,8 @@ osbf_import (const char *cfcfile_to, const char *cfcfile_from, char *errmsg)
 
     for (i = 0; i < class_from.header->num_buckets; i++)
       {
+        uint32_t bindex;
+
 	if (class_from.buckets[i].value == 0)
 	  continue;
 
@@ -944,43 +940,53 @@ osbf_import (const char *cfcfile_to, const char *cfcfile_from, char *errmsg)
 	  }
 	else
 	  {
-	    error = 1;
-	    strncpy (errmsg, ".cfc file is full!", OSBF_ERROR_MESSAGE_LEN);
-	    break;
+            osbf_close_class (&class_to, h);
+            osbf_close_class (&class_from, h);
+	    osbf_raise(h, ".cfc file %s is full!", cfcfile_to);
+            return;
 	  }
 
       }
 
-    osbf_close_class (&class_to, errmsg);
-    osbf_close_class (&class_from, errmsg);
+    osbf_close_class (&class_to, h);
+    osbf_close_class (&class_from, h);
   }
-
-  return error;
 }
 
 /*****************************************************************/
 
 
-int
-osbf_increment_false_positives (const char *database, int delta, char *err_buf)
+void
+osbf_increment_false_positives (const char *database, int delta, OSBF_HANDLER *h)
 {
   CLASS_STRUCT class;
 
   /* open the class and mmap it into memory */
-  CHECK(osbf_open_class(database, OSBF_WRITE_HEADER, &class, err_buf) == 0, 1,
-        (fprintf (stderr, "Couldn't open %s.", database), err_buf));
+  osbf_open_class(database, OSBF_WRITE_HEADER, &class, h);
 
   /* add delta to false positive counter */
   if (delta >= 0 || class.header->false_positives >= (uint32_t) (-delta))
     class.header->false_positives += delta;
 
-  CHECK(osbf_close_class(&class, err_buf) == 0, 1, err_buf);
-  return 0;
+  osbf_close_class(&class, h);
 }
 
 /****************************************************************/
 void append_error_message(char *err1, const char *err2) {
   int n = strlen(err1);
   strncat(err1+n, err2, OSBF_ERROR_MESSAGE_LEN - n - 1);
+}
+
+/****************************************************************/
+void *osbf_malloc(size_t size, OSBF_HANDLER *h, const char *what) {
+  void *p = malloc(size);
+  if (p == NULL) osbf_raise(h, "Could not allocate memory for %s", what);
+  return p;
+}
+
+void *osbf_calloc(size_t nmemb, size_t size, OSBF_HANDLER *h, const char *what) {
+  void *p = calloc(nmemb, size);
+  if (p == NULL) osbf_raise(h, "Could not allocate memory for %s", what);
+  return p;
 }
 

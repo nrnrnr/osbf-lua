@@ -37,10 +37,9 @@ typedef struct {
 
 typedef OSBF_DISK_IMAGE_2007_12 OSBF_DISK_IMAGE;
 
-static FILE *create_file_if_absent(const char *filename, char *err_buf);
+static FILE *create_file_if_absent(const char *filename, OSBF_HANDLER *h);
   /* opens filename for binary write, provided file does not already exist.
-     Returns open file descriptor or NULL on any error.  Error message
-     is written to *err_buf. */
+     Returns open file descriptor; calls osbf_raise on any error. */
 
 static long image_size(const OSBF_HEADER_STRUCT *header);
 static int good_image(const OSBF_DISK_IMAGE *image);
@@ -73,18 +72,17 @@ static OSBF_BUCKET_STRUCT *image_buckets(const OSBF_DISK_IMAGE *image) {
 
 /*****************************************************************/
 
-int
+void
 osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
 		     uint32_t db_id, enum db_version db_version, uint32_t db_flags,
-                     char *err_buf)
+                     OSBF_HANDLER *h)
 {
   FILE *f;
   uint32_t i_aux;
   OSBF_DISK_IMAGE image;
   OSBF_BUCKET_STRUCT bucket = { 0, 0, 0 };
   
-  f = create_file_if_absent(cfcfile, err_buf);
-  if (f == NULL) return -1;
+  f = create_file_if_absent(cfcfile, h);
 
   /* zero all fields in header and buckets */
   memset(&image, 0, sizeof(image));
@@ -96,18 +94,17 @@ osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
   image.headers[0].num_buckets   = num_buckets;
 
   /* Write header */
-  CHECKF (fwrite (&image, sizeof (image), 1, f) == 1, -1, 
-          "Couldn't write the file header: '%s'", cfcfile);
+  osbf_raise_unless (fwrite (&image, sizeof (image), 1, f) == 1, h,
+                     "Couldn't write the file header: '%s'", cfcfile);
 
   /*  Initialize CFC hashes - zero all buckets */
   for (i_aux = 0; i_aux < num_buckets; i_aux++) {
-    CHECKF (fwrite (&bucket, sizeof (bucket), 1, f) == 1, -1,
-            "Couldn't write to: '%s'", cfcfile);
+    osbf_raise_unless(fwrite (&bucket, sizeof (bucket), 1, f) == 1, h,
+                      "Couldn't write to: '%s'", cfcfile);
   }
-  CHECK(ftell(f) == image_size(&image.headers[0]), -2,
-        "Internal fault: bad size calculation");
+  osbf_raise_unless(ftell(f) == image_size(&image.headers[0]), h,
+                    "Internal fault: bad size calculation");
   fclose (f);
-  return 0;
 }
 
 /* Version names */
@@ -124,14 +121,13 @@ const char *db_version_names[] = {
 static int can_cvt [] = { 0, 0, 0, 0, 0, 1, 0 };
 /* can convert from a previous version */
 
-static int set_header(OSBF_HEADER_STRUCT *header, void *image, char *err_buf);
+static void set_header(OSBF_HEADER_STRUCT *header, void *image, OSBF_HANDLER *h);
 
 
 /*****************************************************************/
 
-int
-osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * class,
-		 char *err_buf)
+void
+osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * class, OSBF_HANDLER *h)
 {
   static int open_flags[] = { O_RDONLY, O_RDWR, O_RDWR };
      /* map useage to flags */
@@ -148,14 +144,15 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
   class->bflags = NULL;
 
   fsize = check_file (classname);
-  CHECKF(fsize >= 0, -1, "File %s cannot be opened for read.", classname);
+  osbf_raise_unless(fsize >= 0, h, "File %s cannot be opened for read.", classname);
 
   /* open the class to be trained and mmap it into memory */
   
-  CHECK((unsigned)usage < NELEMS(open_flags), -1,
-        "This can't happen: usage w/o flags");
+  osbf_raise_unless((unsigned)usage < NELEMS(open_flags), h,
+                    "This can't happen: usage w/o flags");
   class->fd = open (classname, open_flags[(unsigned)usage]);
-  CHECKF(class->fd >= 0, -1, "Couldn't open the file %s for read/write.", classname);
+  osbf_raise_unless(class->fd >= 0, h,
+                    "Couldn't open the file %s for read/write.", classname);
 
   if (usage != OSBF_READ_ONLY)
     {
@@ -165,9 +162,7 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
         if (osbf_lock_file (class->fd, 0, sizeof(*class->header)) != 0) {
 	  fprintf (stderr, "Couldn't lock the file %s.", classname);
 	  close (class->fd);
-	  snprintf (err_buf, OSBF_ERROR_MESSAGE_LEN,
-		    "Couldn't lock the file %s.", classname);
-	  return -3;
+          osbf_raise(h, "Couldn't lock the file %s.", classname);
 	}
       }
     }
@@ -177,92 +172,81 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
     }
 
   image = (OSBF_DISK_IMAGE *) mmap (NULL, fsize, prot, MAP_SHARED, class->fd, 0);
-  CHECKF(image != MAP_FAILED, -4,
-         (close(class->fd), "Couldn't mmap %s."), classname);
+  UNLESS_CLEANUP_RAISE(image != (OSBF_DISK_IMAGE *) MAP_FAILED, close(class->fd),
+                       (h, "Couldn't mmap %s.", classname));
  
+#define CLEANUP (close(class->fd), munmap(image, fsize))
+
   if (image->headers[0].db_version == OSBF_DB_FP_FN_VERSION) {
     /* check db id and version */
-    CHECKF(good_image(image), -5,
+    osbf_raise_unless(good_image(image), h,
            "%s is not an OSBF_Bayes-spectrum file with false positives and negatives.",
             classname);
 
     class->header = &image->headers[0];
     class->state = OSBF_MAPPED;
 
-    if (image_size(class->header) != fsize) {
-      fprintf(stderr, "Expected %s to be %ld bytes with %u buckets but saw %ld bytes instead (db version %d)\n",
-              classname, image_size(class->header), class->header->num_buckets, fsize, image->headers[0].db_version);
-    }
-
-    CHECKF(image_size(class->header) == fsize, -7,
-          "Calculated size %ld bytes more than actual size", 
-           image_size(class->header) - fsize);
+    osbf_raise_unless(image_size(class->header) == fsize, h,
+        "Calculated size is %ld bytes but size of file %s is %ld bytes", 
+        image_size(class->header), classname, fsize);
 
     class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
-    if (!class->bflags) {
-      close (class->fd);
-      munmap (image, fsize);
-      CHECK(0, -6, "Couldn't allocate memory for seen features array.");
-    }
-
+    UNLESS_CLEANUP_RAISE(class->bflags != NULL, CLEANUP, 
+                         (h, "could not allocate memory for seen features array"));
     class->classname = classname;
     class->buckets = image_buckets(image);
-    CHECK(class->buckets, -10, "This can't happen: failed to find buckets in image");
+    osbf_raise_unless(class->buckets != NULL, h,
+                      "This can't happen: failed to find buckets in image");
   } else {
     uint32_t version = image->headers[0].db_version;
-#define CLEANUP close(class->fd), munmap(image, fsize)
-    CHECKF(version < NELEMS(can_cvt) && can_cvt[version],
-           (CLEANUP, -1),
-           "Cannot read %s database format",
+    UNLESS_CLEANUP_RAISE(version < NELEMS(can_cvt) && can_cvt[version],
+           CLEANUP,
+           (h, "Cannot read %s database format",
            version < NELEMS(db_version_names)
              ? db_version_names[version]
-             : "unknown (version number out of range)");
+             : "unknown (version number out of range)"));
 
-    { char *c = malloc(strlen(classname)+1);
-      CHECK(c != NULL, -10, "Could not allocate memory for class name");
+    { char *c = osbf_malloc(strlen(classname)+1, h, "class name");
       strcpy(c, classname);
       class->classname = c;
     }
 
-    class->header = malloc(sizeof(*class->header));
-    CHECK(class->header != NULL, -7, "Could not allocate memory for header");
-    CHECK(set_header(class->header, image, err_buf), -8, err_buf);
+    class->header = osbf_malloc(sizeof(*class->header), h, "header");
+    set_header(class->header, image, h);
 
-    class->buckets = malloc(class->header->num_buckets * sizeof(*class->buckets));
-    CHECK(class->buckets != NULL, -8, "Could not allocate memory for buckets");
+    class->buckets = osbf_malloc(class->header->num_buckets * sizeof(*class->buckets),
+                                 h, "buckets");
     {
       static osbf_class_state states[] = 
         { OSBF_COPIED_R, OSBF_COPIED_RWH, OSBF_COPIED_RW };
           
       OSBF_BUCKET_STRUCT *ibuckets = image_buckets(image);
-      CHECK(ibuckets != NULL, -9, "This can't happen: failed find buckets to convert");
       memcpy(class->buckets, ibuckets, class->header->num_buckets * sizeof(*ibuckets));
       CLEANUP;
-      CHECK((unsigned)usage < NELEMS(states), -99, "This can't happen: bad usage");
+      osbf_raise_unless((unsigned)usage < NELEMS(states), h,
+                        "This can't happen: usage value %u out of range",
+                        (unsigned)usage);
       class->state = states[(unsigned)usage];
       class->fd = -1;
     }
-
-    class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
-    if (!class->bflags) {
-      free(class->header);
-      free(class->buckets);
-      class->header = NULL;
-      class->buckets = NULL;
-      CHECK(0, -6, "Couldn't allocate memory for seen features array.");
-    }
-
   }
-  return 0;
-}
 #undef CLEANUP
+
+  class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
+  UNLESS_CLEANUP_RAISE (class->bflags != NULL,
+                        (free(class->header), free(class->buckets),
+                         class->header = NULL, class->buckets = NULL),
+                        (h, "Couldn't allocate memory for seen features array."));
+}
 
 
 /*****************************************************************/
 
-static int class_good_on_disk(CLASS_STRUCT * class, char *err_buf);
-  /* turns nonzero on success and zero on failure */
-static int class_good_on_disk(CLASS_STRUCT * class, char *err_buf) {
+static void flush_if_needed(CLASS_STRUCT * class, OSBF_HANDLER *h);
+  /* flush header and buckets to disk if needed, then free 
+     them and set to NULL (even on error) */
+
+static void flush_if_needed(CLASS_STRUCT * class, OSBF_HANDLER *h) {
   FILE *fp;
 
   /* if a new version and we are writing, write everything */
@@ -270,65 +254,76 @@ static int class_good_on_disk(CLASS_STRUCT * class, char *err_buf) {
       class->header->db_version != OSBF_CURRENT_VERSION)
     class->state = OSBF_COPIED_RW;
 
+#define CLEANUP \
+  (free(class->header), free(class->buckets), \
+   class->header = NULL, class->buckets = NULL) 
+
   switch (class->state) {
     case OSBF_COPIED_R:
-      return 1;  /* read-only; disk is good */
+      break;  /* read-only; disk is good */
     case OSBF_COPIED_RW: 
       /* write a complete new file */
       fp = fopen(class->classname, "wb");
-      CHECKF(fp != NULL, 0,
-             "Could not open class file %s for writing", class->classname);
+      UNLESS_CLEANUP_RAISE(fp != NULL, CLEANUP,
+             (h, "Could not open class file %s for writing", class->classname));
       class->header->db_version = OSBF_CURRENT_VERSION;  /* what we're writing now */
-      CHECKF(fwrite(class->header, sizeof(*class->header), 1, fp) == 1,
-             0,
-             "Could not write header to class file %s", class->classname);
-      CHECKF(fwrite(class->buckets, sizeof(*class->buckets),
+      UNLESS_CLEANUP_RAISE(fwrite(class->header, sizeof(*class->header), 1, fp) == 1,
+                           CLEANUP,
+             (h, "Could not write header to class file %s", class->classname));
+      UNLESS_CLEANUP_RAISE(fwrite(class->buckets, sizeof(*class->buckets),
                     class->header->num_buckets, fp) == class->header->num_buckets,
-             (remove(class->classname), 0), /* salvage is impossible */
-             "Could not write buckets to class file %s", class->classname);
-      CHECKF(image_size(class->header) == ftell(fp), 0,
-          "Wrote %ld bytes less than expected size", 
-           ftell(fp) - image_size(class->header));
-      return 1;
+             (CLEANUP, remove(class->classname)), /* salvage is impossible */
+             (h, "Could not write buckets to class file %s", class->classname));
+      UNLESS_CLEANUP_RAISE(image_size(class->header) == ftell(fp), CLEANUP,
+          (h, "Wrote %ld bytes to file %s; expected to write %ld bytes", 
+           ftell(fp), class->classname, image_size(class->header)));
+      break;
     case OSBF_COPIED_RWH:
       /* overwrite a new header onto the existing new file */
       fp = fopen(class->classname, "a+b");
-      CHECKF(fp != NULL, 0,
-             "Could not open class file %s for read/write", class->classname);
-      CHECK(fseek(fp, 0, SEEK_SET) == 0, 0, "Couldn't seek to start of class file");
+      UNLESS_CLEANUP_RAISE(fp != NULL, CLEANUP,
+             (h, "Could not open class file %s for read/write", class->classname));
+      UNLESS_CLEANUP_RAISE(fseek(fp, 0, SEEK_SET) == 0, CLEANUP,
+             (h, "Couldn't seek to start of class file"));
       class->header->db_version = OSBF_CURRENT_VERSION;  /* what we're writing now */
-      CHECKF(fwrite(class->header, sizeof(*class->header), 1, fp) == 1,
-             0,
-             "Could not write header to class file %s", class->classname);
-      CHECK(fseek(fp, 0, SEEK_END) == 0, 0, "Couldn't seek to end of class file");
-      CHECKF(image_size(class->header) == ftell(fp), 0,
-          "Wrote %ld bytes less than expected size", 
-           ftell(fp) - image_size(class->header));
-      return 1;
+      UNLESS_CLEANUP_RAISE(fwrite(class->header, sizeof(*class->header), 1, fp) == 1,
+                           CLEANUP,
+             (h, "Could not write header to class file %s", class->classname));
+      UNLESS_CLEANUP_RAISE(fseek(fp, 0, SEEK_END) == 0, CLEANUP,
+                           (h, "Couldn't seek to end of class file"));
+      UNLESS_CLEANUP_RAISE(image_size(class->header) == ftell(fp), CLEANUP,
+          (h, "Image of file %s is %ld bytes; expected to write %ld bytes", 
+           class->classname, ftell(fp), image_size(class->header)));
+      break;
     default:
-      CHECK(0, 0, "This can't happen: bad class state in class_good_on_disk()");
+      CLEANUP;
+      osbf_raise(h, "This can't happen: bad class state in flush_if_needed()");
+      break;
     }
+  CLEANUP;
+#undef CLEANUP
 }
 
 static void touch_fd(int fd);
 
-int
-osbf_close_class (CLASS_STRUCT * class, char *err_buf)
+void
+osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h)
 {
-  int err = 0;
+  if (class->bflags) {
+    free (class->bflags);
+    class->bflags = NULL;
+  }
 
   if (class->header) {
     switch (class->state) {
       case OSBF_CLOSED:
-        CHECK(0, -1, "This can't happen: close class with non-NULL header field");
+        osbf_raise(h, "This can't happen: close class with non-NULL header field");
         break;
       case OSBF_MAPPED:
         munmap (class->header, image_size(class->header));
         break;
       case OSBF_COPIED_R: case OSBF_COPIED_RW: case OSBF_COPIED_RWH:
-        err = class_good_on_disk(class, err_buf) ? err : -1;
-        free(class->header);
-        free(class->buckets);
+        flush_if_needed(class, h);
         break;
     }
     class->header = NULL;
@@ -336,71 +331,46 @@ osbf_close_class (CLASS_STRUCT * class, char *err_buf)
     class->state = OSBF_CLOSED;
   }
 
-  if (class->bflags) {
-    free (class->bflags);
-    class->bflags = NULL;
-  }
-
   if (class->fd >= 0) {
+      int unlock_succeeded = 1;
       if (class->usage != OSBF_READ_ONLY)
 	{
           touch_fd(class->fd); /* workaround for snarky NFS problems; see below */
 
-          if (USE_LOCKING) {
-            if (osbf_unlock_file (class->fd, 0, 0) != 0)
-              {
-                snprintf (err_buf, OSBF_ERROR_MESSAGE_LEN,
-                          "Couldn't unlock file: %s", class->classname);
-                err = -1;
-              }
-          }
+          if (USE_LOCKING)
+            unlock_succeeded = (osbf_unlock_file (class->fd, 0, 0) == 0);
 	}
       close (class->fd);
       class->fd = -1;
-    }
-
-  return err;
+      osbf_raise_unless(unlock_succeeded, h, 
+                        "Couldn't unlock file: %s", class->classname);
+  }
 }
 
 /*****************************************************************/
 
 /*****************************************************************/
 
-static FILE *create_file_if_absent(const char *filename, char *err_buf) {
+static FILE *create_file_if_absent(const char *filename, OSBF_HANDLER *h) {
   FILE *f;
 
-  if (filename == NULL || *filename == '\0') {
-      if (filename != NULL)
-	snprintf (err_buf, OSBF_ERROR_MESSAGE_LEN,
-		  "Invalid file name: '%s'", filename);
-      else
-	strncpy (err_buf, "Invalid (NULL) pointer to cfc file name",
-		 OSBF_ERROR_MESSAGE_LEN);
-      return NULL;
-    }
+  osbf_raise_unless(filename != NULL, h, "Asked to create null pointer as file name");
+  osbf_raise_unless(*filename != '\0', h, "Asked to create CFC file with empty name");
 
   f = fopen (filename, "r");
-  if (f) {
-      snprintf (err_buf, OSBF_ERROR_MESSAGE_LEN,
-		"File already exists: '%s'", filename);
-      fclose(f);
-      return NULL;
-  }
+  UNLESS_CLEANUP_RAISE(f != NULL, fclose(f),
+                       (h, "Cannot create file '%s'; it exists already", filename));
 
   f = fopen (filename, "wb");
-  if (!f) {
-      snprintf (err_buf, OSBF_ERROR_MESSAGE_LEN,
-		"Couldn't create the file: '%s'", filename);
-      return NULL;
-  }
+  osbf_raise_unless(f != NULL, h, "Couldn't create the file: '%s'", filename);
   return f;
 }
 
 /*****************************************************************/
 
-static int set_header(OSBF_HEADER_STRUCT *header, void *image, char *err_buf) {
+static void set_header(OSBF_HEADER_STRUCT *header, void *image, OSBF_HANDLER *h) {
   OSBF_HEADER_STRUCT_2007_11 *oheader = image;
-  CHECKF(oheader->version == OSBF_DB_2007_11_VERSION, 0,
+  osbf_raise_unless(oheader->version == OSBF_DB_2007_11_VERSION, h,
          "Tried to convert a version other than %d", OSBF_DB_2007_11_VERSION);
   memset(header, 0, sizeof(*header));
   header->db_version	= oheader->version;
@@ -412,7 +382,6 @@ static int set_header(OSBF_HEADER_STRUCT *header, void *image, char *err_buf) {
   header->false_positives = 0;  /* information not easily available */
   header->classifications = oheader->classifications;
   header->extra_learnings = oheader->extra_learnings;
-  return 1;
 }
 
 /*****************************************************************/

@@ -10,9 +10,14 @@
  * Read the HISTORY_AND_AGREEMENT for details.
  */
 
+#ifndef OSBF_LIB_H
+#define OSBF_LIB_H 1
+
 #include <float.h>
 #include <inttypes.h>
 #include <sys/types.h>
+
+#include "osbferr.h"
 
 enum db_version { OSBF_DB_BASIC_VERSION = 0, OSBF_DB_2007_11_VERSION = 5,
                   OSBF_DB_FP_FN_VERSION = 6 };
@@ -220,46 +225,46 @@ osbf_update_bucket (CLASS_STRUCT * dbclass, uint32_t bindex, int delta);
 extern void
 osbf_insert_bucket (CLASS_STRUCT * dbclass, uint32_t bindex,
 		    uint32_t hash, uint32_t key, int value);
-extern int
+extern void
 osbf_create_cfcfile (const char *cfcfile, uint32_t buckets,
 		     uint32_t db_id, uint32_t db_version,
-                     uint32_t db_flags, char *err_buf);
+                     uint32_t db_flags, OSBF_HANDLER *h);
 
-int osbf_dump    (const char *cfcfile, const char *csvfile, char *err_buf);
-int osbf_restore (const char *cfcfile, const char *csvfile, char *err_buf);
-int osbf_import  (const char *cfcfile, const char *csvfile, char *err_buf);
-int osbf_stats   (const char *cfcfile, STATS_STRUCT * stats,
-		  char *err_buf, int full);
+extern void osbf_dump    (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h);
+extern void osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h);
+extern void osbf_import  (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h);
+extern void osbf_stats   (const char *cfcfile, STATS_STRUCT * stats,
+                          OSBF_HANDLER *h, int full);
 
 extern void append_error_message(char *err1, const char *err2);
 
-extern int
+extern void
 osbf_bayes_classify (const unsigned char *text,
 		     unsigned long len,
 		     const char *pattern,
 		     const char *classes[],
 		     enum classify_flags flags,
 		     double min_pmax_pmin_ratio, double ptc[],
-		     uint32_t ptt[], char *err_buf);
+		     uint32_t ptt[], OSBF_HANDLER *h);
 
-extern int
+extern void
 old_osbf_bayes_learn (const unsigned char *text,
 		  unsigned long len,
 		  const char *pattern,
 		  const char *classes[],
-		  unsigned tc, int sense, enum learn_flags flags, char *err_buf);
+		  unsigned tc, int sense, enum learn_flags flags, OSBF_HANDLER *h);
 
-extern int
+extern void
 osbf_bayes_train (const unsigned char *text,
 		  unsigned long len,
 		  const char *pattern,
 		  const char *class,
-		  int sense, enum learn_flags flags, char *err_buf);
+		  int sense, enum learn_flags flags, OSBF_HANDLER *h);
 
-extern int
+extern void
 osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * class,
-		 char *err_buf);
-extern int osbf_close_class (CLASS_STRUCT * class, char *err_buf);
+		 OSBF_HANDLER *h);
+extern void osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h);
 extern int osbf_lock_file (int fd, uint32_t start, uint32_t len);
 extern int osbf_unlock_file (int fd, uint32_t start, uint32_t len);
 extern off_t check_file (const char *file);
@@ -267,28 +272,14 @@ extern off_t check_file (const char *file);
 
 uint32_t strnhash (unsigned char *str, uint32_t len);
 
-extern int
-osbf_increment_false_positives (const char *cfcfile, int delta, char *err_buf);
+extern void
+osbf_increment_false_positives (const char *cfcfile, int delta, OSBF_HANDLER *h);
 
 /* We can't use assert() because the mail must be filtered no matter what.
-   The CHECK and CHECKF macros help. */
+   We use either osbf_raise or UNLESS_CLEANUP_RAISE */
 
-#define CHECK(p, code, message) \
-  do { \
-    if (!(p)) { \
-      strncpy (err_buf, (message), OSBF_ERROR_MESSAGE_LEN); \
-      return (code); \
-    } \
-  } while (0)
-
-#define CHECKF(p, code, fmt, arg) \
-  do { \
-    if (!(p)) { \
-      snprintf (err_buf, OSBF_ERROR_MESSAGE_LEN, fmt, arg); \
-      return (code); \
-    } \
-  } while (0)
-		
+#define UNLESS_CLEANUP_RAISE(p, cleanup, raise_args) \
+  do { if (!(p)) { cleanup; osbf_raise raise_args; } } while(0)
 
 
 /* complete header */
@@ -317,3 +308,8 @@ typedef union obsolete_disk_rep
   OSBF_BUCKET_STRUCT bih[OBSOLETE_OSBF_CFC_HEADER_SIZE];
 } OBSOLETE_OSBF_HEADER_BUCKET_UNION;
 
+
+void *osbf_malloc(size_t size, OSBF_HANDLER *h, const char *what);
+void *osbf_calloc(size_t nmemb, size_t size, OSBF_HANDLER *h, const char *what);
+
+#endif

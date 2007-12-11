@@ -33,6 +33,9 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+#define osbf_error_handler lua_State
+
+
 #include "osbflib.h"
 
 extern int OPENFUN (lua_State * L);  /* exported to the outside world */
@@ -162,14 +165,10 @@ lua_osbf_createdb (lua_State * L)
   const char *cfcname = luaL_checkstring(L, 1);
   uint32_t buckets    = (uint32_t) luaL_checkint(L, 2);
   uint32_t db_flags = 0;
-  char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
 
-  if (osbf_create_cfcfile (cfcname, buckets, OSBF_DB_ID, OSBF_DB_FP_FN_VERSION,
-                           db_flags, errmsg) == EXIT_SUCCESS) {
-    return 0;
-  } else {
-    return luaL_error (L, "%s: %s", cfcname, errmsg);
-  }
+  osbf_create_cfcfile (cfcname, buckets, OSBF_DB_ID, OSBF_DB_FP_FN_VERSION,
+                       db_flags, L);
+  return 0;
 }
 
 /* takes a Lua state and the index of the list of classes.
@@ -273,9 +272,8 @@ lua_osbf_classify (lua_State * L)
   /* class probabilities are returned in p_classes */
   double p_classes[OSBF_MAX_CLASSES];
   uint32_t p_trainings[OSBF_MAX_CLASSES];
-  char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
   unsigned i, num_classes;
-  int rc;
+  double sum = 0.0;
 
   /* get the arguments */
   text        = (const unsigned char *) luaL_checklstring (L, 1, &text_len);
@@ -286,41 +284,24 @@ lua_osbf_classify (lua_State * L)
   delimiters  = luaL_optlstring (L, 5, "", &delimiters_len);
 
   /* call osbf_classify */
-  if ((rc = osbf_bayes_classify (text, text_len, delimiters, classes,
-			   flags, min_p_ratio, p_classes, p_trainings,
-			   errmsg)) < 0)
+  osbf_bayes_classify (text, text_len, delimiters, classes,
+                       flags, min_p_ratio, p_classes, p_trainings, L);
+  /* push list of probabilities onto the stack */
+  lua_newtable (L);
+  /* push table with number of trainings per class */
+  lua_newtable (L);
+  for (i = 0; i < num_classes; i++)
     {
-      return luaL_error(L, "core.classify failed with code %d: %s", rc, errmsg);
+      sum += p_classes[i];
+      lua_pushnumber (L, (lua_Number) p_classes[i]);
+      lua_rawseti (L, -3, i + 1);
+      lua_pushnumber (L, (lua_Number) p_trainings[i]);
+      lua_rawseti (L, -2, i + 1);
     }
-  else
-    {
-      double sum = 0;
-      /* push list of probabilities onto the stack */
-      lua_newtable (L);
-      /* push table with number of trainings per class */
-      lua_newtable (L);
-#if 0
-      fprintf(stderr, "Classified %5d characters", text_len);
-#endif
-      for (i = 0; i < num_classes; i++)
-	{
-          sum += p_classes[i];
-#if 0
-          fprintf(stderr, "; P(database %d) = %.2g", i, p_classes[i]);
-#endif
-	  lua_pushnumber (L, (lua_Number) p_classes[i]);
-	  lua_rawseti (L, -3, i + 1);
-	  lua_pushnumber (L, (lua_Number) p_trainings[i]);
-	  lua_rawseti (L, -2, i + 1);
-	}
-#if 0
-      fprintf(stderr, "\n");
-#endif
-      check_sum_is_one(p_classes, num_classes);
-      lua_pushnumber(L, sum);
-      lua_insert(L, -3);
-      return 3;
-    }
+  check_sum_is_one(p_classes, num_classes);
+  lua_pushnumber(L, sum);
+  lua_insert(L, -3);
+  return 3;
 }
 
 static int
@@ -375,7 +356,6 @@ lua_osbf_train (lua_State * L)
   uint32_t flags = 0;		/* default value */
   const char *delimiters = "";	/* extra token delimiters */
   size_t delimiters_len = 0;
-  char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
 
   /* get args */
   sense  = luaL_checkint(L, 1);
@@ -385,15 +365,8 @@ lua_osbf_train (lua_State * L)
   delimiters = luaL_optlstring(L, 5, "", &delimiters_len);
   luaL_checktype (L, 6, LUA_TNONE);
 
-  if (osbf_bayes_train (text, text_len, delimiters, dbname,
-			sense, flags, errmsg) < 0)
-    {
-      return luaL_error(L, "%s", errmsg);
-    }
-  else
-    {
-      return 0;
-    }
+  osbf_bayes_train (text, text_len, delimiters, dbname, sense, flags, L);
+  return 0;
 }
 
 /**********************************************************/
@@ -409,7 +382,6 @@ old_osbf_train (lua_State * L, int sense)
   int num_classes;
   size_t ctbt;			/* index of the class to be trained */
   uint32_t flags;
-  char errmsg[OSBF_ERROR_MESSAGE_LEN] = { '\0' };
 
   /* get the arguments */
   text = (unsigned char *) luaL_checklstring (L, 1, &text_len);
@@ -419,15 +391,8 @@ old_osbf_train (lua_State * L, int sense)
   flags = (uint32_t) luaL_optnumber (L, 4, (lua_Number) 0);
   delimiters = luaL_optlstring (L, 5, "", &delimiters_len);
 
-  if (old_osbf_bayes_learn (text, text_len, delimiters, classes,
-			ctbt, sense, flags, errmsg) < 0)
-    {
-      return luaL_error(L, "%s", errmsg);
-    }
-  else
-    {
-      return 0;
-    }
+  old_osbf_bayes_learn (text, text_len, delimiters, classes, ctbt, sense, flags, L);
+  return 0;
 }
 
 /**********************************************************/
@@ -453,19 +418,12 @@ lua_osbf_increment_false_positives (lua_State * L)
 {
   const char *cfcfile;
   int delta;
-  char errmsg[OSBF_ERROR_MESSAGE_LEN];
 
   cfcfile = luaL_checkstring (L, 1);
   delta  = luaL_optint(L, 2, 1);
 
-  if (osbf_increment_false_positives (cfcfile, delta, errmsg) == 0)
-    {
-      return 0;
-    }
-  else
-    {
-      return luaL_error (L, "%s", errmsg);
-    }
+  osbf_increment_false_positives (cfcfile, delta, L);
+  return 0;
 }
 
 /**********************************************************/
@@ -473,20 +431,8 @@ lua_osbf_increment_false_positives (lua_State * L)
 static int
 lua_osbf_dump (lua_State * L)
 {
-  const char *cfcfile, *csvfile;
-  char errmsg[OSBF_ERROR_MESSAGE_LEN];
-
-  cfcfile = luaL_checkstring (L, 1);
-  csvfile = luaL_checkstring (L, 2);
-
-  if (osbf_dump (cfcfile, csvfile, errmsg) == 0)
-    {
-      return 0;
-    }
-  else
-    {
-      return luaL_error (L, "%s", errmsg);
-    }
+  osbf_dump (luaL_checkstring (L, 1), luaL_checkstring (L, 2), L);
+  return 0;
 }
 
 /**********************************************************/
@@ -495,19 +441,12 @@ static int
 lua_osbf_restore (lua_State * L)
 {
   const char *cfcfile, *csvfile;
-  char errmsg[OSBF_ERROR_MESSAGE_LEN];
 
   cfcfile = luaL_checkstring (L, 1);
   csvfile = luaL_checkstring (L, 2);
 
-  if (osbf_restore (cfcfile, csvfile, errmsg) == 0)
-    {
-      return 0;
-    }
-  else
-    {
-      return luaL_error (L, "%s", errmsg);
-    }
+  osbf_restore (cfcfile, csvfile, L);
+  return 0;
 }
 
 /**********************************************************/
@@ -515,20 +454,8 @@ lua_osbf_restore (lua_State * L)
 static int
 lua_osbf_import (lua_State * L)
 {
-  const char *cfcfile, *csvfile;
-  char errmsg[OSBF_ERROR_MESSAGE_LEN];
-
-  cfcfile = luaL_checkstring (L, 1);
-  csvfile = luaL_checkstring (L, 2);
-
-  if (osbf_import (cfcfile, csvfile, errmsg) == 0)
-    {
-      return 0;
-    }
-  else
-    {
-      return luaL_error (L, "%s", errmsg);
-    }
+  osbf_import (luaL_checkstring (L, 1), luaL_checkstring (L, 2), L);
+  return 0;
 }
 
 /**********************************************************/
@@ -539,7 +466,6 @@ lua_osbf_stats (lua_State * L)
 
   const char *cfcfile;
   STATS_STRUCT class;
-  char errmsg[OSBF_ERROR_MESSAGE_LEN];
   int full = 1;
 
   cfcfile = luaL_checkstring (L, 1);
@@ -548,99 +474,92 @@ lua_osbf_stats (lua_State * L)
       full = lua_toboolean (L, 2);
     }
 
-  if (osbf_stats (cfcfile, &class, errmsg, full) == 0)
+  osbf_stats (cfcfile, &class, L, full);
+  lua_newtable (L);
+
+  lua_pushliteral (L, "db_id");
+  lua_pushnumber (L, (lua_Number) class.db_id);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "db_version");
+  lua_pushnumber (L, (lua_Number) class.db_version);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "db_flags");
+  lua_pushnumber (L, (lua_Number) class.db_flags);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "buckets");
+  lua_pushnumber (L, (lua_Number) class.total_buckets);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "bucket_size");
+  lua_pushnumber (L, (lua_Number) class.bucket_size);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "header_size");
+  lua_pushnumber (L, (lua_Number) class.header_size);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "bytes");
+  lua_pushnumber (L, class.header_size + class.total_buckets * class.bucket_size);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "learnings");
+  lua_pushnumber (L, (lua_Number) class.learnings);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "extra_learnings");
+  lua_pushnumber (L, (lua_Number) class.extra_learnings);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "false_positives");
+  lua_pushnumber (L, (lua_Number) class.false_positives);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "false_negatives");
+  lua_pushnumber (L, (lua_Number) class.false_negatives);
+  lua_settable (L, -3);
+
+  lua_pushliteral (L, "classifications");
+  lua_pushnumber (L, (lua_Number) class.classifications);
+  lua_settable (L, -3);
+
+  if (full == 1)
     {
-      lua_newtable (L);
-
-      lua_pushliteral (L, "db_id");
-      lua_pushnumber (L, (lua_Number) class.db_id);
+      lua_pushliteral (L, "chains");
+      lua_pushnumber (L, (lua_Number) class.num_chains);
       lua_settable (L, -3);
 
-      lua_pushliteral (L, "db_version");
-      lua_pushnumber (L, (lua_Number) class.db_version);
+      lua_pushliteral (L, "max_chain");
+      lua_pushnumber (L, (lua_Number) class.max_chain);
       lua_settable (L, -3);
 
-      lua_pushliteral (L, "db_flags");
-      lua_pushnumber (L, (lua_Number) class.db_flags);
+      lua_pushliteral (L, "avg_chain");
+      lua_pushnumber (L, (lua_Number) class.avg_chain);
       lua_settable (L, -3);
 
-      lua_pushliteral (L, "buckets");
-      lua_pushnumber (L, (lua_Number) class.total_buckets);
+      lua_pushliteral (L, "max_displacement");
+      lua_pushnumber (L, (lua_Number) class.max_displacement);
       lua_settable (L, -3);
 
-      lua_pushliteral (L, "bucket_size");
-      lua_pushnumber (L, (lua_Number) class.bucket_size);
+      lua_pushliteral (L, "unreachable");
+      lua_pushnumber (L, (lua_Number) class.unreachable);
       lua_settable (L, -3);
 
-      lua_pushliteral (L, "header_size");
-      lua_pushnumber (L, (lua_Number) class.header_size);
+      lua_pushliteral (L, "used_buckets");
+      lua_pushnumber (L, (lua_Number) class.used_buckets);
       lua_settable (L, -3);
 
-      lua_pushliteral (L, "bytes");
-      lua_pushnumber (L, class.header_size + class.total_buckets * class.bucket_size);
+      lua_pushliteral (L, "use");
+      if (class.total_buckets > 0)
+        lua_pushnumber (L, (lua_Number) ((double) class.used_buckets /
+                                     class.total_buckets));
+      else
+        lua_pushnumber (L, (lua_Number) 100);
       lua_settable (L, -3);
-
-      lua_pushliteral (L, "learnings");
-      lua_pushnumber (L, (lua_Number) class.learnings);
-      lua_settable (L, -3);
-
-      lua_pushliteral (L, "extra_learnings");
-      lua_pushnumber (L, (lua_Number) class.extra_learnings);
-      lua_settable (L, -3);
-
-      lua_pushliteral (L, "false_positives");
-      lua_pushnumber (L, (lua_Number) class.false_positives);
-      lua_settable (L, -3);
-
-      lua_pushliteral (L, "false_negatives");
-      lua_pushnumber (L, (lua_Number) class.false_negatives);
-      lua_settable (L, -3);
-
-      lua_pushliteral (L, "classifications");
-      lua_pushnumber (L, (lua_Number) class.classifications);
-      lua_settable (L, -3);
-
-      if (full == 1)
-	{
-	  lua_pushliteral (L, "chains");
-	  lua_pushnumber (L, (lua_Number) class.num_chains);
-	  lua_settable (L, -3);
-
-	  lua_pushliteral (L, "max_chain");
-	  lua_pushnumber (L, (lua_Number) class.max_chain);
-	  lua_settable (L, -3);
-
-	  lua_pushliteral (L, "avg_chain");
-	  lua_pushnumber (L, (lua_Number) class.avg_chain);
-	  lua_settable (L, -3);
-
-	  lua_pushliteral (L, "max_displacement");
-	  lua_pushnumber (L, (lua_Number) class.max_displacement);
-	  lua_settable (L, -3);
-
-	  lua_pushliteral (L, "unreachable");
-	  lua_pushnumber (L, (lua_Number) class.unreachable);
-	  lua_settable (L, -3);
-
-	  lua_pushliteral (L, "used_buckets");
-	  lua_pushnumber (L, (lua_Number) class.used_buckets);
-	  lua_settable (L, -3);
-
-	  lua_pushliteral (L, "use");
-	  if (class.total_buckets > 0)
-	    lua_pushnumber (L, (lua_Number) ((double) class.used_buckets /
-					     class.total_buckets));
-	  else
-	    lua_pushnumber (L, (lua_Number) 100);
-	  lua_settable (L, -3);
-	}
-
-      return 1;
     }
-  else
-    {
-      return luaL_error (L, "%s: %s", cfcfile, errmsg);
-    }
+   return 1;
 }
 
 /**********************************************************/

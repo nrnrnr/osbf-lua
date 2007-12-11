@@ -19,9 +19,9 @@
 
 /*****************************************************************/
 
-int
+void
 osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
-	    char *err_buf, int verbose)
+	    OSBF_HANDLER *h, int verbose)
 {
 
   uint32_t i = 0;
@@ -36,7 +36,7 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
   CLASS_STRUCT class;
   OSBF_BUCKET_STRUCT *buckets;
 
-  CHECK(osbf_open_class(cfcfile, OSBF_READ_ONLY, &class, err_buf) == 0, 1, err_buf);
+  osbf_open_class(cfcfile, OSBF_READ_ONLY, &class, h);
 
   if (verbose == 1) {
     buckets = class.buckets;
@@ -131,7 +131,6 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
       stats->max_displacement = max_displacement;
       stats->unreachable = unreachable;
     }
-  CHECK(osbf_close_class(&class, err_buf) == 0, 1, err_buf);
-  return 0;
+  osbf_close_class(&class, h);
 }
 
