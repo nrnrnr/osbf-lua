@@ -100,11 +100,11 @@ end
 
 if debug then
   local learn, classify = core.learn, core.classify
-  core.learn = function(text, dbs, i, ...)
-                 local class = string.gsub(dbs[i], '%.cfc$', '')
+  core.learn = function(text, db, ...)
+                 local class = string.gsub(db, '%.cfc$', '')
                  class = string.gsub(class, '.*/', '')
                  debugf("** learning %s class %s\n", fingerprint(text), class)
-                 return learn(text, dbs, i, ...)
+                 return learn(text, db, ...)
                end
   core.classify = function(text, ...)
                     local sum, probs, trainings = classify(text, ...)
@@ -142,7 +142,7 @@ local function tone_inner(text, target_class)
 
   local k = cfg.constants
   local old_pR, class, _, target_pR =
-    most_likely_pR_and_class(text, k.classify_flags, target_class)
+    most_likely_pR_and_class(text, k.classify_flags, false, target_class)
   local target_index = class2index[target_class]
 
   if class ~= target_class then
@@ -153,7 +153,7 @@ local function tone_inner(text, target_class)
     -- because there can be cases where there was no false negative in the
     -- first classification, but, because of other trainings in between,
     -- the present classification is wrong. And vice-versa.
-    core.learn(text, dblist, target_index, core.FALSE_NEGATIVE)
+    core.learn(text, dblist[target_index], core.FALSE_NEGATIVE)
     local wrong_index = class2index[class]
     core.increment_false_positives(dblist[wrong_index])
 
@@ -163,7 +163,7 @@ local function tone_inner(text, target_class)
            new_class, new_pR, target_class)
     for i = 1, mistake_limit do
       if new_class == target_class then break end
-      core.learn(text, dblist, target_index) -- no FALSE_NEGATIVE flag here
+      core.learn(text, dblist[target_index]) -- no FALSE_NEGATIVE flag here
       new_pR, new_class = most_likely_pR_and_class(text, k.classify_flags)
       debugf(" Tone %d - forcing right class: classified %s (pR %.2f); target class %s\n",
            i, new_class, new_pR, target_class)
@@ -177,7 +177,7 @@ local function tone_inner(text, target_class)
     -- the user has decided training is needed.  Thus we use only the
     -- overtraining-protection threshold in order to protect the integrity
     -- of the database.
-    core.learn(text, dblist, target_index)
+    core.learn(text, dblist[target_index])
     local new_pR, new_class = most_likely_pR_and_class(text, k.classify_flags)
     debugf("Tone - near error, after training: classified %s (pR %.2f -> %.2f); target class %s\n",
            new_class, old_pR, new_pR, target_class)
@@ -221,7 +221,7 @@ local function tone_msg_and_reinforce_header(lim, target_class)
     for i = 1, reinforcement_limit do
       -- (may exit early if the change in new_pR is big enough)
       pR = new_pR
-      core.learn(lim_orig_header, dblist, index, k.learn_flags+core.EXTRA_LEARNING)
+      core.learn(lim_orig_header, dblist[index], k.learn_flags+core.EXTRA_LEARNING)
       debugf('Reinforced %d class %s with pR = %.2f\n', i, target_class, pR)
       new_pR = most_likely_pR_and_class(lim_orig_msg, k.classify_flags)
       if new_pR > trd or math.abs (pR - new_pR) >= rd then
@@ -286,12 +286,12 @@ but the message was previously learned as %s.]],
   local lim = msg.lim
   local k = cfg.constants
   local old_pR = most_likely_pR_and_class(lim.msg, k.classify_flags)
-  local index = class2index[status]
-  core.unlearn(lim.msg, dblist, index, k.learn_flags+core.FALSE_NEGATIVE)
+  local db = class2db[status]
+  core.unlearn(lim.msg, db, k.learn_flags+core.FALSE_NEGATIVE)
   local pR, class = most_likely_pR_and_class(lim.msg, k.classify_flags)
   for i = 1, parms.reinforcement_limit do
     if class == status and pR > threshold_offset then
-      core.unlearn(lim.header, dblist, index, k.learn_flags)
+      core.unlearn(lim.header, db, k.learn_flags)
       pR, class = most_likely_pR_and_class(lim.msg, k.classify_flags)
     else
       break
@@ -327,9 +327,11 @@ local function wrap_subj_tag(s)
 end
 
 __doc.most_likely_pR_and_class = 
-[[function(text, flags, target_class) returns pR, classification, train, target_pR
+[[function(text, flags, count, target_class) returns pR, classification, train, target_pR
 text is the text to be classified.
 flags are the flags for classification.
+count is optional; if given it is a boolean indicating whether to increment
+the number of classifications in the database of the most likely class.
 target_class is optional. If given, its pR will be returned as the last argument.
 
 pR the log of ratio of the probability for the chosen class;
@@ -348,9 +350,8 @@ do
     return sum
   end
 
-  function most_likely_pR_and_class(msg, flags, target_class)
+  function most_likely_pR_and_class(msg, flags, count, target_class)
     -- find the class with the largest pR
-    local max_pR, most_likely = -10000, 'this cannot happen'
 
 --for classification_count = 1, (debug and 5 or 1) do
 
@@ -367,6 +368,7 @@ do
     assert(k > 0, 'Must decide most likely among two or more things')
 
     local target_index, target_pR = class2index[target_class]
+    local max_pR, most_likely = -10000, 'this cannot happen'
     for i, P in pairs(probs) do
       local class = index2class[i]
       local notP = prob_not(i)
@@ -381,6 +383,7 @@ do
       end
     end
 --end
+    if count then core.increment_classifications(class2db[most_likely]) end
     local train = max_pR < cfg.classes[most_likely].train_below
     debugf('Classified %s as class %s with confidence %.2f%s\n',
            table.concat(cfg.classlist(), '/'), most_likely, max_pR,
@@ -415,12 +418,10 @@ function classify (msg)
 
   -- continue with classification even if whitelisted or blacklisted
 
-  local count_classifications_flags =
-    (cfg.count_classifications and core.COUNT_CLASSIFICATIONS or 0)
-         + cfg.constants.classify_flags
   debugf('\nClassifying msg %s...\n', fingerprint(msg.lim.msg))
   local pR, class, train =
-    most_likely_pR_and_class(msg.lim.msg, count_classifications_flags)
+    most_likely_pR_and_class(msg.lim.msg, cfg.constants.classify_flags,
+                             cfg.count_classifications)
   local t = assert(cfg.classes[class], 'missing configuration for class')
   
   if not sfid_tag then

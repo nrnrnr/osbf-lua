@@ -47,7 +47,13 @@ local spam_regex, spam_regex, signal
 
 local lines = {}
 for line in io.lines(arg[1]) do
-  table.insert(lines, line)
+  if not string.find(line, '^%s*#') then
+    table.insert(lines, line)
+  end
+end
+
+if not string.find(lines[#lines], 'score=%S+$') then -- incomplete file
+  table.remove(lines)
 end
 
 if string.match(lines[1], " judge=%S+ class=.+ score=") then
@@ -65,17 +71,11 @@ end
 -- count number of positive (spam) and negative (ham) examples
 local P, N = 0, 0
 for i = 1, #lines, 1 do
-  if not string.find(lines[i], '^%s*#') then
-    if string.find(lines[i], spam_regex) then
-      P = P + 1
-    else
-      N = N + 1
-    end
+  if string.find(lines[i], spam_regex) then
+    P = P + 1
+  else
+    N = N + 1
   end
-end
-
-if not string.find(lines[#lines], 'score=%S+$') then -- incomplete file
-  table.remove(lines)
 end
 
 table.sort(lines, sort_scores)

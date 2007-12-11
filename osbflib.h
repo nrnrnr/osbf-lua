@@ -61,7 +61,7 @@ typedef enum osbf_class_usage {
 */
 
 typedef enum osbf_class_state {
-  OSBF_MAPPED, OSBF_COPIED_R, OSBF_COPIED_RW, OSBF_COPIED_RWH, OSBF_CLOSED
+  OSBF_CLOSED, OSBF_COPIED_R, OSBF_COPIED_RWH, OSBF_COPIED_RW, OSBF_MAPPED
 } osbf_class_state;
 
 /* class structure */
@@ -242,23 +242,17 @@ extern void
 osbf_bayes_classify (const unsigned char *text,
 		     unsigned long len,
 		     const char *pattern,
-		     const char *classes[],
+                     CLASS_STRUCT classes[],
+                     unsigned nclasses,
 		     enum classify_flags flags,
 		     double min_pmax_pmin_ratio, double ptc[],
 		     uint32_t ptt[], OSBF_HANDLER *h);
 
 extern void
-old_osbf_bayes_learn (const unsigned char *text,
-		  unsigned long len,
-		  const char *pattern,
-		  const char *classes[],
-		  unsigned tc, int sense, enum learn_flags flags, OSBF_HANDLER *h);
-
-extern void
 osbf_bayes_train (const unsigned char *text,
 		  unsigned long len,
-		  const char *pattern,
-		  const char *class,
+                  const char *delims,      /* token delimiters */
+		  CLASS_STRUCT *class,
 		  int sense, enum learn_flags flags, OSBF_HANDLER *h);
 
 extern void

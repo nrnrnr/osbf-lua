@@ -208,20 +208,18 @@ get_next_hash (struct token_search *pts)
 void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 		       unsigned long text_len,  /* length of text */
                        const char *delims,      /* token delimiters */
-                       const char *database,    /* database to be trained */
+                       CLASS_STRUCT *class,    /* database to be trained */
                        int sense,       /* 1 => learn;  -1 => unlearn */
-                       uint32_t flags,  /* flags */
+                       enum learn_flags flags,  /* flags */
                        OSBF_HANDLER *h)
 {
   uint32_t window_idx;
   int32_t learn_error;
   int32_t i;
-  off_t fsize;
   uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1];
   int32_t num_hash_paddings;
   int microgroom;
   struct token_search ts;
-  CLASS_STRUCT class;
 
   /* fprintf(stderr, "Starting learning...\n"); */
 
@@ -232,12 +230,14 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
   ts.delims = delims;
 
   microgroom = (flags & NO_MICROGROOM) == 0;
-
-  fsize = check_file (database);
-  osbf_raise_unless (fsize >= 0, h, "File not available: %s.", database);
-
-  /* open the class to be trained and mmap it into memory */
-  osbf_open_class (database, OSBF_WRITE_ALL, &class, h);
+  switch(class->state) {
+    case OSBF_COPIED_R: case OSBF_CLOSED: case OSBF_COPIED_RWH:
+      osbf_raise(h, "Trying to train on class %s without opening for write",
+                 class->classname != NULL ? class->classname : "(name unknown)");
+      break;
+    case OSBF_MAPPED: case OSBF_COPIED_RW:
+      break; /* training OK */
+  }
 
   /*   init the hashpipe with 0xDEADBEEF  */
   for (i = 0; i < OSB_BAYES_WINDOW_LEN; i++)
@@ -290,7 +290,7 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 #else
 	      hashpipe[window_idx] * hctable2[window_idx];
 #endif
-	    hindex = h1 % class.header->num_buckets;
+	    hindex = h1 % class->header->num_buckets;
 
 #if (DEBUG > 0)
 	    fprintf (stderr,
@@ -298,23 +298,26 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 		     PRIu32 "\n", window_idx, h1, h2);
 #endif
 
-	    bindex = osbf_find_bucket (&class, h1, h2);
-	    if (bindex < class.header->num_buckets)
+	    bindex = osbf_find_bucket (class, h1, h2);
+	    if (bindex < class->header->num_buckets)
 	      {
-		if (BUCKET_IN_CHAIN (&class, bindex))
+		if (BUCKET_IN_CHAIN (class, bindex))
 		  {
-		    if (!BUCKET_IS_LOCKED (&class, bindex))
-		      osbf_update_bucket (&class, bindex, sense);
+		    if (!BUCKET_IS_LOCKED (class, bindex))
+		      osbf_update_bucket (class, bindex, sense);
 		  }
 		else if (sense > 0)
 		  {
-		    osbf_insert_bucket (&class, bindex, h1, h2, sense);
+		    osbf_insert_bucket (class, bindex, h1, h2, sense);
 		  }
 	      }
 	    else
 	      {
-                osbf_close_class(&class, h);
-                osbf_raise(h, ".cfc file %s is full!", database);
+                char errmsg[100];
+                snprintf(errmsg, sizeof(errmsg), ".cfc file %s is full!",
+                         class->classname);
+                osbf_close_class(class, h);
+                osbf_raise(h, "%s", errmsg);
 		return;
 	      }
 	  }
@@ -329,7 +332,7 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
         if (flags & EXTRA_LEARNING)
           {
             /* increment extra learnings counter */
-            class.header->extra_learnings += 1;
+            class->header->extra_learnings += 1;
           }
         else
           {
@@ -338,26 +341,26 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
             /* old code disabled because the databases are disjoint and
                this correction should be applied to both simultaneously
 
-               class.header->learnings += 1;
-               if (class.header->learnings >= OSBF_MAX_BUCKET_VALUE)
+               class->header->learnings += 1;
+               if (class->header->learnings >= OSBF_MAX_BUCKET_VALUE)
                {
                uint32_t i;
 
-               class.header->learnings >>= 1;
-               for (i = 0; i < NUM_BUCKETS (&class); i++)
-               BUCKET_VALUE (&class, i) = BUCKET_VALUE (&class, i) >> 1;
+               class->header->learnings >>= 1;
+               for (i = 0; i < NUM_BUCKETS (class); i++)
+               BUCKET_VALUE (class, i) = BUCKET_VALUE (class, i) >> 1;
                }
              */
 
-            if (class.header->learnings < OSBF_MAX_BUCKET_VALUE)
+            if (class->header->learnings < OSBF_MAX_BUCKET_VALUE)
               {
-                class.header->learnings += 1;
+                class->header->learnings += 1;
               }
 
             /* increment false negative counter */
             if (flags & FALSE_NEGATIVE)
               {
-                class.header->false_negatives += 1;
+                class->header->false_negatives += 1;
               }
           }
       }
@@ -366,220 +369,35 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
         if (flags & EXTRA_LEARNING)
           {
             /* decrement extra learnings counter */
-            if (class.header->extra_learnings > 0)
-              class.header->extra_learnings -= 1;
+            if (class->header->extra_learnings > 0)
+              class->header->extra_learnings -= 1;
           }
         else
           {
             /* decrement learnings counter */
-            if (class.header->learnings > 0)
-              class.header->learnings -= 1;
+            if (class->header->learnings > 0)
+              class->header->learnings -= 1;
             /* decrement false negative counter */
-            if ((flags & FALSE_NEGATIVE) && class.header->false_negatives > 0)
-              class.header->false_negatives -= 1;
+            if ((flags & FALSE_NEGATIVE) && class->header->false_negatives > 0)
+              class->header->false_negatives -= 1;
           }
       }
 
-    osbf_close_class (&class, h);
+    osbf_close_class (class, h);
 
 }
-
-
-/******************************************************************/
-/* Train the specified class with the text pointed to by "p_text" */
-/******************************************************************/
-void old_osbf_bayes_learn (const unsigned char *p_text,	/* pointer to text */
-			   unsigned long text_len,      /* length of text */
-                           const char *delims,  /* token delimiters */
-                           const char *classnames[],    /* class file names */
-                           uint32_t ctbt,       /* index of the class to be trained */
-                           int sense,   /* 1 => learn;  -1 => unlearn */
-                           uint32_t flags,      /* flags */
-			   OSBF_HANDLER *h)
-{
-  uint32_t window_idx;
-  int32_t learn_error;
-  int32_t i;
-  off_t fsize;
-  uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1];
-  int32_t num_hash_paddings;
-  int microgroom;
-  struct token_search ts;
-  CLASS_STRUCT class[OSBF_MAX_CLASSES];
-
-  /* fprintf(stderr, "Starting learning...\n"); */
-
-  ts.ptok = (unsigned char *) p_text;
-  ts.ptok_max = (unsigned char *) (p_text + text_len);
-  ts.toklen = 0;
-  ts.hash = 0;
-  ts.delims = delims;
-
-  microgroom = 1;
-  if (flags & NO_MICROGROOM)
-    microgroom = 0;
-
-  fsize = check_file (classnames[ctbt]);
-  osbf_raise_unless(fsize >= 0, h, "File not available: %s.", classnames[ctbt]);
-
-  /* open the class to be trained and mmap it into memory */
-  osbf_open_class (classnames[ctbt], OSBF_WRITE_ALL, &class[ctbt], h);
-
-  /*   init the hashpipe with 0xDEADBEEF  */
-  for (i = 0; i < OSB_BAYES_WINDOW_LEN; i++)
-    hashpipe[i] = 0xDEADBEEF;
-
-  learn_error = 0;
-  /* experimental code - set num_hash_paddings = 0 to disable */
-  /* num_hash_paddings = OSB_BAYES_WINDOW_LEN - 1; */
-  num_hash_paddings = OSB_BAYES_WINDOW_LEN - 1;
-  while (learn_error == 0 && ts.ptok <= ts.ptok_max)
-    {
-
-      if (get_next_hash (&ts) != 0)
-	{
-	  /* after eof, insert fake tokens until the last real */
-	  /* token comes out at the other end of the hashpipe */
-	  if (num_hash_paddings-- > 0)
-	    ts.hash = 0xDEADBEEF;
-	  else
-	    break;
-	}
-
-      /*  Shift the hash pipe down one and insert new hash */
-      for (i = OSB_BAYES_WINDOW_LEN - 1; i > 0; i--)
-	hashpipe[i] = hashpipe[i - 1];
-      hashpipe[0] = ts.hash;
-
-#if (DEBUG > 2)
-      {
-	fprintf (stderr, "  Hashpipe contents: ");
-	for (i = 0; i < OSB_BAYES_WINDOW_LEN; i++)
-	  fprintf (stderr, " %" PRIu32, hashpipe[i]);
-	fprintf (stderr, "\n");
-      }
-#endif
-
-      {
-	uint32_t hindex, bindex;
-	uint32_t h1, h2;
-
-	for (window_idx = 1; window_idx < OSB_BAYES_WINDOW_LEN; window_idx++)
-	  {
-
-	    h1 =
-	      hashpipe[0] * hctable1[0] +
-	      hashpipe[window_idx] * hctable1[window_idx];
-	    h2 = hashpipe[0] * hctable2[0] +
-#ifdef CRM114_COMPATIBILITY
-	      hashpipe[window_idx] * hctable2[window_idx - 1];
-#else
-	      hashpipe[window_idx] * hctable2[window_idx];
-#endif
-	    hindex = h1 % class[ctbt].header->num_buckets;
-
-#if (DEBUG > 2)
-	    fprintf (stderr,
-		     "Polynomial %" PRIu32 " has h1:%" PRIu32 "  h2: %"
-		     PRIu32 "\n", window_idx, h1, h2);
-#endif
-
-	    bindex = osbf_find_bucket (&class[ctbt], h1, h2);
-	    if (bindex < class[ctbt].header->num_buckets)
-	      {
-		if (BUCKET_IN_CHAIN (&class[ctbt], bindex))
-		  {
-		    if (!BUCKET_IS_LOCKED (&class[ctbt], bindex))
-		      osbf_update_bucket (&class[ctbt], bindex, sense);
-		  }
-		else if (sense > 0)
-		  {
-		    osbf_insert_bucket (&class[ctbt], bindex, h1, h2, sense);
-		  }
-	      }
-	    else
-	      {
-                osbf_close_class(&class[ctbt], h);
-                osbf_raise(h, ".cfc file %s is full!", classnames[ctbt]);
-		return;
-	      }
-	  }
-      }
-    }				/*   end the while k==0 */
-
-
-  if (sense > 0)
-    {
-      /* extra learnings are all those done with the  */
-      /* same document, after the first learning */
-      if (flags & EXTRA_LEARNING)
-        {
-          /* increment extra learnings counter */
-          class[ctbt].header->extra_learnings += 1;
-        }
-      else
-        {
-          /* increment normal learnings counter */
-
-          /* old code disabled because the databases are disjoint and
-             this correction should be applied to both simultaneously
-
-             class[ctbt].header->learnings += 1;
-             if (class[ctbt].header->learnings >= OSBF_MAX_BUCKET_VALUE)
-             {
-             uint32_t i;
-
-             class[ctbt].header->learnings >>= 1;
-             for (i = 0; i < NUM_BUCKETS (&class[ctbt]); i++)
-             BUCKET_VALUE (&class[ctbt], i) =
-             BUCKET_VALUE (&class[ctbt], i) >> 1;
-             }
-           */
-
-          if (class[ctbt].header->learnings < OSBF_MAX_BUCKET_VALUE)
-    	{
-    	  class[ctbt].header->learnings += 1;
-    	}
-
-          /* increment false negative counter */
-          if (flags & FALSE_NEGATIVE)
-    	{
-    	  class[ctbt].header->false_negatives += 1;
-    	}
-        }
-    }
-  else
-    {
-      if (flags & EXTRA_LEARNING)
-        {
-          /* decrement extra learnings counter */
-          if (class[ctbt].header->extra_learnings > 0)
-    	class[ctbt].header->extra_learnings -= 1;
-        }
-      else
-        {
-          /* decrement learnings counter */
-          if (class[ctbt].header->learnings > 0)
-    	class[ctbt].header->learnings -= 1;
-          /* decrement false negative counter */
-          if ((flags & FALSE_NEGATIVE) && class[ctbt].header->false_negatives > 0)
-    	class[ctbt].header->false_negatives -= 1;
-        }
-    }
-
-  osbf_close_class (&class[ctbt], h);
-}
-
 
 /**********************************************************/
-/* Find out the best class for the text pointed to by     */
-/* "p_text", among those listed in the array "classnames" */
+/* Given the text pointed to by "p_text", for each class  */
+/* in the array "classes", find the probability that the  */
+/* text belongs to that class                             */
 /**********************************************************/
 void
 osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 		     unsigned long text_len,	/* length of text */
 		     const char *delims,	/* token delimiters */
-		     const char *classnames[],	/* hash file names */
+		     CLASS_STRUCT classes[],	/* hash file names */
+                     unsigned num_classes,
 		     uint32_t flags,	/* flags */
 		     double min_pmax_pmin_ratio,
 		     /* returned values */
@@ -588,15 +406,16 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 		     OSBF_HANDLER *h	/* error handler */
   )
 {
-  int32_t i, window_idx, class_idx;
-  int32_t hh;			/* we use hh for our hashpipe counter, as needed. */
+  int32_t window_idx;
+  unsigned class_idx;
+  CLASS_STRUCT *class_lim = classes + num_classes;
+  CLASS_STRUCT *class;
+  int32_t i;			/* we use i for our hashpipe counter, as needed. */
 
   double htf;			/* hits this feature got. */
   double renorm = 0.0;
   uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1];
-  CLASS_STRUCT class[OSBF_MAX_CLASSES];
 
-  int32_t num_classes;
   double a_priori_prob;		/* inverse of the number of classes: 1/num_classes */
   uint32_t total_learnings = 0;
   uint32_t totalfeatures;	/* total features */
@@ -611,6 +430,10 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 
   struct token_search ts;
 
+  osbf_raise_unless((flags & COUNT_CLASSIFICATIONS) == 0, h,
+                    "Asked to count classifications, but this must now be "
+                    "done as a separate operation");
+
   ts.ptok = (unsigned char *) p_text;
   ts.ptok_max = (unsigned char *) (p_text + text_len);
   ts.toklen = 0;
@@ -620,29 +443,24 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
   /* fprintf(stderr, "Starting classification...\n"); */
 
   osbf_raise_unless (text_len > 0, h, "Attempt to classify an empty text.");
+  osbf_raise_unless(num_classes > 0, h, "At least one class must be given.");
 
   if (flags & NO_EDDC)
     voodoo = 0;
 
-  for (i = 0; (classnames[i] != NULL) && (i < OSBF_MAX_CLASSES); i++) {
-      osbf_raise_unless(check_file (classnames[i]) >= 0, h,
-                        "Couldn't open the file %s.", classnames[i]);
+  for (class = classes; class < class_lim; class++) {
+    osbf_raise_unless(class->state != OSBF_CLOSED, h,
+                      "class number %d is closed", class - classes);
 
-      /*  mmap the hash file into memory */
-      osbf_open_class (classnames[i], OSBF_READ_ONLY, &class[i], h);
+    ptt[class-classes] = class->learnings = class->header->learnings;
+      /*  avoid division by 0 */
+    if (class->learnings == 0)
+      class->learnings++;
 
-      ptt[i] = class[i].learnings = class[i].header->learnings;
-      /* increment learnings to avoid division by 0 */
-      if (class[i].learnings == 0)
-	class[i].learnings++;
+    /* update total learnings */
+    total_learnings += classes->learnings;
+  }
 
-      /* update total learnings */
-      total_learnings += class[i].learnings;
-    }
-
-  num_classes = i;
-
-  osbf_raise_unless(num_classes > 0, h, "At least one class must be given.");
 
   /* a-priori, zero-knowledge, class probability */
   a_priori_prob = 1.0 / (double) num_classes;
@@ -656,24 +474,24 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
       feature_weight[4] = pow (exponent * 2.0 / 5.0, exponent * 2.0 / 5.0);
     }
 
-  for (i = 0; i < num_classes; i++)
+  for (class = classes; class < class_lim; class++)
     {
       /*  initialize our arrays for N .cfc files */
-      class[i].hits = 0.0;	/* absolute hit counts */
-      class[i].totalhits = 0;	/* absolute hit counts */
-      class[i].uniquefeatures = 0;	/* features counted per class */
-      class[i].missedfeatures = 0;	/* missed features per class */
-      ptc[i] = (double) class[i].learnings / total_learnings;	/* a priori probability after some knowledge */
+      class->hits = 0.0;	/* absolute hit counts */
+      class->totalhits = 0;	/* absolute hit counts */
+      class->uniquefeatures = 0;	/* features counted per class */
+      class->missedfeatures = 0;	/* missed features per class */
+      ptc[class-classes] = (double) class->learnings / total_learnings;
+                                  /* a priori probability after some knowledge */
     }
 
   /*   now all of the files are mmapped into memory, */
   /*   and we can do the polynomials and add up points. */
-  i = 0;
 
   /* init the hashpipe with 0xDEADBEEF  */
-  for (hh = 0; hh < OSB_BAYES_WINDOW_LEN; hh++)
+  for (i = 0; i < OSB_BAYES_WINDOW_LEN; i++)
     {
-      hashpipe[hh] = 0xDEADBEEF;
+      hashpipe[i] = 0xDEADBEEF;
     }
 
   totalfeatures = 0;
@@ -684,9 +502,9 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 	break;
 
       /* Shift the hash pipe down one and insert new hash */
-      for (hh = OSB_BAYES_WINDOW_LEN - 1; hh > 0; hh--)
+      for (i = OSB_BAYES_WINDOW_LEN - 1; i > 0; i--)
 	{
-	  hashpipe[hh] = hashpipe[hh - 1];
+	  hashpipe[i] = hashpipe[i - 1];
 	}
 
       hashpipe[0] = ts.hash;
@@ -731,57 +549,57 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 	    max_local_p = 0;
 	    i_min_p = i_max_p = 0;
 	    already_seen = 0;
-	    for (class_idx = 0; class_idx < num_classes; class_idx++)
+	    for (class = classes; class < class_lim; class++)
 	      {
 		uint32_t lh, lh0;
 		double p_feat = 0;
 
-		lh = HASH_INDEX (&class[class_idx], hindex);
+		lh = HASH_INDEX (class, hindex);
 		lh0 = lh;
-		class[class_idx].hits = 0;
+		class->hits = 0;
 
 		/* look for feature with hashes h1 and h2 */
-		lh = osbf_find_bucket (&class[class_idx], h1, h2);
+		lh = osbf_find_bucket (class, h1, h2);
 
 		/* the bucket is valid if its index is valid. if the     */
 		/* index "lh" is >= the number of buckets, it means that */
 		/* the .cfc file is full and the bucket wasn't found     */
-		if (VALID_BUCKET (&class[class_idx], lh) &&
-		    class[class_idx].bflags[lh] == 0)
+		if (VALID_BUCKET (class, lh) &&
+		    class->bflags[lh] == 0)
 		  {
 		    /* only not previously seen features are considered */
-		    if (BUCKET_IN_CHAIN (&class[class_idx], lh))
+		    if (BUCKET_IN_CHAIN (class, lh))
 		      {
 			/* count unique features used */
-			class[class_idx].uniquefeatures += 1;
+			class->uniquefeatures += 1;
 
-			class[class_idx].hits =
-			  BUCKET_VALUE (&class[class_idx], lh);
+			class->hits =
+			  BUCKET_VALUE (class, lh);
 
 			/* remember totalhits */
-			class[class_idx].totalhits += class[class_idx].hits;
+			class->totalhits += class->hits;
 
 			/* and hits-this-feature */
-			htf += class[class_idx].hits;
-			p_feat = class[class_idx].hits /
-			  class[class_idx].learnings;
+			htf += class->hits;
+			p_feat = class->hits /
+			  class->learnings;
 
 			/* find class with minimum P(F) */
 			if (p_feat <= min_local_p)
 			  {
-			    i_min_p = class_idx;
+			    i_min_p = class - classes;
 			    min_local_p = p_feat;
 			  }
 
 			/* find class with maximum P(F) */
 			if (p_feat >= max_local_p)
 			  {
-			    i_max_p = class_idx;
+			    i_max_p = class - classes;
 			    max_local_p = p_feat;
 			  }
 
 			/* mark the feature as seen */
-			class[class_idx].bflags[lh] = 1;
+			class->bflags[lh] = 1;
 		      }
 		    else
 		      {
@@ -798,15 +616,15 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 			 * all classes and will be ignored as well. So, only
 			 * found features are marked as seen.
 			 */
-			i_min_p = class_idx;
+			i_min_p = class - classes;
 			min_local_p = p_feat = 0;
 			/* for statistics only (for now...) */
-			class[class_idx].missedfeatures += 1;
+			class->missedfeatures += 1;
 		      }
 		  }
 		else
 		  {
-		    if (VALID_BUCKET (&class[class_idx], lh))
+		    if (VALID_BUCKET (class, lh))
 		      {
 			already_seen = 1;
 			if (asymmetric != 0)
@@ -815,10 +633,10 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 		    else
 		      {
 			/* bucket not valid. treat like feature not found */
-			i_min_p = class_idx;
+			i_min_p = class - classes;
 			min_local_p = p_feat = 0;
 			/* for statistics only (for now...) */
-			class[class_idx].missedfeatures += 1;
+			class->missedfeatures += 1;
 		      }
 		  }
 	      }
@@ -943,18 +761,18 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 	      /* K1 = 0.25; K2 = 10; K3 = 8;      */
 	      /* const double K1 = 0.25, K2 = 10, K3 = 8; */
 
-	      hits_min_p = class[i_min_p].hits;
-	      hits_max_p = class[i_max_p].hits;
+	      hits_min_p = classes[i_min_p].hits;
+	      hits_max_p = classes[i_max_p].hits;
 
 	      /* normalize hits to max learnings */
-	      if (class[i_min_p].learnings < class[i_max_p].learnings)
+	      if (classes[i_min_p].learnings < classes[i_max_p].learnings)
 		hits_min_p *=
-		  (double) class[i_max_p].learnings /
-		  (double) class[i_min_p].learnings;
+		  (double) classes[i_max_p].learnings /
+		  (double) classes[i_min_p].learnings;
 	      else
 		hits_max_p *=
-		  (double) class[i_min_p].learnings /
-		  (double) class[i_max_p].learnings;
+		  (double) classes[i_min_p].learnings /
+		  (double) classes[i_max_p].learnings;
 
 	      sum_hits = hits_max_p + hits_min_p;
 	      diff_hits = hits_max_p - hits_min_p;
@@ -982,16 +800,16 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 							   [window_idx]));
 #elif (EDDC_VARIANT == 3)
 		cfx =
-		  0.8 + (class[i_min_p].header->learnings +
-			 class[i_max_p].header->learnings) / 20.0;
+		  0.8 + (classes[i_min_p].header->learnings +
+			 classes[i_max_p].header->learnings) / 20.0;
 	      if (cfx > 1)
 		cfx = 1;
 	      confidence_factor = cfx *
 		pow ((diff_hits * diff_hits - K1 /
-		      (class[i_max_p].hits + class[i_min_p].hits)) /
+		      (classes[i_max_p].hits + classes[i_min_p].hits)) /
 		     (sum_hits * sum_hits), 2) /
 		(1.0 +
-		 K3 / ((class[i_max_p].hits + class[i_min_p].hits) *
+		 K3 / ((classes[i_max_p].hits + classes[i_min_p].hits) *
 		       feature_weight[window_idx]));
 #elif (EDDC_VARIANT == 4)
 		confidence_factor =
@@ -1021,20 +839,20 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 		 */
 		ptc[class_idx] = ptc[class_idx] *
 		  (a_priori_prob + confidence_factor *
-		   (class[class_idx].hits / class[class_idx].learnings -
+		   (classes[class_idx].hits / classes[class_idx].learnings -
 		    a_priori_prob));
 
 		if (ptc[class_idx] < OSBF_SMALLP)
 		  ptc[class_idx] = OSBF_SMALLP;
 		renorm += ptc[class_idx];
 #if (DEBUG > 1)
-		fprintf (stderr, "CF: %.4f, class[k].totalhits: %" PRIu32 ", "
+		fprintf (stderr, "CF: %.4f, classes[k].totalhits: %" PRIu32 ", "
 			 "missedfeatures[k]: %" PRIu32
 			 ", uniquefeatures[k]: %" PRIu32 ", "
 			 "totalfeatures: %" PRIu32 ", weight: %5.1f\n",
-			 confidence_factor, class[class_idx].totalhits,
-			 class[class_idx].missedfeatures,
-			 class[class_idx].uniquefeatures, totalfeatures,
+			 confidence_factor, classes[class_idx].totalhits,
+			 classes[class_idx].missedfeatures,
+			 classes[class_idx].uniquefeatures, totalfeatures,
 			 feature_weight[window_idx]);
 #endif
 
@@ -1053,42 +871,14 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
 			   ", HTF: %7.0f, " "learnings: %7" PRIu32
 			   ", hits: %7.0f, " "Pc: %6.4e\n",
 			   window_idx, class_idx, htf,
-			   class[class_idx].header->learnings,
-			   class[class_idx].hits, ptc[class_idx]);
+			   classes[class_idx].header->learnings,
+			   classes[class_idx].hits, ptc[class_idx]);
 		}
 	    }
 #endif
 	  }
       }
     }
-
-
-  /* find class with max probability and close all open files */
-  /* XXX if any one file fails to close, the rest are left hanging;
-     with more work this could be fixed */
-  {
-    int max_ptc_idx = 0;
-    double max_ptc = 0;
-
-    for (class_idx = 0; class_idx < num_classes; class_idx++)
-      {
-	if (ptc[class_idx] > max_ptc)
-	  {
-	    max_ptc_idx = class_idx;
-	    max_ptc = ptc[class_idx];
-	  }
-        
-	osbf_close_class (&class[class_idx], h);
-      }
-
-    if (flags & COUNT_CLASSIFICATIONS)
-      {
-        CLASS_STRUCT newclass;
-        osbf_open_class (classnames[max_ptc_idx], OSBF_WRITE_HEADER, &newclass,h);
-        newclass.header->classifications += 1;
-        osbf_close_class(&newclass, h);
-      }
-  }
 
 #if (DEBUG > 0)
   {

@@ -52,7 +52,6 @@ Arguments are as follows:
   flags: Number with the classification control flags. Each bit is a flag.
      The available flags are:
        * core.NO_EDDC                - disable EDDC;
-       * core.COUNT_CLASSIFICATIONS  - turn on the classification counter;
      The NO_EDDC flag is intended for tests because disabling EDDC
      normally lowers accuracy.
 
@@ -89,21 +88,23 @@ defaults to 1.
 
 ]=]
 
+__doc.increment_classifications = [=[
+function(database) returns nothing or calls lua_error
+
+Adds 1 to the number of classifications of the database.
+]=]
+
 __doc.learn = [=[
-function(text, dblist, class_index, [flags, [delimiters]]) 
+function(text, dbname, [flags, [delimiters]]) 
   returns nothing or calls lua_error
 
-Learns the string text as belonging to the single class database
-indicated by the number class_index in dbset.classes.
+Learns the string text as belonging to named class.a
 
 Arguments are as follows:
 
   text: string with the text to be learned
 
-  dblist: list of databases, as in core.classify
-
-  class_index: index to the single database in dblist to be
-      trained with text
+  dbname: name of the database to be trained with text
 
   flags: Number with the flags to control the learning operation.
      Each bit is a flag. The available flags are:
@@ -122,14 +123,14 @@ Arguments are as follows:
 ]=]
 
 __doc.unlearn = [=[
-function(text, dblist, class_index, [flags, [delimiters]]) 
+function(text, dbname, [flags, [delimiters]]) 
   returns nothing or calls lua_error
 
 Undoes the effect of core.learn.  Arguments are as for core.learn.
 ]=]
 
 __doc.train = [=[
-function(sense, text, list, index, [flags, [delimiters]])
+function(sense, text, dbname, [flags, [delimiters]])
   calls lua_error or returns nothing
 
 If sense = 1 it's equivalent to core.learn, differing on how args

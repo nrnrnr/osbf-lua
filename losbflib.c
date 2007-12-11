@@ -254,6 +254,18 @@ static void check_sum_is_one(double *p_classes, unsigned num_classes) {
 
 
 
+/**********************************************************/
+static int
+lua_osbf_increment_classifications(lua_State *L) {
+  const char *classname = luaL_checkstring(L, 1);
+  CLASS_STRUCT newclass;
+  osbf_open_class (classname, OSBF_WRITE_HEADER, &newclass, L);
+  newclass.header->classifications += 1;
+  osbf_close_class(&newclass, L);
+  return 0;
+}
+
+
 
 /**********************************************************/
 
@@ -266,10 +278,11 @@ lua_osbf_classify (lua_State * L)
   size_t text_len;
   const char *delimiters;	/* extra token delimiters */
   size_t delimiters_len;
-  const char *classes[OSBF_MAX_CLASSES + 1];	/* set of classes */
+  const char *classnames[OSBF_MAX_CLASSES + 1];	/* set of classes */
   uint32_t flags = 0;		/* default value */
   double min_p_ratio;		/* min pmax/p,in ratio */
   /* class probabilities are returned in p_classes */
+  CLASS_STRUCT classes[OSBF_MAX_CLASSES];
   double p_classes[OSBF_MAX_CLASSES];
   uint32_t p_trainings[OSBF_MAX_CLASSES];
   unsigned i, num_classes;
@@ -278,14 +291,22 @@ lua_osbf_classify (lua_State * L)
   /* get the arguments */
   text        = (const unsigned char *) luaL_checklstring (L, 1, &text_len);
   luaL_checktype (L, 2, LUA_TTABLE);
-  num_classes = class_list_to_array(L, 2, classes, NELEMS(classes));
+  num_classes = class_list_to_array(L, 2, classnames, NELEMS(classnames));
   flags       = (uint32_t) luaL_optnumber (L, 3, 0);
   min_p_ratio = (double) luaL_optnumber (L, 4, OSBF_MIN_PMAX_PMIN_RATIO);
   delimiters  = luaL_optlstring (L, 5, "", &delimiters_len);
 
+  for (i = 0; i < num_classes; i++)
+    osbf_open_class (classnames[i], OSBF_READ_ONLY, &classes[i], L);
+
   /* call osbf_classify */
-  osbf_bayes_classify (text, text_len, delimiters, classes,
-                       flags, min_p_ratio, p_classes, p_trainings, L);
+  osbf_bayes_classify (text, text_len, delimiters, classes, num_classes,
+                       flags, min_p_ratio,
+                       p_classes, p_trainings, L);
+
+  for (i = 0; i < num_classes; i++)
+    osbf_close_class (&classes[i], L);
+
   /* push list of probabilities onto the stack */
   lua_newtable (L);
   /* push table with number of trainings per class */
@@ -356,6 +377,7 @@ lua_osbf_train (lua_State * L)
   uint32_t flags = 0;		/* default value */
   const char *delimiters = "";	/* extra token delimiters */
   size_t delimiters_len = 0;
+  CLASS_STRUCT class;
 
   /* get args */
   sense  = luaL_checkint(L, 1);
@@ -365,50 +387,30 @@ lua_osbf_train (lua_State * L)
   delimiters = luaL_optlstring(L, 5, "", &delimiters_len);
   luaL_checktype (L, 6, LUA_TNONE);
 
-  osbf_bayes_train (text, text_len, delimiters, dbname, sense, flags, L);
+  osbf_open_class(dbname, OSBF_WRITE_ALL, &class, L);
+  osbf_bayes_train (text, text_len, delimiters, &class, sense, flags, L);
+  osbf_close_class(&class, L);
   return 0;
 }
 
 /**********************************************************/
 
 static int
-old_osbf_train (lua_State * L, int sense)
+lua_osbf_learn (lua_State * L)
 {
-  const unsigned char *text;
-  size_t text_len;
-  const char *delimiters;	/* extra token delimiters */
-  size_t delimiters_len;
-  const char *classes[OSBF_MAX_CLASSES + 1];
-  int num_classes;
-  size_t ctbt;			/* index of the class to be trained */
-  uint32_t flags;
-
-  /* get the arguments */
-  text = (unsigned char *) luaL_checklstring (L, 1, &text_len);
-  luaL_checktype (L, 2, LUA_TTABLE);
-  num_classes = class_list_to_array(L, 2, classes, NELEMS(classes));
-  ctbt = luaL_checknumber (L, 3) - 1;  /* Lua is 1-indexed; C is 0-indexed */
-  flags = (uint32_t) luaL_optnumber (L, 4, (lua_Number) 0);
-  delimiters = luaL_optlstring (L, 5, "", &delimiters_len);
-
-  old_osbf_bayes_learn (text, text_len, delimiters, classes, ctbt, sense, flags, L);
-  return 0;
+  lua_pushnumber(L, 1);
+  lua_insert(L, 1);
+  return lua_osbf_train (L);
 }
 
 /**********************************************************/
 
 static int
-lua_osbf_old_learn (lua_State * L)
+lua_osbf_unlearn (lua_State * L)
 {
-  return old_osbf_train (L, 1);
-}
-
-/**********************************************************/
-
-static int
-lua_osbf_old_unlearn (lua_State * L)
-{
-  return old_osbf_train (L, -1);
+  lua_pushnumber(L, -1);
+  lua_insert(L, 1);
+  return lua_osbf_train (L);
 }
 
 /**********************************************************/
@@ -714,10 +716,11 @@ static const struct luaL_reg osbf[] = {
   {"create_db", lua_osbf_createdb},
   {"config", lua_osbf_config},
   {"classify", lua_osbf_classify},
-  {"learn", lua_osbf_old_learn},
-  {"unlearn", lua_osbf_old_unlearn},
+  {"learn", lua_osbf_learn},
+  {"unlearn", lua_osbf_unlearn},
   {"train", lua_osbf_train},
   {"increment_false_positives", lua_osbf_increment_false_positives},
+  {"increment_classifications", lua_osbf_increment_classifications},
   {"pR", lua_osbf_pR},
   {"old_pR", lua_osbf_old_pR},
   {"dump", lua_osbf_dump},
