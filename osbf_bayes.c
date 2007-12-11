@@ -880,6 +880,17 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
       }
     }
 
+  if (renorm == 0.0) { /* could happen if we get, say, a one-word message
+                          like 'gurgle:' -- code above is not reached */
+    /* renormalize probabilities */
+    for (class_idx = 0; class_idx < num_classes; class_idx++)
+	renorm += ptc[class_idx];
+
+    for (class_idx = 0; class_idx < num_classes; class_idx++)
+      ptc[class_idx] = ptc[class_idx] / renorm;
+  }
+    
+
 #if (DEBUG > 0)
   {
     for (class_idx = 0; class_idx < num_classes; class_idx++)

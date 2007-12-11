@@ -106,15 +106,14 @@ local msg_meta = {
 
 __doc.of_string = [[function(s, uncertain) returns T
 Takes a message in RFC 822 format and returns our internal table-based
-representation of type T.  If the input string 's' is not actually
-an RFC 822 message, the results are unpredictable, but if the function 
-can't find an EOL sequence or two colons and if uncertain is true, 
-the function returns nil.  (N.B. this function is intended to accept and 
+representation of type T.  If the input string 's' is not actually an
+RFC 822 message, the results are unpredictable, but if the function
+can't find an EOL sequence or two colons and if uncertain is true, the
+function returns nil.  Otherwise the function does its best to turn
+garbage into a message.  (N.B. this function is intended to accept and
 parse spam, even when the spam violates the RFC.)
 
-Norman is quite unhappy with the state of this function.  He doesn't
-like the code, and he thinks the function has no business messing with
-the headers.
+Norman is less unhappy with the state of this function than he used to be.
 ]]
 
 function of_string(s, uncertain)
@@ -126,23 +125,22 @@ function of_string(s, uncertain)
     -- last header field is empty - OK and necessary if body is not empty
     header_fields = string.sub(s, 1, j)
     body = string.sub(s, j+1)
-    s = header_fields
     sep = eol
   else
-    eol = string.match(s, '(\r?\n)$')  -- only header fileds?
-    if eol then
-      header_fields = s
+    if uncertain and not string.find(s, '%:.*%:') then return nil end
+    eol = string.match(s, '(\r?\n)$')  -- only header fileds? only body?
+    if eol and string.find(s, '%a%:') then -- treat s as headers
+      header_fields = s .. '\n'  -- for uniform headers extraction
       body = ''
-      s = s .. '\n' -- for uniform headers extraction
     else
       -- if a valid EOL is not detected we add a warning Subject:
-      header_fields = 'Subject: OSBF-Lua-Warning: No EOL found in this message!\n\n'
+      header_fields =
+        string.format('Subject: OSBF-Lua-Warning: No %s found in this message!\n\n',
+                      eol and 'headers' or 'EOL')
       -- but if we can't find two colons, this just can't be a message
-      if uncertain and not string.find(s, '%:.*%:') then return nil end
       body = s
       eol = '\n'
       sep = eol
-      s = header_fields
     end
   end
 
@@ -150,7 +148,7 @@ function of_string(s, uncertain)
   local headers = {}
   do
     local lfc = ''
-    for h, nfc in string.gmatch(s, '(.-)\r?\n([^ \t])') do
+    for h, nfc in string.gmatch(header_fields, '(.-)\r?\n([^ \t])') do
       table.insert(headers, lfc .. h)
       lfc = nfc
     end
@@ -192,7 +190,7 @@ end
 function of_sfid(sfid)
   local openfile, status = cache.file_and_status(sfid)
   if openfile then
-    return of_openfile(openfile, true), status
+    return of_openfile(openfile), status
   else
     assert(status == 'missing')
     return nil, status
@@ -364,23 +362,19 @@ If msg has no subject, adds one.
 function tag_subject(msg, tag)
   msg = of_any(msg)
   assert(type(tag) == 'string', 'Subject tag must be string')
-  local tagged = false
+  local saw_subject = false
   -- tag all subject lines
   for i in header_indices(msg, 'subject') do
-    msg.headers[i] = string.gsub(msg.headers[i], '^.-:', '%0' .. tag, 1)
-    tagged = true
+    if string.len(tag) > 0 then
+      local function add_tag(hdr) return hdr .. ' ' .. tag end
+         -- avoid trouble if tag contains, e.g., %0
+      msg.headers[i] = string.gsub(msg.headers[i], '^.-:', add_tag, 1)
+    end
+    saw_subject = true
   end
   -- if msg has no subject, add one
-  if not tagged then
+  if not saw_subject then
     add_header(msg, 'Subject', tag .. ' (no subject)')
-  end
-end
-
-function sfid(msgspec)
-  if cache.is_sfid(msgspec) then
-    return msgspec
-  else
-    return extract_sfid(of_any(msgspec))
   end
 end
 
@@ -448,18 +442,16 @@ function sfid(msgspec)
   if cache.is_sfid(msgspec) then
     return msgspec
   else
-    return extract_sfid(of_any(msgspec))
+    return extract_sfid(of_any(msgspec), msgspec)
   end
 end
 
-__doc.extract_sfid = [[function(msgspec) returns string or calls error
+__doc.extract_sfid = [[function(msg[, spec]) returns string or calls error
 Extracts the sfid from the headers of the specified message.]]
 
-function extract_sfid(msg)
+function extract_sfid(msg, spec)
   -- if the sfid was not given in the command, extract it
   -- from the references or in-reply-to field
-  local spec = msg
-  msg = of_any(msg)
 
   for refs in headers_tagged(msg, 'references') do
     -- match the last sfid in the field (hence the initial .*)
@@ -473,7 +465,7 @@ function extract_sfid(msg)
     if sfid then return sfid end
   end
   
-  error('Could not extract sfid from message ' .. tostring(spec))
+  error('Could not extract sfid from message ' .. (spec or tostring(msg)))
 end
 
 __doc.has_sfid = [[function(T) returns bool

@@ -93,12 +93,12 @@ local function internals(out, s)
       end
       show('Undocumented functions', undoc(module, osbf[module]))
     else -- document just the member
-      if not osbf[module][member] then
-        out:write('There is no such thing as ', s, '\n')
-      elseif not doc[member] then
+      if doc[member] then
+        document(member)
+      elseif osbf[module][member] then
         out:write(s, " seems to exist, but it's not documented")
       else
-        document(member)
+        out:write('There is no such thing as ', s, '\n')
       end
     end
   end

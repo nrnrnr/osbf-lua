@@ -310,7 +310,7 @@ end
 local msgmod = msg
 
 __doc.classify = 
-[[function(msgspec) returns train, pR, sfid tag, subject tag, classification
+[[function(msg) returns train, pR, sfid tag, subject tag, classification
 train is a boolean or nil; 
 pR is the log of ratio of the probability for the chosen class;
 it represents the confidence in the classification, where 0 is no
@@ -394,8 +394,6 @@ end
 
 function classify (msg)
   local sfid_tag, subj_tag
-
-  msg = msgmod.of_any(msg)
 
   -- whitelist messages with the header 'X-Spamfilter-Lua-Whitelist: <cfg.pwd>'
   -- Used mainly to whitelist the cache report

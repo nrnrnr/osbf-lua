@@ -270,26 +270,37 @@ end
 
 
 
-__doc.msgspecs = [[function(...)
-Iterator to generate multiple msg specs from command line,
-or stdin if no specs are given.
+__doc.msgs = [[function(...)
+Iterator to generate multiple messages from command line,
+or from stdin if no specs are given.  Each iteration returns
+two values: a message, and a string saying what specified the
+message.
 ]]
 
-local function msgspecs(...) --- maybe should be in util?
-  local msgs = { ... }
-  local stdin = false
-  if #msgs == 0 then
-    msgs[1] = io.stdin:read '*a'
-    stdin = true
-  end
-  local i = 0
-  return function()
-           i = i + 1;
-           if msgs[i] then
-             local what = stdin and 'standard input' or 'message ' .. msgs[i]
-             return msgs[i], what
+local function msgs(...) --- maybe should be in util?
+  local n =  select('#', ...) 
+  -- we can't combine these two cases because for reliability,
+  -- reading from standard input should not call msg.of_any,
+  -- which could fail on something that doesn't look like an
+  -- RFC 822 message
+  if n == 0 then
+    local sent = false
+    return function ()
+             if not sent then
+               sent = true
+               return msg.of_string(io.stdin:read '*a'), 'stdin'
+             end
            end
-         end
+  else
+    local i = 0
+    specs = { ... }
+    return function()
+             i = i + 1;
+             if i <= n then
+               return msg.of_any(specs[i]), specs[i]
+             end
+           end
+  end
 end
 
 __doc.learn = [[function(class, ...)
@@ -304,8 +315,7 @@ local function learner(cmd)
       usage('learn command requires one of these classes: ' ..
             table.concat(cfg.classlist(), ', '))
     else
-      for msgspec in has_class and msgspecs(...) or msgspecs(classification, ... ) do
-        local m = msg.of_any(msgspec)
+      for m in has_class and msgs(...) or msgs(classification, ... ) do
         local sfid
         if msg.has_sfid(m) then
           sfid = msg.sfid(m)
@@ -359,8 +369,8 @@ Searches SFID and prints to stdout for each message spec
 ]]
 
 function sfid(...)
-  for msgspec, what in msgspecs(...) do
-    local sfid = msg.sfid(msgspec)
+  for m, what in msgs(...) do
+    local sfid = msg.extract_sfid(m)
     util.writeln('SFID of ', what, ' is ', sfid)
   end
 end
@@ -449,8 +459,7 @@ function classify(...)
       return what
     end 
   
-  for msgspec, what in msgspecs(unpack(argv)) do
-    local m = msg.of_any(msgspec)
+  for m, what in msgs(unpack(argv)) do
     local train, confidence, tag, _, class = commands.classify(m)
     if options.cache then
       cache.store(cache.generate_sfid(tag, confidence), msg.to_orig_string(m))
@@ -573,43 +582,56 @@ function filter(...)
       {nocache = options.std.bool, notag = options.std.bool,
        nosfid = options.std.bool})
 
-  for msgspec, what in msgspecs(unpack(argv)) do
-    local m, err = msg.of_any(msgspec)
+  local function filter_one(m)
     local have_subject_cmd, cmd = _G.pcall(msg.parse_subject_command, m)
     if have_subject_cmd then
       exec_subject_line_command(cmd, m)
     else
-      local function classify_and_insert() -- protect from errors
-        local train, confidence, sfid_tag, subj_tag, class = commands.classify(m)
-        if not options.nosfid and cfg.use_sfid then
-          local sfid = cache.generate_sfid(sfid_tag, confidence)
-          if not options.nocache and cfg.save_for_training then
-            cache.store(sfid, msg.to_orig_string(m))
-          end
-          msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
+      local train, confidence, sfid_tag, subj_tag, class = commands.classify(m)
+      if not options.nosfid and cfg.use_sfid then
+        local sfid = cache.generate_sfid(sfid_tag, confidence)
+        if not options.nocache and cfg.save_for_training then
+          cache.store(sfid, msg.to_orig_string(m))
         end
-        if not options.notag and cfg.tag_subject then
-          msg.tag_subject(m, subj_tag)
-        end
-        local classes = cfg.classes
-        local summary_header =
-          string.format('%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
-                        confidence, classes[class].train_below,
-                        sfid_tag, core._VERSION, cfg.version)
-        local suffixes = cfg.header_suffixes
-        msg.add_osbf_header(m, suffixes.summary, summary_header)
-        msg.add_osbf_header(m, suffixes.class, class)
-        msg.add_osbf_header(m, suffixes.confidence, confidence or '0.0')
-        msg.add_osbf_header(m, suffixes.needs_training, train and 'yes' or 'no')
+        msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
       end
-      local ok, err = pcall(classify_and_insert)
-      if not ok then
-        msg.add_osbf_header(m, 'Error', err or 'unknown error')
+      if not options.notag and cfg.tag_subject then
+        msg.tag_subject(m, subj_tag)
       end
+      local classes = cfg.classes
+      local summary_header =
+        string.format('%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
+                      confidence, classes[class].train_below,
+                      sfid_tag, core._VERSION, cfg.version)
+      local suffixes = cfg.header_suffixes
+      msg.add_osbf_header(m, suffixes.summary, summary_header)
+      msg.add_osbf_header(m, suffixes.class, class)
+      msg.add_osbf_header(m, suffixes.confidence, confidence or '0.0')
+      msg.add_osbf_header(m, suffixes.needs_training, train and 'yes' or 'no')
       io.stdout:write(msg.to_string(m))
     end
   end
+
+  if #argv == 0 then -- must *not* fail
+    local s = io.stdin:read '*a'
+    local ok, m = _G.pcall(msg.of_string, s)
+    local ok2, err
+      if ok then ok2, err = _G.pcall(filter_one, m) end -- cannot use 'and' here
+    if ok then
+      if not ok2 then
+        msg.add_osbf_header(m, 'Error', err or 'unknown error')
+        io.stdout:write(msg.to_string(m))
+      end
+    else
+      io.stdout:write(s) -- never a loss on stdin
+    end
+  else
+    for m in msgs(unpack(argv)) do
+      filter_one(m)
+    end
+  end
 end
+
 cfg.after_loading_do(
   function()
     local suffixes = cfg.header_suffixes

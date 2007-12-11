@@ -89,7 +89,7 @@ for l in assert(io.lines(trecdir .. 'index')) do
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')
   if debug then io.stderr:write("\nMsg ", file) end 
   table.insert(files, file)
-  local m = msg.of_any(trecdir .. file)
+  local m = msg.of_file(trecdir .. file)
   local train, pR, tag, _, class = commands.classify(m)
   pR = class == 'ham' and pR or (pR > 0 and -pR or pR)
   if train or class ~= labelled then
