@@ -104,19 +104,20 @@ local msg_meta = {
 ---------------------------------------------------------------------
 ---- Conversions
 
-__doc.of_string = [[function(s) returns T
+__doc.of_string = [[function(s, uncertain) returns T
 Takes a message in RFC 822 format and returns our internal table-based
 representation of type T.  If the input string 's' is not actually
-an RFC 822 message, the results are unpredictable.  (But note that this
-function is intended to accept and parse spam, even when the spam
-violates the RFC.)
+an RFC 822 message, the results are unpredictable, but if the function 
+can't find an EOL sequence or two colons and if uncertain is true, 
+the function returns nil.  (N.B. this function is intended to accept and 
+parse spam, even when the spam violates the RFC.)
 
 Norman is quite unhappy with the state of this function.  He doesn't
 like the code, and he thinks the function has no business messing with
 the headers.
 ]]
 
-function of_string(s)
+function of_string(s, uncertain)
   -- Detect header fields, body and eol
   local header_fields, body, sep
   local i, j, eol = string.find(s, '\r?\n(\r?\n)')
@@ -136,6 +137,8 @@ function of_string(s)
     else
       -- if a valid EOL is not detected we add a warning Subject:
       header_fields = 'Subject: OSBF-Lua-Warning: No EOL found in this message!\n\n'
+      -- but if we can't find two colons, this just can't be a message
+      if uncertain and not string.find(s, '%:.*%:') then return nil end
       body = s
       eol = '\n'
       sep = eol
@@ -221,7 +224,10 @@ function of_any(v)
     if f then
       return of_openfile(f)
     else
-      return of_string(v)
+      local msg = of_string(v, true)
+      if not msg then
+        util.errorf("'%s' is not a sfid, a readable file, or an RFC 822 message", v)
+      end
     end
   end
 end

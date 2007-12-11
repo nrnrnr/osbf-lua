@@ -8,6 +8,8 @@ require 'osbf.command_line'
 require 'osbf.options'
 require 'osbf.util'
 
+osbf.util.progname = arg[0] or 'osbf'
+
 local function die(...)
   io.stderr:write(...)
   os.exit(1)

@@ -241,7 +241,8 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
 
 static void flush_if_needed(CLASS_STRUCT * class, OSBF_HANDLER *h);
   /* flush header and buckets to disk if needed, then free 
-     them and set to NULL (even on error) */
+     them and set to NULL (even on error). 
+     */
 
 static void flush_if_needed(CLASS_STRUCT * class, OSBF_HANDLER *h) {
   FILE *fp;
@@ -311,11 +312,6 @@ osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h)
     class->bflags = NULL;
   }
 
-  if (class->classname) {
-    free(class->classname);
-    class->classname = NULL;
-  }
-
   if (class->header) {
     switch (class->state) {
       case OSBF_CLOSED:
@@ -326,11 +322,17 @@ osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h)
         break;
       case OSBF_COPIED_R: case OSBF_COPIED_RW: case OSBF_COPIED_RWH:
         flush_if_needed(class, h);
+        /* deliberate memory leak; class->classname is lost on error here */
         break;
     }
     class->header = NULL;
     class->buckets = NULL;
     class->state = OSBF_CLOSED;
+  }
+
+  if (class->classname) {
+    free(class->classname);
+    class->classname = NULL;
   }
 
   if (class->fd >= 0) {

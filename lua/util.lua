@@ -203,6 +203,9 @@ function die(...)
     log(...)
     exit(0)
   else
+    if progname then
+      io.stderr:write(string.gsub(progname, [=[^.*[\/]]=], ''), ': ')
+    end
     io.stderr:write(...)
     io.stderr:write('\n')
     os.exit(2)
