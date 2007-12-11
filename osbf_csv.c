@@ -65,7 +65,8 @@ osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h)
   uint32_t i;
 
   memset(&class, 0, sizeof(class));
-  class.classname = cfcfile;
+  class.classname = osbf_malloc(strlen(cfcfile)+1, h, "class name");
+  strcpy(class.classname, cfcfile);
   class.header = osbf_calloc(1, sizeof(*class.header), h, "header");
   class.state = OSBF_COPIED_RW;
   class.bflags = NULL;

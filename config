@@ -52,11 +52,13 @@ PIC=-fPIC
 
 # Compilation directives
 OPTIONS=-Wall ${PIC} -fomit-frame-pointer -pedantic-errors -W -Waggregate-return -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings -Wswitch
-OPTIONS += -O3
-# OPTIONS += -g
 CFLAGS= $(OPTIONS) $(LUA_CFLAGS) -DLIB_VERSION=\"$(LIB_VERSION)\"
 LIBS= $(LUA_LIBS) -lm
 CC= gcc
+
+# OPTIONS += -O3
+OPTIONS += -g
+
 
 # CFLAGS += -DDMALLOC
 # LIBS += -ldmalloc

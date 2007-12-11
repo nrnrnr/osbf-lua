@@ -154,6 +154,9 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
   osbf_raise_unless(class->fd >= 0, h,
                     "Couldn't open the file %s for read/write.", classname);
 
+  class->classname = osbf_malloc(strlen(classname)+1, h, "class name");
+  strcpy(class->classname, classname);
+
   if (usage != OSBF_READ_ONLY)
     {
       prot = PROT_READ + PROT_WRITE;
@@ -162,6 +165,7 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
         if (osbf_lock_file (class->fd, 0, sizeof(*class->header)) != 0) {
 	  fprintf (stderr, "Couldn't lock the file %s.", classname);
 	  close (class->fd);
+          free(class->classname);
           osbf_raise(h, "Couldn't lock the file %s.", classname);
 	}
       }
@@ -172,11 +176,12 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
     }
 
   image = (OSBF_DISK_IMAGE *) mmap (NULL, fsize, prot, MAP_SHARED, class->fd, 0);
-  UNLESS_CLEANUP_RAISE(image != MAP_FAILED, close(class->fd),
+  UNLESS_CLEANUP_RAISE(image != MAP_FAILED, (close(class->fd), free(class->classname)),
                        (h, "Couldn't mmap %s: %s.", classname, strerror(errno)));
  
-#define CLEANUP (close(class->fd), munmap(image, fsize))
-
+#define CLEANUP_MAP (close(class->fd), munmap(image, fsize))
+#define CLEANUP (CLEANUP_MAP, free(class->classname))
+ 
   if (image->headers[0].db_version == OSBF_DB_FP_FN_VERSION) {
     /* check db id and version */
     osbf_raise_unless(good_image(image), h,
@@ -187,10 +192,9 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
     class->state = OSBF_MAPPED;
 
     osbf_raise_unless(image_size(class->header) == fsize, h,
-        "Calculated size is %ld bytes but size of file %s is %ld bytes", 
+        "This can't happen: calculated %ld bytes but size of file %s is %ld bytes", 
         image_size(class->header), classname, fsize);
 
-    class->classname = classname;
     class->buckets = image_buckets(image);
     osbf_raise_unless(class->buckets != NULL, h,
                       "This can't happen: failed to find buckets in image");
@@ -203,11 +207,6 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
              ? db_version_names[version]
              : "unknown (version number out of range)"));
 
-    { char *c = osbf_malloc(strlen(classname)+1, h, "class name");
-      strcpy(c, classname);
-      class->classname = c;
-    }
-
     class->header = osbf_malloc(sizeof(*class->header), h, "header");
     set_header(class->header, image, h);
 
@@ -219,7 +218,7 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
           
       OSBF_BUCKET_STRUCT *ibuckets = image_buckets(image);
       memcpy(class->buckets, ibuckets, class->header->num_buckets * sizeof(*ibuckets));
-      CLEANUP;
+      CLEANUP_MAP;
       osbf_raise_unless((unsigned)usage < NELEMS(states), h,
                         "This can't happen: usage value %u out of range",
                         (unsigned)usage);
@@ -227,12 +226,13 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
       class->fd = -1;
     }
   }
+#undef CLEANUP_MAP
 #undef CLEANUP
 
   class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
   UNLESS_CLEANUP_RAISE (class->bflags != NULL,
-                        (free(class->header), free(class->buckets),
-                         class->header = NULL, class->buckets = NULL),
+      (free(class->header), free(class->buckets), free(class->classname),
+       class->header = NULL, class->buckets = NULL),
                         (h, "Couldn't allocate memory for seen features array."));
 }
 
@@ -311,6 +311,11 @@ osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h)
     class->bflags = NULL;
   }
 
+  if (class->classname) {
+    free(class->classname);
+    class->classname = NULL;
+  }
+
   if (class->header) {
     switch (class->state) {
       case OSBF_CLOSED:
@@ -339,8 +344,7 @@ osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h)
 	}
       close (class->fd);
       class->fd = -1;
-      osbf_raise_unless(unlock_succeeded, h, 
-                        "Couldn't unlock file: %s", class->classname);
+      osbf_raise_unless(unlock_succeeded, h, "Couldn't unlock file");
   }
 }
 

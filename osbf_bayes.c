@@ -1084,7 +1084,7 @@ osbf_bayes_classify (const unsigned char *p_text,	/* pointer to text */
     if (flags & COUNT_CLASSIFICATIONS)
       {
         CLASS_STRUCT newclass;
-        osbf_open_class (class[max_ptc_idx].classname, OSBF_WRITE_HEADER, &newclass,h);
+        osbf_open_class (classnames[max_ptc_idx], OSBF_WRITE_HEADER, &newclass,h);
         newclass.header->classifications += 1;
         osbf_close_class(&newclass, h);
       }

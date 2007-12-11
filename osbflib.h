@@ -67,7 +67,7 @@ typedef enum osbf_class_state {
 /* class structure */
 typedef struct
 {
-  const char *classname;
+  char *classname;               /* managed with malloc/free */
   OSBF_HEADER_STRUCT *header;
   OSBF_BUCKET_STRUCT *buckets;
   osbf_class_state state;
