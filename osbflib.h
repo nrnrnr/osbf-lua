@@ -313,3 +313,7 @@ void *osbf_malloc(size_t size, OSBF_HANDLER *h, const char *what);
 void *osbf_calloc(size_t nmemb, size_t size, OSBF_HANDLER *h, const char *what);
 
 #endif
+
+#ifdef DMALLOC
+#include "dmalloc.h"
+#endif

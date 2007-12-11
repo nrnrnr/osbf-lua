@@ -172,8 +172,8 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
     }
 
   image = (OSBF_DISK_IMAGE *) mmap (NULL, fsize, prot, MAP_SHARED, class->fd, 0);
-  UNLESS_CLEANUP_RAISE(image != (OSBF_DISK_IMAGE *) MAP_FAILED, close(class->fd),
-                       (h, "Couldn't mmap %s.", classname));
+  UNLESS_CLEANUP_RAISE(image != MAP_FAILED, close(class->fd),
+                       (h, "Couldn't mmap %s: %s.", classname, strerror(errno)));
  
 #define CLEANUP (close(class->fd), munmap(image, fsize))
 
@@ -358,7 +358,7 @@ static FILE *create_file_if_absent(const char *filename, OSBF_HANDLER *h) {
   osbf_raise_unless(*filename != '\0', h, "Asked to create CFC file with empty name");
 
   f = fopen (filename, "r");
-  UNLESS_CLEANUP_RAISE(f != NULL, fclose(f),
+  UNLESS_CLEANUP_RAISE(f == NULL, fclose(f),
                        (h, "Cannot create file '%s'; it exists already", filename));
 
   f = fopen (filename, "wb");
