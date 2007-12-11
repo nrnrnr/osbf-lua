@@ -13,7 +13,6 @@
  *
  */
 
-#include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -194,7 +193,9 @@ static unsigned class_list_to_array(lua_State *L,
     else {
       classes[n] = lua_tostring(L, -1);
       lua_pop(L, 1);
-      assert(classes[n]);
+      if (classes[n] == NULL)
+        luaL_error(L, "This can't happen: Lua said something was a string and then"
+                   "changed its mind");
     }
   }
   classes[n] = NULL;
@@ -230,25 +231,21 @@ static void check_sum_is_one(double *p_classes, unsigned num_classes) {
     sorted[i] = p_classes[i];
   }
   qsort(sorted, num_classes, sizeof(sorted[0]), compare_doubles);
-  for (i = 0; i < num_classes - 1; i++) {
-    if (!(sorted[i] <= sorted[i+1])) {
-      fprintf(stderr, "Array not sorted: sorted[%d] = %.5g and sorted[%d] = %.5g\n",
-              i, sorted[i], i+1, sorted[i+1]);
-      assert(0);
-    }
-  }
   badsum = sum = 0.0;
   /* add small numbers first to avoid rounding error */
   for (i = 0; i < num_classes; i++) {
     sum += sorted[i];
     badsum += p_classes[i];
   }
-  assert(fabs(sum - 1.0) < 10 * ULP);
-#if 0
-  fprintf(stderr, "Sum - 1.0 = %9g; ", sum - 1.0);
-  fprintf(stderr, "smallest probability = %9g\n", sorted[0]);
-  fprintf(stderr, "badsum - sum = %9g\n", badsum - sum);
-#endif
+  if (fabs(sum - 1.0) >= 10 * ULP) {
+    fprintf(stderr, "osbf3: sum of probabilities differs from unity "
+            "by more then 10 ulps\n");
+    fprintf(stderr, "Sum - 1.0 = %9g; ", sum - 1.0);
+    fprintf(stderr, "smallest probability = %9g\n", sorted[0]);
+    fprintf(stderr, "badsum - sum = %9g\n", badsum - sum);
+    for (i = 0; i < num_classes; i++)
+      fprintf(stderr, "  probability[%d] = %9g\n", i, p_classes[i]);
+  }
 }
 #endif
 
