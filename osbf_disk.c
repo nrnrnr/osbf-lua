@@ -190,9 +190,6 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
         "Calculated size is %ld bytes but size of file %s is %ld bytes", 
         image_size(class->header), classname, fsize);
 
-    class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
-    UNLESS_CLEANUP_RAISE(class->bflags != NULL, CLEANUP, 
-                         (h, "could not allocate memory for seen features array"));
     class->classname = classname;
     class->buckets = image_buckets(image);
     osbf_raise_unless(class->buckets != NULL, h,
