@@ -39,6 +39,16 @@
 
 extern int OPENFUN (lua_State * L);  /* exported to the outside world */
 
+/****************************************************************/
+
+/* support for OSBF class as userdata */
+
+#define CLASS_METANAME "osbf3.class"
+#define DIR_METANAME   "osbf3.dir"
+
+#define check_class(L, i) (CLASS_STRUCT *) luaL_checkudata(L, i, CLASS_METANAME)
+
+
 /* configurable constants */
 extern uint32_t microgroom_chain_length;
 extern uint32_t microgroom_stop_after;
@@ -71,8 +81,7 @@ lua_osbf_config (lua_State * L)
 
   luaL_checktype (L, 1, LUA_TTABLE);
 
-  lua_pushstring (L, "max_chain");
-  lua_gettable (L, 1);
+  lua_getfield (L, 1, "max_chain");
   if (lua_isnumber (L, -1))
     {
       microgroom_chain_length = luaL_checknumber (L, -1);
@@ -80,8 +89,7 @@ lua_osbf_config (lua_State * L)
     }
   lua_pop (L, 1);
 
-  lua_pushstring (L, "stop_after");
-  lua_gettable (L, 1);
+  lua_getfield (L, 1, "stop_after");
   if (lua_isnumber (L, -1))
     {
       microgroom_stop_after = luaL_checknumber (L, -1);
@@ -89,8 +97,7 @@ lua_osbf_config (lua_State * L)
     }
   lua_pop (L, 1);
 
-  lua_pushstring (L, "K1");
-  lua_gettable (L, 1);
+  lua_getfield (L, 1, "K1");
   if (lua_isnumber (L, -1))
     {
       K1 = luaL_checknumber (L, -1);
@@ -98,8 +105,7 @@ lua_osbf_config (lua_State * L)
     }
   lua_pop (L, 1);
 
-  lua_pushstring (L, "K2");
-  lua_gettable (L, 1);
+  lua_getfield (L, 1, "K2");
   if (lua_isnumber (L, -1))
     {
       K2 = luaL_checknumber (L, -1);
@@ -107,8 +113,7 @@ lua_osbf_config (lua_State * L)
     }
   lua_pop (L, 1);
 
-  lua_pushstring (L, "K3");
-  lua_gettable (L, 1);
+  lua_getfield (L, 1, "K3");
   if (lua_isnumber (L, -1))
     {
       K3 = luaL_checknumber (L, -1);
@@ -116,8 +121,7 @@ lua_osbf_config (lua_State * L)
     }
   lua_pop (L, 1);
 
-  lua_pushstring (L, "limit_token_size");
-  lua_gettable (L, 1);
+  lua_getfield (L, 1, "limit_token_size");
   if (lua_isnumber (L, -1))
     {
       limit_token_size = luaL_checknumber (L, -1);
@@ -125,8 +129,7 @@ lua_osbf_config (lua_State * L)
     }
   lua_pop (L, 1);
 
-  lua_pushstring (L, "max_token_size");
-  lua_gettable (L, 1);
+  lua_getfield(L, 1, "max_token_size");
   if (lua_isnumber (L, -1))
     {
       max_token_size = luaL_checknumber (L, -1);
@@ -134,8 +137,7 @@ lua_osbf_config (lua_State * L)
     }
   lua_pop (L, 1);
 
-  lua_pushstring (L, "max_long_tokens");
-  lua_gettable (L, 1);
+  lua_getfield(L, 1, "max_long_tokens");
   if (lua_isnumber (L, -1))
     {
       max_long_tokens = luaL_checknumber (L, -1);
@@ -143,8 +145,7 @@ lua_osbf_config (lua_State * L)
     }
   lua_pop (L, 1);
 
-  lua_pushstring (L, "pR_SCF");
-  lua_gettable (L, 1);
+  lua_getfield(L, 1, "pR_SCF");
   if (lua_isnumber (L, -1))
     {
       pR_SCF = luaL_checknumber (L, -1);
@@ -259,6 +260,141 @@ lua_osbf_increment_classifications(lua_State *L) {
   osbf_open_class (classname, OSBF_WRITE_HEADER, &newclass, L);
   newclass.header->classifications += 1;
   osbf_close_class(&newclass, L);
+  return 0;
+}
+
+/**********************************************************/
+
+static struct {
+  const char *mode;
+  osbf_class_usage usage;
+  const char *longname;
+} usage_array[] = {
+  { "r",   OSBF_READ_ONLY, "read only" },
+  { "rw",  OSBF_WRITE_ALL, "read/write" },
+  { "rwh", OSBF_WRITE_HEADER, "read-all/write-header" },
+  { NULL, 0, NULL },
+};
+
+static int lua_osbf_class_tostring(lua_State *L) {
+  CLASS_STRUCT *c = check_class(L, 1);
+
+  if (c->state == OSBF_CLOSED) {
+    lua_pushliteral(L, "closed OSBF class");
+    return 1;
+  } else {
+    unsigned i;
+    for (i = 0; usage_array[i].mode != NULL; i++)
+      if (usage_array[i].usage == c->usage) {
+        lua_pushfstring(L, "OSBF class version %d (%s) open on file %s for %s",
+                        c->header->db_version, db_version_names[c->header->db_version],
+                        c->classname, usage_array[i].longname);
+        return 1;
+      }
+    return luaL_error(L, "Tried to print OSBF class with unknown usage %d", c->usage);
+  }
+}
+
+static int lua_osbf_class_mode(lua_State *L) {
+  unsigned i;
+  CLASS_STRUCT *c = check_class(L, 1);
+
+  if (c->state == OSBF_CLOSED) {
+    return 0;
+  } else {
+    for (i = 0; usage_array[i].mode != NULL; i++)
+      if (usage_array[i].usage == c->usage) {
+        lua_pushstring(L, usage_array[i].mode);
+        return 1;
+      }
+    return luaL_error(L, "Mode %d of OSBF class not recognized", c->usage);
+  }
+}
+
+#define DEFINE_FIELD_FUN(fname, push)                                \
+  static int lua_osbf_class_ ## fname(lua_State *L) {                \
+    CLASS_STRUCT *c = check_class(L, 1);                             \
+                                                                     \
+    if (c->state == OSBF_CLOSED) {                                   \
+      return luaL_error(L, "Asked for " #fname " of closed class");  \
+    } else {                                                         \
+      push;                                                          \
+      return 1;                                                      \
+    }                                                                \
+  }
+
+#define FFSTRUCT(fname) { #fname, lua_osbf_class_ ## fname }
+
+DEFINE_FIELD_FUN(filename,        lua_pushstring(L, c->classname))
+DEFINE_FIELD_FUN(version,         lua_pushnumber(L, c->header->db_version))
+DEFINE_FIELD_FUN(version_name,    lua_pushstring(L,
+                                    db_version_names[c->header->db_version]))
+DEFINE_FIELD_FUN(num_buckets,     lua_pushnumber(L, c->header->num_buckets))
+DEFINE_FIELD_FUN(id,              lua_pushnumber(L, c->header->db_id))
+DEFINE_FIELD_FUN(flags,           lua_pushnumber(L, c->header->db_flags))
+DEFINE_FIELD_FUN(bucket_size,     lua_pushnumber(L, sizeof(*c->buckets)))
+DEFINE_FIELD_FUN(header_size,     lua_pushnumber(L, sizeof(*c->header)))
+DEFINE_FIELD_FUN(learnings,       lua_pushnumber(L, c->header->learnings))
+DEFINE_FIELD_FUN(classifications, lua_pushnumber(L, c->header->classifications))
+DEFINE_FIELD_FUN(extra_learnings, lua_pushnumber(L, c->header->extra_learnings))
+DEFINE_FIELD_FUN(fn,              lua_pushnumber(L, c->header->false_negatives))
+DEFINE_FIELD_FUN(fp,              lua_pushnumber(L, c->header->false_positives))
+DEFINE_FIELD_FUN(, lua_pushnil(L))
+
+#define DEFINE_MUTATE_FUN(fname, lvalue)                             \
+  static int lua_osbf_class_set_ ## fname(lua_State *L) {            \
+    CLASS_STRUCT *c = check_class(L, 1);                             \
+    int value = luaL_checkint(L, 2);                                 \
+                                                                     \
+    if (c->state == OSBF_CLOSED) {                                   \
+      return luaL_error(L, "Asked for " #fname " of closed class");  \
+    } else if (c->usage == OSBF_READ_ONLY) {                         \
+      return luaL_error(L, "Cannot mutate a read-only class");       \
+    } else {                                                         \
+      lvalue = (value);                                              \
+      return 0;                                                      \
+    }                                                                \
+  }
+
+#define MFSTRUCT(fname) { #fname, lua_osbf_class_set_ ## fname }
+
+DEFINE_MUTATE_FUN(classifications, c->header->classifications)
+DEFINE_MUTATE_FUN(learnings,       c->header->learnings)
+DEFINE_MUTATE_FUN(extra_learnings, c->header->extra_learnings)
+DEFINE_MUTATE_FUN(fn,              c->header->false_negatives)
+DEFINE_MUTATE_FUN(fp,              c->header->false_positives)
+
+
+
+static int
+lua_osbf_open_class(lua_State *L) {
+  osbf_class_usage usage = -1;
+  unsigned i;
+  const char *filename = luaL_checkstring(L, 1);
+  const char *mode     = luaL_optstring(L, 2, "r");
+  CLASS_STRUCT *c = lua_newuserdata(L, sizeof(*c));
+  luaL_getmetatable(L, CLASS_METANAME);
+  lua_setmetatable(L, -2);
+
+  for (i = 0; usage_array[i].mode != NULL; i++) 
+    if (!strcmp(usage_array[i].mode, mode)) {
+      usage = usage_array[i].usage;
+      break;
+    }
+
+  if (usage != (osbf_class_usage) -1) {
+    osbf_open_class(filename, usage, c, L);
+    return 1;
+  } else {
+    return luaL_error(L, "Unknown mode for open_class; try 'r' or 'rw' or 'rwh'");
+  }
+}
+
+static int
+lua_osbf_class_gc(lua_State *L) {
+  CLASS_STRUCT *c = check_class(L, 1);
+  if (c->state != OSBF_CLOSED)
+    osbf_close_class(c, L);
   return 0;
 }
 
@@ -569,27 +705,21 @@ lua_osbf_stats (lua_State * L)
 static void
 set_info (lua_State * L, int idx)
 {
-  lua_pushliteral (L, "_COPYRIGHT");
-  lua_pushliteral (L, "Copyright (C) 2005, 2006, 2007 Fidelis Assis");
-  lua_settable (L, idx);
-  lua_pushliteral (L, "_DESCRIPTION");
+  lua_pushliteral (L, "Copyright (C) 2005-2007 Fidelis Assis and Norman Ramsey");
+  lua_setfield (L, idx, "_COPYRIGHT");
   lua_pushliteral (L, "OSBF-Lua is a Lua library for text classification.");
-  lua_settable (L, idx);
-  lua_pushliteral (L, "_NAME");
+  lua_setfield (L, idx, "_DESCRIPTION");
   lua_pushliteral (L, "OSBF-Lua");
-  lua_settable (L, idx);
-  lua_pushliteral (L, "_VERSION");
+  lua_setfield (L, idx, "_NAME");
   lua_pushliteral (L, LIB_VERSION);
-  lua_settable (L, idx);
-  lua_pushliteral (L, "header_size");
+  lua_setfield (L, idx, "_VERSION");
   lua_pushnumber (L, (lua_Number) sizeof(OSBF_HEADER_STRUCT));
-  lua_settable (L, idx);
-  lua_pushliteral (L, "bucket_size");
+  lua_setfield (L, idx, "header_size");
   lua_pushnumber (L, (lua_Number) sizeof(OSBF_BUCKET_STRUCT));
-  lua_settable (L, idx);
+  lua_setfield (L, idx, "bucket_size");
 
-#define add_const(C) lua_pushliteral(L, #C); lua_pushnumber(L, (lua_Number) C); \
-                     lua_settable(L, idx);
+#define add_const(C) lua_pushnumber(L, (lua_Number) C); lua_setfield(L, idx, #C)
+
   add_const(NO_EDDC);
   add_const(COUNT_CLASSIFICATIONS);
   add_const(NO_MICROGROOM);
@@ -669,7 +799,7 @@ l_dir (lua_State * L)
   DIR **d = (DIR **) lua_newuserdata (L, sizeof (DIR *));
 
   /* set its metatable */
-  luaL_getmetatable (L, "LuaBook.dir");
+  luaL_getmetatable (L, DIR_METANAME);
   lua_setmetatable (L, -2);
 
   /* try to open the given directory */
@@ -709,6 +839,111 @@ dir_gc (lua_State * L)
 
 /**********************************************************/
 
+static const struct luaL_reg classmeta[] = {
+  {"__tostring", lua_osbf_class_tostring},
+  {"__gc", lua_osbf_class_gc},
+  {NULL, NULL}
+};
+
+  
+static int lua_class_pairs(lua_State *L);
+
+#define DEFINE_CONST(name, f) \
+  static int name ##_push(lua_State *L) { lua_pushcfunction(L, f); return 1; }
+#define USE_CONST(name) { #name, name ##_push }
+
+DEFINE_CONST(close, lua_osbf_class_gc)
+DEFINE_CONST(pairs, lua_class_pairs)
+
+
+static const struct luaL_reg classops[] = {
+  USE_CONST(close),
+  USE_CONST(pairs),
+  {"", lua_osbf_class_},  /* marks start of 'fields' */
+  FFSTRUCT(filename),
+  FFSTRUCT(classifications),
+  FFSTRUCT(learnings),
+  FFSTRUCT(extra_learnings),
+  FFSTRUCT(fn),
+  FFSTRUCT(fp),
+  FFSTRUCT(mode),
+  FFSTRUCT(version),
+  FFSTRUCT(version_name),
+  FFSTRUCT(bucket_size),
+  FFSTRUCT(header_size),
+  FFSTRUCT(num_buckets),
+  FFSTRUCT(flags),
+  FFSTRUCT(id),
+  {NULL, NULL}
+};
+
+static const struct luaL_reg mutable_fields[] = {
+  MFSTRUCT(classifications),
+  MFSTRUCT(learnings),
+  MFSTRUCT(extra_learnings),
+  MFSTRUCT(fn),
+  MFSTRUCT(fp),
+  {NULL, NULL}
+};
+
+static int lua_class_next(lua_State *L) {
+  /* first upvalue is index */
+  int i = luaL_checkint(L, lua_upvalueindex(1));
+  (void)check_class(L, 1);
+  if (classops[i].name == NULL) {
+    return 0;
+  } else {
+    lua_pushnumber(L, i+1);
+    lua_replace(L, lua_upvalueindex(1));
+    lua_pushstring(L, classops[i].name);
+    lua_pushcfunction(L, classops[i].func);
+    lua_pushvalue(L, 1);
+    lua_call(L, 1, 1);
+    return 2;
+  }
+}
+
+static int lua_class_pairs(lua_State *L) {
+  int i;
+  (void)check_class(L, 1);
+  for (i = 0; classops[i].name && *classops[i].name; i++);
+  if (classops[i].name) i++;  /* skip past the "" field */
+  lua_pushnumber(L, i);
+  lua_pushcclosure(L, lua_class_next, 1);
+  lua_pushvalue(L, 1);
+  return 2;
+}
+
+static int lua_classfields(lua_State *L) {
+  const char *key = luaL_checkstring(L,  2);
+  lua_getfield(L, lua_upvalueindex(1), key);
+  if (lua_isfunction(L, -1)) {
+    lua_insert(L, 1);
+    lua_call(L, 2, 1);
+    return 1;
+  } else {
+    return luaL_error(L, "OSBF class has no field named %s", key);
+  }
+}
+
+static int lua_set_classfields(lua_State *L) {
+  const char *key = luaL_checkstring(L,  2);
+  (void)check_class(L, 1);
+  lua_getfield(L, lua_upvalueindex(2), key);
+  if (lua_isfunction(L, -1)) {
+    lua_pushvalue(L, 1);
+    lua_pushvalue(L, 3);
+    lua_call(L, 2, 0);
+    return 0;
+  } else {
+    lua_getfield(L, lua_upvalueindex(1), key);
+    if (lua_isfunction(L, -1))
+      return luaL_error(L, "field %s of the OSBF class is not mutable", key);
+    else
+      return luaL_error(L, "OSBF class has no field named %s", key);
+  }
+}
+
 static const struct luaL_reg osbf[] = {
   {"create_db", lua_osbf_createdb},
   {"config", lua_osbf_config},
@@ -716,6 +951,8 @@ static const struct luaL_reg osbf[] = {
   {"learn", lua_osbf_learn},
   {"unlearn", lua_osbf_unlearn},
   {"train", lua_osbf_train},
+  {"open_class", lua_osbf_open_class},
+  {"close_class", lua_osbf_class_gc},
   {"increment_false_positives", lua_osbf_increment_false_positives},
   {"increment_classifications", lua_osbf_increment_classifications},
   {"pR", lua_osbf_pR},
@@ -739,13 +976,29 @@ int
 OPENFUN (lua_State * L)
 {
   const char *libname = luaL_checkstring(L, -1);
+
+  /* class as userdata */
+  luaL_newmetatable(L, CLASS_METANAME);     /* s: libname metatable */
+  luaL_register(L, NULL, classmeta);
+  lua_newtable(L);                          /* s: libname metatable opstable */
+  lua_pushvalue(L, -1);  /* duplicate the class ops table */
+  luaL_register(L, NULL, classops);        /* s: libname metatable opstable opstable */
+  lua_pushcclosure(L, lua_classfields, 1); /* s: libname metatable opstable closure */
+  lua_setfield(L, -3, "__index");          /* s: libname metatable opstable */
+
+  lua_newtable(L);
+  luaL_register(L, NULL, mutable_fields);
+  lua_pushcclosure(L, lua_set_classfields, 2); /* capture ops and mutable fields */
+  lua_setfield(L, -2, "__newindex");
+  
+  lua_pop(L, 1); /* goodbye metatable */
+
+                                                /* s: libname */
   /* Open dir function */
-  luaL_newmetatable (L, "LuaBook.dir");
-  /* set its __gc field */
-  lua_pushstring (L, "__gc");
+  luaL_newmetatable (L, DIR_METANAME);
   lua_pushcfunction (L, dir_gc);
-  lua_settable (L, -3);
+  lua_setfield (L, -2, "__gc");
   luaL_register (L, libname, osbf);
-  set_info (L, -3); /* must come right after luaL_register */
+  set_info (L, lua_gettop(L));
   return 1;
 }

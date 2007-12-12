@@ -11,6 +11,7 @@ module(modname)
 __doc = __doc or { }
 
 __doc.__order = {
+  'class', 'open_class',
   'create_db', 'header_size', 'bucket_size',
   'classify', 'learn', 'unlearn', 'train', 'pR', 'stats', 'config', 'dump',
   'restore', 'import', 'chdir', 'getdir', 'dir', 'isdir',
@@ -321,4 +322,51 @@ stuff.  Here are some example usages:
    else
      io.write('spam with confidence ', core.pR(probs[2], probs[1]), '\n')
    end
+]]
+
+
+__doc.open_class = [[function(filename[, mode]) returns class or calls error()
+Opens OSBF filename with the given mode and returns a class.
+Modes are
+  r    read only (suitable for calling core.classify)
+  rwh  read and write header (suitable for updating counts)
+  rw   read and write (suitable for training)
+Changes to the class are not visible on disk until the class is
+closed or garbage-collected.
+]]
+
+__doc.close_class = [[function(class) returns nothing or calls error()
+Writes the class back to disk (if needed) and releases its resources.
+A class may be closed multiple times with no effect.]]
+
+__doc.class = [[A userdata type representing a class of documents.
+If c is a class then it provides methods
+
+  c:close()   -- close the class
+  for k, v in c:pairs() do ...  -- iterate over fields
+
+and it provides these fields:
+
+  classifications   number of messages placed in this class?
+  learnings         number of messages explicitly trained in this class?
+  extra_learnings   ??
+  fn                the number of messages trained in this class
+                    that were initially assigned to some other class
+                    (false negatives)
+  fp                the number of message incorrectly assigned to this class
+                    (false positives)
+  
+  filename          name of the disk file backing up this class
+  mode              mode with which this class was opened by core.open_class
+  
+  version           A number unique to the on-disk format of the class
+  version_name      A descriptive name associated with the version
+
+  bucket_size       number of bytes per bucket
+  header_size       number of bytes in the class header
+  num_buckets       total number of buckets in the data structure
+  flags             utter bogosity
+  id                another bogus number
+
+The first group of fields is mutable.
 ]]

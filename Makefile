@@ -17,7 +17,6 @@ XOBJS= obsferrs.o
 
 CFLAGS += -DOPENFUN=luaopen_$(MODNAME)_core
 CFLAGS += -DLUA_USE_LINUX
-CFLAGS += -g
 
 lib: $(LIBNAME)
 
