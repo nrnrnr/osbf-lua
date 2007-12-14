@@ -287,7 +287,7 @@ static int lua_osbf_class_tostring(lua_State *L) {
     for (i = 0; usage_array[i].mode != NULL; i++)
       if (usage_array[i].usage == c->usage) {
         lua_pushfstring(L, "OSBF class version %d (%s) open on file %s for %s",
-                        c->header->db_version, db_version_names[c->header->db_version],
+                        c->header->db_version, c->fmt_name,
                         c->classname, usage_array[i].longname);
         return 1;
       }
@@ -327,8 +327,7 @@ static int lua_osbf_class_mode(lua_State *L) {
 
 DEFINE_FIELD_FUN(filename,        lua_pushstring(L, c->classname))
 DEFINE_FIELD_FUN(version,         lua_pushnumber(L, c->header->db_version))
-DEFINE_FIELD_FUN(version_name,    lua_pushstring(L,
-                                    db_version_names[c->header->db_version]))
+DEFINE_FIELD_FUN(version_name,    lua_pushstring(L, c->fmt_name))
 DEFINE_FIELD_FUN(num_buckets,     lua_pushnumber(L, c->header->num_buckets))
 DEFINE_FIELD_FUN(id,              lua_pushnumber(L, c->header->db_id))
 DEFINE_FIELD_FUN(flags,           lua_pushnumber(L, c->header->db_flags))

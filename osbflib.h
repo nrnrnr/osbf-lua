@@ -19,6 +19,7 @@
 
 #include "osbferr.h"
 
+
 enum db_version { OSBF_DB_BASIC_VERSION = 0, OSBF_DB_2007_11_VERSION = 5,
                   OSBF_DB_FP_FN_VERSION = 6 };
 #define OSBF_CURRENT_VERSION OSBF_DB_FP_FN_VERSION
@@ -68,11 +69,14 @@ typedef enum osbf_class_state {
 typedef struct
 {
   char *classname;               /* managed with malloc/free */
+  const char *fmt_name;          /* short name of the on-disk format;
+                                    statically allocated */
   OSBF_HEADER_STRUCT *header;
   OSBF_BUCKET_STRUCT *buckets;
   osbf_class_state state;
   unsigned char *bflags;	/* bucket flags */
-  int fd;
+  int fd;                       /* file descriptor of on-disk image */
+  off_t fsize;                  /* size of on-disk image */
   osbf_class_usage usage;
   uint32_t learnings;
   double hits;
@@ -275,32 +279,6 @@ osbf_increment_false_positives (const char *cfcfile, int delta, OSBF_HANDLER *h)
 #define UNLESS_CLEANUP_RAISE(p, cleanup, raise_args) \
   do { if (!(p)) { cleanup; osbf_raise raise_args; } } while(0)
 
-
-/* complete header */
-/* define header size to be a multiple of the bucket size, approx. 4 Kbytes */
-#define OBSOLETE_OSBF_CFC_HEADER_SIZE (4096 / sizeof(OSBF_BUCKET_STRUCT))
-
-/* obsolete headers */
-
-typedef struct
-{
-  uint32_t version;             /* database version */
-  uint32_t db_flags;            /* for future use */
-  uint32_t buckets_start;       /* offset to first bucket in bucket size units */
-  uint32_t num_buckets;         /* number of buckets in the file */
-  uint32_t learnings;           /* number of trainings done */
-  uint32_t mistakes;            /* number of wrong classifications */
-  uint64_t classifications;     /* number of classifications */
-  uint32_t extra_learnings;     /* number of extra trainings done */
-} OSBF_HEADER_STRUCT_2007_11;  /* structure through Nov 2007 */
-
-typedef union obsolete_disk_rep
-{
-  OSBF_HEADER_STRUCT_2007_11 header;
-  /*   buckets in header - not really buckets, but the header size is */
-  /*   a multiple of the bucket size */
-  OSBF_BUCKET_STRUCT bih[OBSOLETE_OSBF_CFC_HEADER_SIZE];
-} OBSOLETE_OSBF_HEADER_BUCKET_UNION;
 
 
 void *osbf_malloc(size_t size, OSBF_HANDLER *h, const char *what);
