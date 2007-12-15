@@ -20,7 +20,7 @@
 /*****************************************************************/
 
 void
-osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
+osbf_stats (const CLASS_STRUCT *class, STATS_STRUCT * stats,
 	    OSBF_HANDLER *h, int verbose)
 {
 
@@ -33,14 +33,14 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
 
   uint32_t chain_len = 0, value;
 
-  CLASS_STRUCT class;
   OSBF_BUCKET_STRUCT *buckets;
 
-  osbf_open_class(cfcfile, OSBF_READ_ONLY, &class, h);
+  if (class->state == OSBF_CLOSED)
+    osbf_raise(h, "Cannot dump a closed class");
 
   if (verbose == 1) {
-    buckets = class.buckets;
-    for (i = 0; i <= class.header->num_buckets; i++) {
+    buckets = class->buckets;
+    for (i = 0; i <= class->header->num_buckets; i++) {
       if ((value = buckets[i].value) != 0) {
         uint32_t distance, right_position;
         uint32_t real_position, rp;
@@ -51,12 +51,12 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
           max_value = value;
 
         /* calculate max displacement */
-        right_position = buckets[i].hash % class.header->num_buckets;
+        right_position = buckets[i].hash % class->header->num_buckets;
 	real_position = i;
 	if (right_position <= real_position)
 	  distance = real_position - right_position;
 	else
-	  distance = class.header->num_buckets + real_position -
+	  distance = class->header->num_buckets + real_position -
 	    right_position;
 	if (distance > max_displacement)
 	  max_displacement = distance;
@@ -64,7 +64,7 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
 	/* check if the bucket is unreachable */
 	for (rp = right_position; rp != real_position; rp++)
 	  {
-	    if (rp >= class.header->num_buckets)
+	    if (rp >= class->header->num_buckets)
 	      {
 	        rp = 0;
 	        if (rp == real_position)
@@ -108,17 +108,17 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
       }
   }
 
-  stats->db_id = class.header->db_id;
-  stats->db_version = class.header->db_version;
-  stats->db_flags = class.header->db_flags;
-  stats->total_buckets = class.header->num_buckets;
-  stats->bucket_size = sizeof(*class.buckets);
-  stats->header_size = sizeof(class.header);
-  stats->learnings = class.header->learnings;
-  stats->extra_learnings = class.header->extra_learnings;
-  stats->false_negatives = class.header->false_negatives;
-  stats->false_positives = class.header->false_positives;
-  stats->classifications = class.header->classifications;
+  stats->db_id = class->header->db_id;
+  stats->db_version = class->header->db_version;
+  stats->db_flags = class->header->db_flags;
+  stats->total_buckets = class->header->num_buckets;
+  stats->bucket_size = sizeof(*class->buckets);
+  stats->header_size = sizeof(class->header);
+  stats->learnings = class->header->learnings;
+  stats->extra_learnings = class->header->extra_learnings;
+  stats->false_negatives = class->header->false_negatives;
+  stats->false_positives = class->header->false_positives;
+  stats->classifications = class->header->classifications;
   if (verbose == 1)
     {
       stats->used_buckets = used_buckets;
@@ -131,6 +131,5 @@ osbf_stats (const char *cfcfile, STATS_STRUCT * stats,
       stats->max_displacement = max_displacement;
       stats->unreachable = unreachable;
     }
-  osbf_close_class(&class, h);
 }
 

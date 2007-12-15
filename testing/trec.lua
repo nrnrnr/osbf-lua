@@ -74,40 +74,38 @@ pcall = function(f, ...) return true, f(...) end
 local outfilename = opts.o or 'result'
 
 local result = outfilename == '-' and io.stdout or assert(io.open(outfilename, 'w'))
+
+local using_cache = false
+
 local max_lines = opts.max or 5000
-local num_lines = 0
 local learnings = 0
 local start_time = os.time()
 local files = { }
+local nclass = 0  -- number of classifications
 if md5sum then os.remove(test_dir .. '/md5sums') end
 for l in assert(io.lines(trecdir .. 'index')) do
   md5run('md5sum ' .. test_dir .. '/*.cfc >> ' .. test_dir .. '/md5sums')
-  num_lines = num_lines + 1
-  if num_lines > max_lines then
-    break
-  end
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')
   if debug then io.stderr:write("\nMsg ", file) end 
   table.insert(files, file)
   local m = msg.of_file(trecdir .. file)
   local train, pR, tag, _, class = commands.classify(m)
+  nclass = nclass + 1
   pR = class == 'ham' and pR or (pR > 0 and -pR or pR)
   if train or class ~= labelled then
-    local sfid = cache.generate_sfid(tag, pR)
-    cache.store(sfid, msg.to_orig_string(m))
-    local ok, msg = opcall(commands.learn, sfid, labelled)
+    local ok, errmsg = opcall(commands.learn_msg, m, labelled)
     if ok then
       learnings = learnings + 1
     else
-      io.stderr:write(msg, '\n')
+      io.stderr:write(errmsg, '\n')
     end
   end
 
   result:write(string.format("%s judge=%s class=%s score=%.4f\n",
                              file, labelled, class, -pR))
+  if nclass >= max_lines then break end
 end
 local end_time = os.time()
-local nclass = num_lines
 local info = string.format(
   'Using %d buckets, %d classifications (%.1f/s) require %d learnings',
   num_buckets, nclass, (nclass / os.difftime(end_time, start_time)), learnings)

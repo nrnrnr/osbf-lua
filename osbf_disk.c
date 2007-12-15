@@ -29,6 +29,7 @@
 #include "osbflib.h"
 #include "osbf_disk.h"
 
+#define DEBUG 0
 
 /* fail if two readers claim the same unique id or if the number
    of native readers is unacceptable */
@@ -46,8 +47,8 @@ static void check_reader_uniqueness(OSBF_HANDLER *h) {
       for (r = preader + 1; *r; r++)
         if (reader->unique_id == (*r)->unique_id)
           osbf_raise(h, "OSBF is gravely misconfigured: multiple readers "
-                     " share 'unique' id %lu,\n  which they call '%s' and '%s'.",
-                     (*r)->unique_id, reader->name, (*r)->name);
+                     " share 'unique' id %d,\n  which they call '%s' and '%s'.",
+                     (int)(*r)->unique_id, reader->name, (*r)->name);
     }
   if (native_readers < MIN_NATIVE_READERS)
     osbf_raise(h, "OSBF is misconfigured; it has only %d native readers but requires"
@@ -93,7 +94,7 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
   class->buckets   = NULL;
   class->bflags    = NULL;
   if ((unsigned) usage >= NELEMS(states))
-    osbf_raise(h, "This can't happen: usage value %u out of range", (unsigned)usage);
+    osbf_raise(h, "This can't happen: usage value %d out of range", (int)usage);
   class->state = states[(unsigned)usage];
 
   class->fsize = check_file (classname);
@@ -121,17 +122,29 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
   }
 
   prot  = (usage == OSBF_READ_ONLY) ? PROT_READ : PROT_READ + PROT_WRITE;
-  image = mmap (NULL, class->fsize, prot, MAP_SHARED, class->fd, 0);
+  image = mmap (NULL, class->fsize, prot, MAP_PRIVATE, class->fd, 0);
   UNLESS_CLEANUP_RAISE(image != MAP_FAILED, (close(class->fd), free(class->classname)),
                        (h, "Couldn't mmap %s: %s.", classname, strerror(errno)));
  
+  if (DEBUG) {
+    unsigned j;
+    fprintf(stderr, "Scanning image");
+    for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
+      fprintf(stderr, " %u", ((unsigned *)image)[j]);
+    fprintf(stderr, "\n");
+  }
+
   for (preader = osbf_image_readers; *preader; preader++)
-    { OSBF_READER *reader = *preader;
+    {
+      OSBF_READER *reader = *preader;
       if (reader->i_recognize_image(image)) {
+        if (DEBUG)
+          fprintf(stderr, "Recognized file %s as %s\n", classname, reader->longname);
         if (reader->expected_size(image) != class->fsize)
           osbf_raise(h, "This can't happen: "
-                     "expected %ld-byte image but size of file %s is %ld bytes", 
-                      reader->expected_size(image), classname, class->fsize);
+                     "expected %d-byte image but size of file %s is %d bytes", 
+                      (int) reader->expected_size(image), classname,
+                     (int) class->fsize);
         class->fmt_name = reader->name;
         if (reader->native) {
           class->header  = reader->header.find(image, class, h);
@@ -147,12 +160,15 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
           close(class->fd);
           class->fd = -1;
           munmap(image, class->fsize);
+          class->fsize = 0;
         }
         native = reader->native;
         break;
       }
     }
-      
+
+  if (class->header == NULL)
+    osbf_raise(h, "File %s is not in a format that OSBF understands\n", classname);
 
   class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
   if (class->bflags == NULL) {
@@ -174,7 +190,10 @@ void cleanup_partial_class(void *image, CLASS_STRUCT *class, int native) {
     class->classname = NULL;
   }
   munmap(image, class->fsize);
-  class->fd = -1;
+  if (class->fd >= 0) {
+    close(class->fd);
+    class->fd = -1;
+  }
   if (!native) {
     free (class->header);  /* OK to free(NULL) */
     free (class->buckets);
@@ -226,8 +245,9 @@ static void flush_if_needed(CLASS_STRUCT * class, OSBF_HANDLER *h) {
       UNLESS_CLEANUP_RAISE(fseek(fp, 0, SEEK_END) == 0, CLEANUP,
                            (h, "Couldn't seek to end of class file"));
       UNLESS_CLEANUP_RAISE(osbf_native_image_size(class) == ftell(fp), CLEANUP,
-          (h, "Image of file %s is %ld bytes; expected to write %ld bytes", 
-           class->classname, ftell(fp), osbf_native_image_size(class)));
+          (h, "Image of file %s is %d bytes; expected to write %d bytes", 
+           class->classname, (int) ftell(fp),
+           (int) osbf_native_image_size(class)));
       break;
     default:
       CLEANUP;
@@ -249,12 +269,35 @@ osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h)
   }
 
   if (class->header) {
+
+    if (DEBUG) {
+      unsigned j;
+      fprintf(stderr, "Writing image");
+      for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
+        fprintf(stderr, " %u", ((unsigned *)class->header)[j]);
+      fprintf(stderr, "\n");
+    }
+
     switch (class->state) {
       case OSBF_CLOSED:
         osbf_raise(h, "This can't happen: close class with non-NULL header field");
         break;
       case OSBF_MAPPED:
-        munmap (class->header, osbf_native_image_size(class));
+        if (class->fsize != osbf_native_image_size(class))
+          osbf_raise(h, "This can't happen: native-mapped class has the wrong size");
+        if (lseek(class->fd, 0, SEEK_SET) == (off_t)-1)
+          osbf_raise(h, "This can't happen: failed to seek to beginning of file");
+        write(class->fd, class->header, class->fsize);
+
+        if (DEBUG) {
+          unsigned j;
+          fprintf(stderr, "Wrote MAPPED image");
+          for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
+            fprintf(stderr, " %u", ((unsigned *)class->header)[j]);
+          fprintf(stderr, "\n");
+        }
+
+        munmap (class->header, class->fsize);
         break;
       case OSBF_COPIED_R: case OSBF_COPIED_RW: case OSBF_COPIED_RWH:
         flush_if_needed(class, h);
@@ -317,6 +360,7 @@ extern FILE *create_file_if_absent(const char *filename, OSBF_HANDLER *h) {
 
 static void touch_fd(int fd) {
   uint32_t foo;
+  lseek (fd, 0, SEEK_SET);
   read (fd, &foo, sizeof (foo));
   lseek (fd, 0, SEEK_SET);
   write (fd, &foo, sizeof (foo));

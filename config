@@ -55,10 +55,16 @@ OPTIONS=-Wall ${PIC} -fomit-frame-pointer -pedantic-errors -W -Waggregate-return
 CFLAGS= $(OPTIONS) $(LUA_CFLAGS) -DLIB_VERSION=\"$(LIB_VERSION)\"
 LIBS= $(LUA_LIBS) -lm
 CC= gcc
+PROFLIBS = -ldl 
 
-# CFLAGS += -O3
-CFLAGS += -g
+# LIBDEBUG = -L/usr/lib/debug -L/usr/lib/debug/usr/lib
+# CFLAGS += -g
 
+CFLAGS += -O3
+LIBDEBUG = 
 
 # CFLAGS += -DDMALLOC
 # LIBS += -ldmalloc
+
+PG=
+PGLUALIB = -llua5.1

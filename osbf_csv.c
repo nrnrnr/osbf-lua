@@ -24,31 +24,30 @@
 #include "osbflib.h"
 
 void
-osbf_dump (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h)
+osbf_dump (const CLASS_STRUCT *class, const char *csvfile, OSBF_HANDLER *h)
 {
-  CLASS_STRUCT class;
   uint32_t i, num_buckets;
   OSBF_BUCKET_STRUCT *buckets;
   FILE *fp_csv;
 
-  osbf_open_class(cfcfile, OSBF_READ_ONLY, &class, h);
+  if (class->state == OSBF_CLOSED)
+    osbf_raise(h, "Cannot dump a closed class");
   fp_csv = fopen (csvfile, "w");
-  UNLESS_CLEANUP_RAISE(fp_csv != NULL, osbf_close_class(&class, h),
-                       (h, "Can't open csv file %s", csvfile));
+  if (fp_csv == NULL)
+    osbf_raise(h, "Can't open csv file %s", csvfile);
 
   fprintf(fp_csv,
           "%" SCNu32 ";%" SCNu32 "\n%" SCNu32 ";%" SCNu32 "\n",
-          class.header->db_id, class.header->db_flags,
-          class.header->num_buckets, class.header->learnings);
+          class->header->db_id, class->header->db_flags,
+          class->header->num_buckets, class->header->learnings);
 
   
-  num_buckets = class.header->num_buckets;
-  buckets = class.buckets;
+  num_buckets = class->header->num_buckets;
+  buckets = class->buckets;
   for (i = 0; i < num_buckets; i++)
     fprintf (fp_csv, "%" PRIu32 ";%" PRIu32 ";%" PRIu32 "\n",
                buckets[i].hash, buckets[i].key, buckets[i].value);
   fclose (fp_csv);
-  osbf_close_class(&class, h);
 }
 
 static int read_bucket(OSBF_BUCKET_STRUCT *bucket, FILE *fp) {

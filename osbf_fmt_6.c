@@ -85,6 +85,16 @@ void osbf_native_write_class(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
   strncpy(classname, class->classname, sizeof(classname));
   classname[sizeof(classname)-1] = '\0';
   
+  if (class->header->db_version != MY_READER.unique_id)
+    osbf_raise(h, "Version %d format asked to write version %d database as native\n",
+               MY_READER.unique_id, class->header->db_version);
+
+  { unsigned j;
+  fprintf(stderr, "Writing native class with heaer");
+  for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
+    fprintf(stderr, " %u", ((unsigned *)class->header)[j]);
+  fprintf(stderr, "\n");
+  }
   if (fwrite(class->header, sizeof(*class->header), 1, fp) != 1) {
     cleanup_partial_class(class->header, class, 1);
     osbf_raise(h, "%s", "Could not write header to class file %s", classname);
@@ -104,6 +114,16 @@ void osbf_native_write_class(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
 }
 
 void osbf_native_write_header(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
+  if (class->header->db_version != MY_READER.unique_id)
+    osbf_raise(h, "Version %d format asked to write version %d database as native\n",
+               MY_READER.unique_id, class->header->db_version);
+
+  { unsigned j;
+  fprintf(stderr, "Writing native header");
+  for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
+    fprintf(stderr, " %u", ((unsigned *)class->header)[j]);
+  fprintf(stderr, "\n");
+  }
   if (fwrite(class->header, sizeof(*class->header), 1, fp) != 1) {
     char classname[200];
     strncpy(classname, class->classname, sizeof(classname));
@@ -143,10 +163,10 @@ osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
                      "Couldn't write the file header: '%s'", cfcfile);
 
   /*  Initialize CFC hashes - zero all buckets */
-  for (i_aux = 0; i_aux < num_buckets; i_aux++) {
-    osbf_raise_unless(fwrite (&bucket, sizeof (bucket), 1, f) == 1, h,
-                      "Couldn't write to: '%s'", cfcfile);
-  }
+  for (i_aux = 0; i_aux < num_buckets; i_aux++)
+    if (fwrite (&bucket, sizeof (bucket), 1, f) != 1)
+      osbf_raise(h, "Couldn't write to: '%s'", cfcfile);
+
   osbf_raise_unless(ftell(f) == image_size(&image.headers[0]), h,
                     "Internal fault: bad size calculation");
   fclose (f);

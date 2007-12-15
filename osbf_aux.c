@@ -459,6 +459,32 @@ osbf_find_bucket (CLASS_STRUCT * class, uint32_t hash, uint32_t key)
   return bindex;
 }
 
+
+uint32_t
+osbf_slow_find_bucket (CLASS_STRUCT * class, uint32_t start, uint32_t hash, uint32_t key)
+{
+
+  /* precondition: !BUCKET_HASH_COMPARE(class, start, hash, key)
+     && BUCKET_IN_CHAIN(cd, start) */
+
+  uint32_t bindex = start;
+  do {
+    bindex = NEXT_BUCKET (class, bindex);
+
+    /* if .cfc file is completely full return an index */
+    /* out of the buckets space, equal to number of buckets */
+    /* in the file, plus one */
+    if (bindex == start)
+      return NUM_BUCKETS (class) + 1;
+  } while (!BUCKET_HASH_COMPARE (class, bindex, hash, key) &&
+           BUCKET_IN_CHAIN (class, bindex));
+
+  /* return the index of the found bucket or, if not found,
+   * the index of a free bucket where it could be put
+   */
+  return bindex;
+}
+
 /*****************************************************************/
 
 void
@@ -599,230 +625,6 @@ strnhash (unsigned char *str, uint32_t len)
 
 /*****************************************************************/
 
-#if 0
-
-/* These functions moved to osbf_disk.c.
-   Old versions kept for archaeological purposes. */
-
-static OBSOLETE_OSBF_HEADER_BUCKET_UNION hu;
-int
-osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets,
-		     uint32_t db_id, uint32_t db_version, uint32_t db_flags,
-                     char *errmsg)
-{
-  FILE *f;
-  uint32_t i_aux;
-  OSBF_BUCKET_STRUCT bucket = { 0, 0, 0 };
-
-  if (cfcfile == NULL || *cfcfile == '\0')
-    {
-      if (cfcfile != NULL)
-	snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		  "Invalid file name: '%s'", cfcfile);
-      else
-	strncpy (errmsg, "Invalid (NULL) pointer to cfc file name",
-		 OSBF_ERROR_MESSAGE_LEN);
-      return -1;
-    }
-
-  f = fopen (cfcfile, "r");
-  if (f)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"File already exists: '%s'", cfcfile);
-      fclose(f);
-      return -1;
-    }
-
-  f = fopen (cfcfile, "wb");
-  if (!f)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"Couldn't create the file: '%s'", cfcfile);
-      return -1;
-    }
-
-  /* Set the header. */
-  hu.header.db_id = db_id;
-  hu.header.db_version = db_version;
-  hu.header.db_flags = db_flags;
-  hu.header.buckets_start = OBSOLETE_OSBF_CFC_HEADER_SIZE;
-  hu.header.num_buckets = num_buckets;
-  hu.header.learnings = 0;
-
-  /* Write header */
-  if (fwrite (&hu, sizeof (hu), 1, f) != 1)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"Couldn't initialize the file header: '%s'", cfcfile);
-      return -1;
-    }
-
-  /*  Initialize CFC hashes - zero all buckets */
-  for (i_aux = 0; i_aux < num_buckets; i_aux++)
-    {
-      /* Write buckets */
-      if (fwrite (&bucket, sizeof (bucket), 1, f) != 1)
-	{
-	  snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		    "Couldn't write to: '%s'", cfcfile);
-	  return -1;
-	}
-    }
-  fclose (f);
-  return 0;
-}
-
-/*****************************************************************/
-
-int
-osbf_open_class (const char *classname, int flags, CLASS_STRUCT * class,
-		 char *errmsg)
-{
-  int prot;
-  off_t fsize;
-
-  /* clear class structure */
-  class->fd = -1;
-  class->flags = O_RDONLY;
-  class->classname = NULL;
-  class->header = NULL;
-  class->buckets = NULL;
-  class->bflags = NULL;
-
-  fsize = check_file (classname);
-  if (fsize < 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "Couldn't open %s.",
-		classname);
-      return (-1);
-    }
-
-  /* open the class to be trained and mmap it into memory */
-  class->fd = open (classname, flags);
-
-  if (class->fd < 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"Couldn't open the file %s.", classname);
-      return -2;
-    }
-
-  if (flags == O_RDWR)
-    {
-      class->flags = O_RDWR;
-      prot = PROT_READ + PROT_WRITE;
-
-#if (1)
-      if (osbf_lock_file (class->fd, 0, 0) != 0)
-	{
-	  fprintf (stderr, "Couldn't lock the file %s.", classname);
-	  close (class->fd);
-	  snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		    "Couldn't lock the file %s.", classname);
-	  return -3;
-	}
-#endif
-
-    }
-  else
-    {
-      class->flags = O_RDONLY;
-      prot = PROT_READ;
-    }
-
-  class->header = (OSBF_HEADER_STRUCT *) mmap (NULL, fsize, prot,
-					       MAP_SHARED, class->fd, 0);
-  if (class->header == MAP_FAILED)
-    {
-      close (class->fd);
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN, "Couldn't mmap %s.",
-		classname);
-      return (-4);
-    }
-
-  /* check db id and version */
-  if (class->header->db_id != OSBF_DB_ID ||
-      class->header->db_version != OSBF_DB_FP_FN_VERSION ||
-      class->header->db_flags != 0)
-    {
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"%s is not an OSBF_Bayes-spectrum file with false positives and negatives.", classname);
-      return (-5);
-    }
-
-  class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
-  if (!class->bflags)
-    {
-      close (class->fd);
-      munmap ((void *) class->header, (class->header->buckets_start +
-				       class->header->num_buckets) *
-	      sizeof (OSBF_BUCKET_STRUCT));
-      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-		"Couldn't allocate memory for seen features array.");
-      return (-6);
-    }
-
-  class->classname = classname;
-  class->buckets = (OSBF_BUCKET_STRUCT *) class->header +
-    class->header->buckets_start;
-
-  return 0;
-}
-
-/*****************************************************************/
-
-int
-osbf_close_class (CLASS_STRUCT * class, char *errmsg)
-{
-  int err = 0;
-
-  if (class->header)
-    {
-      munmap ((void *) class->header, (class->header->buckets_start +
-				       class->header->num_buckets) *
-	      sizeof (OSBF_BUCKET_STRUCT));
-      class->header = NULL;
-      class->buckets = NULL;
-    }
-
-  if (class->bflags)
-    {
-      free (class->bflags);
-      class->bflags = NULL;
-    }
-
-  if (class->fd >= 0)
-    {
-      if (class->flags == O_RDWR)
-	{
-	  /* "touch" the file */
-	  OSBF_HEADER_STRUCT foo;
-	  read (class->fd, &foo, sizeof (foo));
-	  lseek (class->fd, 0, SEEK_SET);
-	  write (class->fd, &foo, sizeof (foo));
-
-#if (1)
-	  if (osbf_unlock_file (class->fd, 0, 0) != 0)
-	    {
-	      snprintf (errmsg, OSBF_ERROR_MESSAGE_LEN,
-			"Couldn't unlock file: %s", class->classname);
-	      err = -1;
-	    }
-#endif
-
-	}
-      close (class->fd);
-      class->fd = -1;
-    }
-
-  return err;
-}
-
-#endif
-
-/*****************************************************************/
-
 /* Check if a file exists. Return its length if yes and < 0 if no */
 off_t
 check_file (const char *file)
@@ -896,79 +698,55 @@ osbf_unlock_file (int fd, uint32_t start, uint32_t len)
 /*****************************************************************/
 
 void
-osbf_import (const char *cfcfile_to, const char *cfcfile_from, OSBF_HANDLER *h)
+osbf_import (CLASS_STRUCT *class_to, const CLASS_STRUCT *class_from, OSBF_HANDLER *h)
 {
-  CLASS_STRUCT class_to, class_from;
+  uint32_t i;
 
-  /* open the class to be trained and mmap it into memory */
-  osbf_open_class (cfcfile_to, OSBF_WRITE_ALL, &class_to, h);
-  osbf_open_class (cfcfile_from, OSBF_READ_ONLY, &class_from, h);
+  if (class_to->state == OSBF_CLOSED || class_to->usage < OSBF_WRITE_ALL)
+    osbf_raise(h, "Destination class %s is not open for full write",
+               class_to->classname == NULL ? "(name unknown)" : class_to->classname);
 
-  {
-    uint32_t i = 0;
+  if (class_from->state == OSBF_CLOSED)
+    osbf_raise(h, "Source class %s is not open",
+               class_from->classname == NULL
+                 ? "(name unknown)"
+                 : class_from->classname);
 
-    class_to.header->learnings += class_from.header->learnings;
-    class_to.header->extra_learnings += class_from.header->extra_learnings;
-    class_to.header->classifications += class_from.header->classifications;
-    class_to.header->false_negatives += class_from.header->false_negatives;
-    class_to.header->false_positives += class_from.header->false_positives;
+  class_to->header->learnings       += class_from->header->learnings;
+  class_to->header->extra_learnings += class_from->header->extra_learnings;
+  class_to->header->classifications += class_from->header->classifications;
+  class_to->header->false_negatives += class_from->header->false_negatives;
+  class_to->header->false_positives += class_from->header->false_positives;
 
-    for (i = 0; i < class_from.header->num_buckets; i++)
-      {
-        uint32_t bindex;
+  for (i = 0; i < class_from->header->num_buckets; i++)
+    {
+      uint32_t bindex;
 
-	if (class_from.buckets[i].value == 0)
-	  continue;
+      if (class_from->buckets[i].value == 0)
+        continue;
 
-	bindex = osbf_find_bucket (&class_to,
-				   class_from.buckets[i].hash,
-				   class_from.buckets[i].key);
-	if (bindex < class_to.header->num_buckets)
-	  {
-	    if (BUCKET_IN_CHAIN (&class_to, bindex))
-	      {
-		osbf_update_bucket (&class_to, bindex,
-				    class_from.buckets[i].value);
-	      }
-	    else
-	      {
-		osbf_insert_bucket (&class_to, bindex,
-				    class_from.buckets[i].hash,
-				    class_from.buckets[i].key,
-				    class_from.buckets[i].value);
-	      }
-	  }
-	else
-	  {
-            osbf_close_class (&class_to, h);
-            osbf_close_class (&class_from, h);
-	    osbf_raise(h, ".cfc file %s is full!", cfcfile_to);
-            return;
-	  }
-
+      bindex = osbf_find_bucket (class_to,
+      			   class_from->buckets[i].hash,
+      			   class_from->buckets[i].key);
+      if (bindex < class_to->header->num_buckets) {
+        if (BUCKET_IN_CHAIN (class_to, bindex)) {
+          osbf_update_bucket (class_to, bindex,
+                              class_from->buckets[i].value);
+        } else {
+          osbf_insert_bucket (class_to, bindex,
+                              class_from->buckets[i].hash,
+                              class_from->buckets[i].key,
+                              class_from->buckets[i].value);
+        }
+      } else {
+        osbf_raise(h, ".cfc file %s is full!",
+                   class_to->classname == NULL
+                     ? "(name unknown)"
+                     : class_to->classname);
+        return;
       }
+    }
 
-    osbf_close_class (&class_to, h);
-    osbf_close_class (&class_from, h);
-  }
-}
-
-/*****************************************************************/
-
-
-void
-osbf_increment_false_positives (const char *database, int delta, OSBF_HANDLER *h)
-{
-  CLASS_STRUCT class;
-
-  /* open the class and mmap it into memory */
-  osbf_open_class(database, OSBF_WRITE_HEADER, &class, h);
-
-  /* add delta to false positive counter */
-  if (delta >= 0 || class.header->false_positives >= (uint32_t) (-delta))
-    class.header->false_positives += delta;
-
-  osbf_close_class(&class, h);
 }
 
 /****************************************************************/

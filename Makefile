@@ -24,7 +24,7 @@ CFLAGS += -DLUA_USE_LINUX
 
 lib: $(LIBNAME)
 
-$(OBJS) $(XOBJS): osbflib.h osbferr.h config
+$(OBJS) $(XOBJS): osbflib.h osbferr.h config pgconfig
 
 osbferrs.o: osbferr.h
 osbf_disk.o: osbf_disk.h
@@ -33,7 +33,7 @@ $(LIBNAME): $(OBJS) $(XOBJS)
 	$(CC) $(CFLAGS) $(LIB_OPTION) -o $(LIBNAME) $(OBJS) $(LIBS)
 
 osbf-lua: $(OBJS) lua.o main.o
-	$(CC) $(CFLAGS) -o osbf-lua main.o $(OBJS) lua.o -L$(PGDIR)/lib -llua5.1 -ldl -lreadline -lhistory -lncurses $(LIBS) 
+	$(CC) $(CFLAGS)  -o osbf-lua main.o $(OBJS) lua.o $(LIBDEBUG) $(PGLUALIB) $(PG) -ldl -lreadline -lhistory -lncurses $(LIBS) 
 
 lua.o: config
 main.o: config

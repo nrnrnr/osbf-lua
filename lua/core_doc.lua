@@ -80,21 +80,6 @@ Results are as follows:
 In case of error, core.classify calls lua_error.
 ]=]
 
-__doc.increment_false_positives = [=[
-function(database, [delta]) 
-  returns nothing or calls lua_error
-
-Adds delta to false positive counter of database. delta is optional and
-defaults to 1.
-
-]=]
-
-__doc.increment_classifications = [=[
-function(database) returns nothing or calls lua_error
-
-Adds 1 to the number of classifications of the database.
-]=]
-
 __doc.learn = [=[
 function(text, dbname, [flags, [delimiters]]) 
   returns nothing or calls lua_error

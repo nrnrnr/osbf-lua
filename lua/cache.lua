@@ -257,7 +257,9 @@ The change in status must be the result of learning or unlearning.]]
 function change_file_status(sfid, status, classification)
   if status ~= classification
   and (classification == 'unlearned' or status == 'unlearned') then
-    util.insist(os.rename(filename(sfid, status), filename(sfid, classification)))
+    if cfg.save_for_training then
+      util.insist(os.rename(filename(sfid, status), filename(sfid, classification)))
+    end
   else
     error('invalid to change status from ' .. status .. ' to ' .. classification)
   end

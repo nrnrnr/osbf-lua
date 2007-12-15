@@ -35,8 +35,13 @@ PIC=-fPIC
 #PIC=-fpic
 
 # Compilation directives
-OPTIONS= -O3 -Wall ${PIC} -pedantic-errors -W -Waggregate-return -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings
-CFLAGS= $(OPTIONS) $(LUA_CFLAGS) -DLIB_VERSION=\"$(LIB_VERSION)\" -pg
-LIBS= $(LUA_LIBS) -lm -pg
+#STYLE=-O1
+STYLE=-O3
+
+OPTIONS= -pg $(STYLE) -Wall ${PIC} -pedantic-errors -W -Waggregate-return -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings  -fprofile-arcs -ftest-coverage
+CFLAGS= $(OPTIONS) $(LUA_CFLAGS) -DLIB_VERSION=\"$(LIB_VERSION)\"
+LIBS= $(LUA_LIBS) -pg -lm
+PG= -pg
 CC= gcc
 
+PGLUALIB = $(PGDIR)/lib/liblua.a

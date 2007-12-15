@@ -178,9 +178,13 @@ an original, unmodified message.  If found, returns the message
 and its cache status; if not found, returns nil, 'missing'.]]
 
 local function of_openfile(f)
-  local msg = of_string(f:read '*a')
+  local ok, msg = pcall(of_string, util.validate(f:read '*a'))
   f:close()
-  return msg
+  if ok then
+    return msg
+  else
+    error(msg)
+  end
 end
 
 function of_file(filename)

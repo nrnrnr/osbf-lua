@@ -154,8 +154,11 @@ local function tone_inner(text, target_class)
     -- first classification, but, because of other trainings in between,
     -- the present classification is wrong. And vice-versa.
     core.learn(text, dblist[target_index], core.FALSE_NEGATIVE)
-    local wrong_index = class2index[class]
-    core.increment_false_positives(dblist[wrong_index])
+    do
+      local c = core.open_class(dblist[class2index[class]], 'rwh')
+      c.fp = c.fp + 1
+      -- don't close; OK for c to be garbage collected
+    end
 
     -- guarantee that starting class for tone-hr is the target class
     local new_pR, new_class = most_likely_pR_and_class(text, k.classify_flags)
@@ -249,10 +252,7 @@ function learn(sfid, class)
   if status ~= 'unlearned' then
     error(learned_as_msg(status))
   end
-  local lim = msg.lim
-  debugf('\n Learning <%s> with header <%s> as %s...\n', 
-         fingerprint(lim.msg), fingerprint(lim.header), class)
-  local orig, new = tone_msg_and_reinforce_header(lim, class)
+  local orig, new = learn_msg(msg, class)
   cache.change_file_status(sfid, status, class)
 
   local comment = orig == new and
@@ -261,6 +261,21 @@ function learn(sfid, class)
 
   return comment, orig, new
 end  
+
+__doc.learn_msg = [[function(msg, classification)
+Returns comment, orig_pR, new_pR or calls error
+
+Updates databases to reflect human classification of an unlearned
+message.  Does not touch the cache.
+]]
+
+function learn_msg(msg, class)
+  local lim = msg.lim
+  debugf('\n Learning <%s> with header <%s> as %s...\n', 
+         fingerprint(lim.msg), fingerprint(lim.header), class)
+  return tone_msg_and_reinforce_header(lim, class)
+end
+
 
 __doc.unlearn = [[function(sfid, class)
 Returns comment, orig_pR, new_pR or calls error
@@ -383,7 +398,11 @@ do
       end
     end
 --end
-    if count then core.increment_classifications(class2db[most_likely]) end
+    if count then
+      local c = core.open_class(class2db[most_likely], 'rwh')
+      c.classifications = c.classifications + 1
+      -- no close needed; let it be garbage-collected
+    end
     local train = max_pR < cfg.classes[most_likely].train_below
     debugf('Classified %s as class %s with confidence %.2f%s\n',
            table.concat(cfg.classlist(), '/'), most_likely, max_pR,

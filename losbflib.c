@@ -34,6 +34,8 @@
 
 #define osbf_error_handler lua_State
 
+#define DEBUG 0
+
 
 #include "osbflib.h"
 
@@ -250,20 +252,10 @@ static void check_sum_is_one(double *p_classes, unsigned num_classes) {
 }
 #endif
 
-
-
 /**********************************************************/
-static int
-lua_osbf_increment_classifications(lua_State *L) {
-  const char *classname = luaL_checkstring(L, 1);
-  CLASS_STRUCT newclass;
-  osbf_open_class (classname, OSBF_WRITE_HEADER, &newclass, L);
-  newclass.header->classifications += 1;
-  osbf_close_class(&newclass, L);
-  return 0;
-}
 
-/**********************************************************/
+/* debugging */
+
 
 static struct {
   const char *mode;
@@ -275,6 +267,18 @@ static struct {
   { "rwh", OSBF_WRITE_HEADER, "read-all/write-header" },
   { NULL, 0, NULL },
 };
+
+static osbf_class_usage usage_from_mode(const char *mode);
+static osbf_class_usage usage_from_mode(const char *mode) {
+  unsigned i;
+  for (i = 0; usage_array[i].mode != NULL; i++) 
+    if (!strcmp(usage_array[i].mode, mode)) {
+      return usage_array[i].usage;
+      break;
+    }
+  return (osbf_class_usage) -1;
+}
+
 
 static int lua_osbf_class_tostring(lua_State *L) {
   CLASS_STRUCT *c = check_class(L, 1);
@@ -365,39 +369,105 @@ DEFINE_MUTATE_FUN(fp,              c->header->false_positives)
 
 
 
+/****************************************************************/
+
+/* Once we open a class, we don't close it until it gets garbage collected
+   or until we explicitly close the core.  Lua code can open class files by
+   name as much as it likes, and we keep the open files in the cache.
+   Open files are closed by the garbage collector on normal exit and
+   os.exit is rewritten to close them also.  */
+
+
+static void
+push_open_class_using_cache(lua_State *L, const char *filename, osbf_class_usage usage);
+
+static void
+push_open_class_using_cache(lua_State *L, const char *filename, osbf_class_usage usage)
+{
+  if (usage == (osbf_class_usage) -1) 
+    luaL_error(L, "Unknown mode for open_class; try 'r' or 'rw' or 'rwh'");
+
+  lua_getfield(L, LUA_ENVIRONINDEX, "cache");  /* s: cache */
+  lua_getfield(L, -1, filename);               /* s: cache class */
+ cached_on_top:
+  if (lua_isnil(L, -1)) {
+    CLASS_STRUCT *c = lua_newuserdata(L, sizeof(*c));  /* s: cache nil class */
+    luaL_getmetatable(L, CLASS_METANAME);
+    lua_setmetatable(L, -2);
+    osbf_open_class(filename, usage, c, L);
+    lua_remove(L, -2); /* remove loathesome nil */
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -3, filename);             /* s: cache class */
+    if (strcmp(filename, c->classname))
+      luaL_error(L, "Tried to load %s from the cache but found %s instead",
+                 filename, c->classname);
+  } else {
+    CLASS_STRUCT *c = check_class(L, -1); /* should always succeed */
+    if (c->state == OSBF_CLOSED || c->usage < usage) {
+      if (DEBUG)
+        fprintf(stderr, "%s in cache, but it must be re-opened for usage %d (%s)\n",
+                filename,
+                usage,
+                c->state == OSBF_CLOSED ? "closed" : "usage too low");
+      if (c->state != OSBF_CLOSED)
+        osbf_close_class(c, L);
+      lua_pop(L, 1); /* goodbye class */
+      lua_pushnil(L); /* pretend nothing was in the cache */
+      goto cached_on_top;
+    } else {
+      /* 'opening' a cached file clears its bflags */
+      memset(c->bflags, 0, c->header->num_buckets * sizeof(unsigned char));
+    }
+    if (strcmp(filename, c->classname))
+      luaL_error(L, "Tried to load %s from the cache but found %s instead",
+                 filename, c->classname);
+  }
+  lua_remove(L, -2); /* remove the cache from the stack, leaving only the class */
+}
+
+static int lua_osbf_close_cached_classes(lua_State *L);
+static int lua_osbf_close_cached_classes(lua_State *L) {
+  lua_getfield(L, LUA_ENVIRONINDEX, "cache");  /* s: cache */
+  lua_pushnil(L);
+  while (lua_next(L, -2) != 0) {
+    CLASS_STRUCT *c = check_class(L, -1); /* should always succeed */
+    if (c->state != OSBF_CLOSED)
+      osbf_close_class(c, L);
+    lua_pop(L, 1); /* keep key for next iteration */
+  }
+  lua_pop(L, 1); /* pop cache off the stack */
+  return 0;
+}
+
+static int lua_osbf_close_cache_and_exit(lua_State *L);
+static int lua_osbf_close_cache_and_exit(lua_State *L) {
+  lua_osbf_close_cached_classes(L);
+  lua_getfield(L, LUA_ENVIRONINDEX, "exit");  /* s: args exit */
+  lua_insert(L, 1);             /* s: exit args */
+  lua_call(L, lua_gettop(L), LUA_MULTRET);
+  return lua_gettop(L);
+}
+
+
 static int
 lua_osbf_open_class(lua_State *L) {
-  osbf_class_usage usage = -1;
-  unsigned i;
   const char *filename = luaL_checkstring(L, 1);
   const char *mode     = luaL_optstring(L, 2, "r");
-  CLASS_STRUCT *c = lua_newuserdata(L, sizeof(*c));
-  luaL_getmetatable(L, CLASS_METANAME);
-  lua_setmetatable(L, -2);
 
-  for (i = 0; usage_array[i].mode != NULL; i++) 
-    if (!strcmp(usage_array[i].mode, mode)) {
-      usage = usage_array[i].usage;
-      break;
-    }
-
-  if (usage != (osbf_class_usage) -1) {
-    osbf_open_class(filename, usage, c, L);
-    return 1;
-  } else {
-    return luaL_error(L, "Unknown mode for open_class; try 'r' or 'rw' or 'rwh'");
-  }
+  push_open_class_using_cache(L, filename, usage_from_mode(mode));
+  return 1;
 }
 
 static int
 lua_osbf_class_gc(lua_State *L) {
   CLASS_STRUCT *c = check_class(L, 1);
-  if (c->state != OSBF_CLOSED)
+  if (c->state != OSBF_CLOSED) {
+    if (DEBUG)
+      fprintf(stderr, "Closing class %s, possibly because of GC\n", c->classname);
     osbf_close_class(c, L);
+  }
   return 0;
 }
-
-
 
 /**********************************************************/
 
@@ -414,7 +484,7 @@ lua_osbf_classify (lua_State * L)
   uint32_t flags = 0;		/* default value */
   double min_p_ratio;		/* min pmax/p,in ratio */
   /* class probabilities are returned in p_classes */
-  CLASS_STRUCT classes[OSBF_MAX_CLASSES];
+  CLASS_STRUCT *classes[OSBF_MAX_CLASSES];
   double p_classes[OSBF_MAX_CLASSES];
   uint32_t p_trainings[OSBF_MAX_CLASSES];
   unsigned i, num_classes;
@@ -428,16 +498,21 @@ lua_osbf_classify (lua_State * L)
   min_p_ratio = (double) luaL_optnumber (L, 4, OSBF_MIN_PMAX_PMIN_RATIO);
   delimiters  = luaL_optlstring (L, 5, "", &delimiters_len);
 
-  for (i = 0; i < num_classes; i++)
-    osbf_open_class (classnames[i], OSBF_READ_ONLY, &classes[i], L);
+  if (!lua_checkstack(L, num_classes + 10))
+    luaL_error(L, "Could not allocate enough stack space for %d classes",
+               num_classes);
+
+  for (i = 0; i < num_classes; i++) {
+    push_open_class_using_cache(L, classnames[i], OSBF_READ_ONLY);
+    classes[i] = lua_touserdata(L, -1);
+  }
 
   /* call osbf_classify */
   osbf_bayes_classify (text, text_len, delimiters, classes, num_classes,
                        flags, min_p_ratio,
                        p_classes, p_trainings, L);
 
-  for (i = 0; i < num_classes; i++)
-    osbf_close_class (&classes[i], L);
+  lua_pop(L, num_classes); /* no longer need pinning */
 
   /* push list of probabilities onto the stack */
   lua_newtable (L);
@@ -509,7 +584,6 @@ lua_osbf_train (lua_State * L)
   uint32_t flags = 0;		/* default value */
   const char *delimiters = "";	/* extra token delimiters */
   size_t delimiters_len = 0;
-  CLASS_STRUCT class;
 
   /* get args */
   sense  = luaL_checkint(L, 1);
@@ -519,9 +593,8 @@ lua_osbf_train (lua_State * L)
   delimiters = luaL_optlstring(L, 5, "", &delimiters_len);
   luaL_checktype (L, 6, LUA_TNONE);
 
-  osbf_open_class(dbname, OSBF_WRITE_ALL, &class, L);
-  osbf_bayes_train (text, text_len, delimiters, &class, sense, flags, L);
-  osbf_close_class(&class, L);
+  push_open_class_using_cache(L, dbname, OSBF_WRITE_ALL);
+  osbf_bayes_train(text, text_len, delimiters, lua_touserdata(L, -1), sense, flags, L);
   return 0;
 }
 
@@ -548,24 +621,10 @@ lua_osbf_unlearn (lua_State * L)
 /**********************************************************/
 
 static int
-lua_osbf_increment_false_positives (lua_State * L)
-{
-  const char *cfcfile;
-  int delta;
-
-  cfcfile = luaL_checkstring (L, 1);
-  delta  = luaL_optint(L, 2, 1);
-
-  osbf_increment_false_positives (cfcfile, delta, L);
-  return 0;
-}
-
-/**********************************************************/
-
-static int
 lua_osbf_dump (lua_State * L)
 {
-  osbf_dump (luaL_checkstring (L, 1), luaL_checkstring (L, 2), L);
+  push_open_class_using_cache(L, luaL_checkstring (L, 1), OSBF_READ_ONLY);
+  osbf_dump (check_class(L, -1), luaL_checkstring (L, 2), L);
   return 0;
 }
 
@@ -574,12 +633,7 @@ lua_osbf_dump (lua_State * L)
 static int
 lua_osbf_restore (lua_State * L)
 {
-  const char *cfcfile, *csvfile;
-
-  cfcfile = luaL_checkstring (L, 1);
-  csvfile = luaL_checkstring (L, 2);
-
-  osbf_restore (cfcfile, csvfile, L);
+  osbf_restore (luaL_checkstring (L, 1), luaL_checkstring (L, 2), L);
   return 0;
 }
 
@@ -588,7 +642,10 @@ lua_osbf_restore (lua_State * L)
 static int
 lua_osbf_import (lua_State * L)
 {
-  osbf_import (luaL_checkstring (L, 1), luaL_checkstring (L, 2), L);
+  push_open_class_using_cache(L, luaL_checkstring(L, 1), OSBF_WRITE_ALL);
+  push_open_class_using_cache(L, luaL_checkstring(L, 2), OSBF_READ_ONLY);
+
+  osbf_import (check_class(L, -2), check_class(L, -1), L);
   return 0;
 }
 
@@ -599,7 +656,7 @@ lua_osbf_stats (lua_State * L)
 {
 
   const char *cfcfile;
-  STATS_STRUCT class;
+  STATS_STRUCT stats;
   int full = 1;
 
   cfcfile = luaL_checkstring (L, 1);
@@ -608,90 +665,72 @@ lua_osbf_stats (lua_State * L)
       full = lua_toboolean (L, 2);
     }
 
-  osbf_stats (cfcfile, &class, L, full);
+  push_open_class_using_cache(L, cfcfile, OSBF_READ_ONLY);
+  osbf_stats (check_class(L, -1), &stats, L, full);
   lua_newtable (L);
 
-  lua_pushliteral (L, "db_id");
-  lua_pushnumber (L, (lua_Number) class.db_id);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.db_id);
+  lua_setfield(L, -2, "db_id");
 
-  lua_pushliteral (L, "db_version");
-  lua_pushnumber (L, (lua_Number) class.db_version);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.db_version);
+  lua_setfield(L, -2, "db_version");
 
-  lua_pushliteral (L, "db_flags");
-  lua_pushnumber (L, (lua_Number) class.db_flags);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.db_flags);
+  lua_setfield(L, -2, "db_flags");
 
-  lua_pushliteral (L, "buckets");
-  lua_pushnumber (L, (lua_Number) class.total_buckets);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.total_buckets);
+  lua_setfield(L, -2, "buckets");
 
-  lua_pushliteral (L, "bucket_size");
-  lua_pushnumber (L, (lua_Number) class.bucket_size);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.bucket_size);
+  lua_setfield(L, -2, "bucket_size");
 
-  lua_pushliteral (L, "header_size");
-  lua_pushnumber (L, (lua_Number) class.header_size);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.header_size);
+  lua_setfield(L, -2, "header_size");
 
-  lua_pushliteral (L, "bytes");
-  lua_pushnumber (L, class.header_size + class.total_buckets * class.bucket_size);
-  lua_settable (L, -3);
+  lua_pushnumber (L, stats.header_size + stats.total_buckets * stats.bucket_size);
+  lua_setfield(L, -2, "bytes");
 
-  lua_pushliteral (L, "learnings");
-  lua_pushnumber (L, (lua_Number) class.learnings);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.learnings);
+  lua_setfield(L, -2, "learnings");
 
-  lua_pushliteral (L, "extra_learnings");
-  lua_pushnumber (L, (lua_Number) class.extra_learnings);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.extra_learnings);
+  lua_setfield(L, -2, "extra_learnings");
 
-  lua_pushliteral (L, "false_positives");
-  lua_pushnumber (L, (lua_Number) class.false_positives);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.false_positives);
+  lua_setfield(L, -2, "false_positives");
 
-  lua_pushliteral (L, "false_negatives");
-  lua_pushnumber (L, (lua_Number) class.false_negatives);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.false_negatives);
+  lua_setfield(L, -2, "false_negatives");
 
-  lua_pushliteral (L, "classifications");
-  lua_pushnumber (L, (lua_Number) class.classifications);
-  lua_settable (L, -3);
+  lua_pushnumber (L, (lua_Number) stats.classifications);
+  lua_setfield(L, -2, "classifications");
 
   if (full == 1)
     {
-      lua_pushliteral (L, "chains");
-      lua_pushnumber (L, (lua_Number) class.num_chains);
-      lua_settable (L, -3);
+      lua_pushnumber (L, (lua_Number) stats.num_chains);
+      lua_setfield(L, -2, "chains");
 
-      lua_pushliteral (L, "max_chain");
-      lua_pushnumber (L, (lua_Number) class.max_chain);
-      lua_settable (L, -3);
+      lua_pushnumber (L, (lua_Number) stats.max_chain);
+      lua_setfield(L, -2, "max_chain");
 
-      lua_pushliteral (L, "avg_chain");
-      lua_pushnumber (L, (lua_Number) class.avg_chain);
-      lua_settable (L, -3);
+      lua_pushnumber (L, (lua_Number) stats.avg_chain);
+      lua_setfield(L, -2, "avg_chain");
 
-      lua_pushliteral (L, "max_displacement");
-      lua_pushnumber (L, (lua_Number) class.max_displacement);
-      lua_settable (L, -3);
+      lua_pushnumber (L, (lua_Number) stats.max_displacement);
+      lua_setfield(L, -2, "max_displacement");
 
-      lua_pushliteral (L, "unreachable");
-      lua_pushnumber (L, (lua_Number) class.unreachable);
-      lua_settable (L, -3);
+      lua_pushnumber (L, (lua_Number) stats.unreachable);
+      lua_setfield(L, -2, "unreachable");
 
-      lua_pushliteral (L, "used_buckets");
-      lua_pushnumber (L, (lua_Number) class.used_buckets);
-      lua_settable (L, -3);
+      lua_pushnumber (L, (lua_Number) stats.used_buckets);
+      lua_setfield(L, -2, "used_buckets");
 
-      lua_pushliteral (L, "use");
-      if (class.total_buckets > 0)
-        lua_pushnumber (L, (lua_Number) ((double) class.used_buckets /
-                                     class.total_buckets));
+      if (stats.total_buckets > 0)
+        lua_pushnumber (L, (lua_Number) ((double) stats.used_buckets /
+                                     stats.total_buckets));
       else
         lua_pushnumber (L, (lua_Number) 100);
-      lua_settable (L, -3);
+      lua_setfield (L, -2, "use");
     }
    return 1;
 }
@@ -943,7 +982,10 @@ static int lua_set_classfields(lua_State *L) {
   }
 }
 
+/* XXX todo 'forget' function to drop a cfc file from the cache */
+
 static const struct luaL_reg osbf[] = {
+  {"close", lua_osbf_close_cached_classes},
   {"create_db", lua_osbf_createdb},
   {"config", lua_osbf_config},
   {"classify", lua_osbf_classify},
@@ -952,8 +994,6 @@ static const struct luaL_reg osbf[] = {
   {"train", lua_osbf_train},
   {"open_class", lua_osbf_open_class},
   {"close_class", lua_osbf_class_gc},
-  {"increment_false_positives", lua_osbf_increment_false_positives},
-  {"increment_classifications", lua_osbf_increment_classifications},
   {"pR", lua_osbf_pR},
   {"old_pR", lua_osbf_old_pR},
   {"dump", lua_osbf_dump},
@@ -975,6 +1015,21 @@ int
 OPENFUN (lua_State * L)
 {
   const char *libname = luaL_checkstring(L, -1);
+
+  /* push os.exit onto the stack */
+  lua_getfield(L, LUA_GLOBALSINDEX, "os");
+  lua_getfield(L, -1, "exit");
+  lua_remove(L, -2);
+
+  /* push and initialize shared environment */
+  lua_newtable(L);
+  lua_pushcfunction(L, lua_osbf_close_cache_and_exit);
+  lua_setfield(L, -2, "exit");
+  lua_newtable(L);
+  lua_setfield(L, -2, "cache");
+
+  /* now make it the environment */
+  lua_replace(L, LUA_ENVIRONINDEX);
 
   /* class as userdata */
   luaL_newmetatable(L, CLASS_METANAME);     /* s: libname metatable */

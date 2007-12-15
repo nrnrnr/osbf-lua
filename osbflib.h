@@ -53,7 +53,8 @@ typedef OSBF_HEADER_STRUCT_2007_12 OSBF_HEADER_STRUCT;
 typedef enum osbf_class_usage {
   OSBF_READ_ONLY = 0, OSBF_WRITE_HEADER = 1, OSBF_WRITE_ALL = 2
 } osbf_class_usage;
-
+/* N.B. these values must be in order of increasing privilege, and they
+   must always and forever be different from -1 */
 
 /* three possible representations of class: 
       1. Mapped through mmap(), close via unmap()
@@ -118,29 +119,41 @@ enum osbf_database_ids {  /* NR is very puzzled about what 5 means */
 
 enum osbf_bucket_flags { BUCKET_LOCK_MASK = 0x80, BUCKET_FREE_MASK = 0x40 };
 
-#define HASH_INDEX(cd, h) (h % NUM_BUCKETS(cd))
-#define NUM_BUCKETS(cd) ((cd)->header->num_buckets)
-#define VALID_BUCKET(cd, i) (i < NUM_BUCKETS(cd))
-#define BUCKET_HASH(cd, i) (((cd)->buckets)[i].hash)
-#define BUCKET_KEY(cd, i) (((cd)->buckets)[i].key)
-#define BUCKET_VALUE(cd, i) (((cd)->buckets)[i].value)
-#define BUCKET_FLAGS(cd, i) (((cd)->bflags)[i])
-#define BUCKET_RAW_VALUE(cd, i) (((cd)->buckets)[i].value)
-#define BUCKET_IS_LOCKED(cd, i) ((((cd)->bflags)[i]) & BUCKET_LOCK_MASK)
-#define MARKED_FREE(cd, i) ((((cd)->bflags)[i]) & BUCKET_FREE_MASK)
-#define MARK_IT_FREE(cd, i) ((((cd)->bflags)[i]) |= BUCKET_FREE_MASK)
-#define UNMARK_IT_FREE(cd, i) (((cd)->bflags)[i]) &= (~BUCKET_FREE_MASK)
-#define LOCK_BUCKET(cd, i) (((cd)->bflags)[i]) |= BUCKET_LOCK_MASK
-#define UNLOCK_BUCKET(cd, i) (((cd)->bflags)[i]) &= (~BUCKET_LOCK_MASK)
-#define SET_BUCKET_VALUE(cd, i, val) (((cd)->buckets)[i].value) = val
-#define SETL_BUCKET_VALUE(cd, i, val) (((cd)->buckets)[i].value) = (val);  \
-                                        LOCK_BUCKET(cd, i)
+#define HASH_INDEX(cd, h)       (h % NUM_BUCKETS(cd))
+#define NUM_BUCKETS(cd)         ((cd)->header->num_buckets)
+#define VALID_BUCKET(cd, i)     (i < NUM_BUCKETS(cd))
+#define BUCKET_HASH(cd, i)      ((cd)->buckets[i].hash)
+#define BUCKET_KEY(cd, i)       ((cd)->buckets[i].key)
+#define BUCKET_VALUE(cd, i)     ((cd)->buckets[i].value)
+#define BUCKET_FLAGS(cd, i)     (((cd)->bflags)[i])
+#define BUCKET_RAW_VALUE(cd, i) ((cd)->buckets[i].value)
+#define BUCKET_IS_LOCKED(cd, i) (((cd)->bflags[i]) &  BUCKET_LOCK_MASK)
+#define MARKED_FREE(cd, i)      (((cd)->bflags[i]) &  BUCKET_FREE_MASK)
+#define MARK_IT_FREE(cd, i)     (((cd)->bflags[i]) |= BUCKET_FREE_MASK)
+#define UNMARK_IT_FREE(cd, i)   (((cd)->bflags[i]) &= ~BUCKET_FREE_MASK)
+#define LOCK_BUCKET(cd, i)      (((cd)->bflags[i]) |= BUCKET_LOCK_MASK)
+#define UNLOCK_BUCKET(cd, i)    (((cd)->bflags[i]) &= ~BUCKET_LOCK_MASK)
+#define SET_BUCKET_VALUE(cd, i, val) ((cd)->buckets[i].value = (val))
+#define SETL_BUCKET_VALUE(cd, i, val) \
+                       (SET_BUCKET_VALUE(cd, i, val), (void)LOCK_BUCKET(cd, i))
+                                     
 
 #define BUCKET_IN_CHAIN(cd, i) (BUCKET_VALUE(cd, i) != 0)
 #define BUCKET_HASH_COMPARE(cd, i, h, k) (((cd)->buckets[i].hash) == (h) && \
                                           ((cd)->buckets[i].key)  == (k))
-#define NEXT_BUCKET(cd, i) ((i) == (NUM_BUCKETS(cd) - 1) ? 0 : i + 1)
+#define NEXT_BUCKET(cd, i) ((i) == (NUM_BUCKETS(cd) - 1) ? 0 : (i) + 1)
 #define PREV_BUCKET(cd, i) ((i) == 0 ?  (NUM_BUCKETS(cd) - 1) : (i) - 1)
+
+#define FAST_FIND_BUCKET(cd, h, k) \
+  ((BUCKET_HASH_COMPARE(cd, HASH_INDEX(cd, h), h, k) || \
+    !BUCKET_IN_CHAIN(cd, HASH_INDEX(cd, h))) \
+     ? HASH_INDEX(cd, h) \
+     : osbf_slow_find_bucket(class, HASH_INDEX(cd, h), h, k))
+
+#define NOT_SO_FAST_FIND_BUCKET(cd, h, k) \
+  (BUCKET_HASH_COMPARE(cd, HASH_INDEX(cd, h), h, k) \
+     ? HASH_INDEX(cd, h) \
+     : osbf_find_bucket(class, h, k))
 
 /****************************************************************/
 
@@ -223,6 +236,8 @@ extern uint32_t osbf_last_in_chain  (CLASS_STRUCT * dbclass, uint32_t bindex);
 extern uint32_t
 osbf_find_bucket   (CLASS_STRUCT * dbclass, uint32_t hash, uint32_t key);
 
+extern uint32_t
+osbf_slow_find_bucket (CLASS_STRUCT * class, uint32_t start, uint32_t hash, uint32_t key);
 extern void
 osbf_update_bucket (CLASS_STRUCT * dbclass, uint32_t bindex, int delta);
 
@@ -234,10 +249,13 @@ osbf_create_cfcfile (const char *cfcfile, uint32_t buckets,
 		     uint32_t db_id, uint32_t db_version,
                      uint32_t db_flags, OSBF_HANDLER *h);
 
-extern void osbf_dump    (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h);
-extern void osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h);
-extern void osbf_import  (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h);
-extern void osbf_stats   (const char *cfcfile, STATS_STRUCT * stats,
+extern void
+osbf_dump    (const CLASS_STRUCT *cfcfile, const char *csvfile, OSBF_HANDLER *h);
+extern void
+osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h);
+extern void 
+osbf_import  (CLASS_STRUCT *class_to, const CLASS_STRUCT *class_from, OSBF_HANDLER *h);
+extern void osbf_stats   (const CLASS_STRUCT *cfcfile, STATS_STRUCT * stats,
                           OSBF_HANDLER *h, int full);
 
 extern void append_error_message(char *err1, const char *err2);
@@ -245,8 +263,8 @@ extern void append_error_message(char *err1, const char *err2);
 extern void
 osbf_bayes_classify (const unsigned char *text,
 		     unsigned long len,
-		     const char *pattern,
-                     CLASS_STRUCT classes[],
+		     const char *delims,  /* token delimiters */
+                     CLASS_STRUCT *classes[],
                      unsigned nclasses,
 		     enum classify_flags flags,
 		     double min_pmax_pmin_ratio, double ptc[],
@@ -258,6 +276,8 @@ osbf_bayes_train (const unsigned char *text,
                   const char *delims,      /* token delimiters */
 		  CLASS_STRUCT *class,
 		  int sense, enum learn_flags flags, OSBF_HANDLER *h);
+
+   /* token delimiters are never NULL but may be the empty string */
 
 extern void
 osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * class,
