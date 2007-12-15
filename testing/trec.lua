@@ -107,7 +107,7 @@ for l in assert(io.lines(trecdir .. 'index')) do
                              file, labelled, class, -pR))
 end
 local end_time = os.time()
-local nclass = num_lines - 1
+local nclass = num_lines
 local info = string.format(
   'Using %d buckets, %d classifications (%.1f/s) require %d learnings',
   num_buckets, nclass, (nclass / os.difftime(end_time, start_time)), learnings)
