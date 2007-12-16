@@ -69,6 +69,7 @@ osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h)
   class.header = osbf_calloc(1, sizeof(*class.header), h, "header");
   class.state = OSBF_COPIED_RW;
   class.bflags = NULL;
+  class.fd = -1;
   class.usage = OSBF_WRITE_ALL;
 
   fp_csv = fopen (csvfile, "r");

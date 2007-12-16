@@ -93,7 +93,11 @@ for l in assert(io.lines(trecdir .. 'index')) do
   nclass = nclass + 1
   pR = class == 'ham' and pR or (pR > 0 and -pR or pR)
   if train or class ~= labelled then
-    local ok, errmsg = opcall(commands.learn_msg, m, labelled)
+    local sfid = cache.generate_sfid(tag, pR)
+    cache.store(sfid, msg.to_orig_string(m))
+    local ok, errmsg = opcall(commands.learn, sfid, labelled)
+
+    --local ok, errmsg = opcall(commands.learn_msg, m, labelled)
     if ok then
       learnings = learnings + 1
     else

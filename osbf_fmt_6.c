@@ -99,21 +99,18 @@ void osbf_native_write_class(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
     cleanup_partial_class(class->header, class, 1);
     osbf_raise(h, "%s", "Could not write header to class file %s", classname);
   }
-  fprintf(stderr, "Passei por aqui 1...\n");
   if (fwrite(class->buckets, sizeof(*class->buckets), class->header->num_buckets, fp)
       != class->header->num_buckets) {
     cleanup_partial_class(class->header, class, 1);
     remove(classname); /* salvage is impossible */
     osbf_raise(h, "Could not write buckets to class file %s", classname);
   }
-  fprintf(stderr, "Passei por aqui 2...\n");
   if (image_size(class->header) != ftell(fp)) {
     long size = image_size(class->header);
     cleanup_partial_class(class->header, class, 1);
     osbf_raise(h, "Wrote %ld bytes to file %s; expected to write %ld bytes", 
                ftell(fp), classname, size);
   }
-  fprintf(stderr, "Passei por aqui 3...\n");
 }
 
 void osbf_native_write_header(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
