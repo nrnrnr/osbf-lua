@@ -84,7 +84,7 @@ osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h)
 
   class.buckets = buckets =
     osbf_malloc(class.header->num_buckets * sizeof(*class.buckets), h, "buckets");
-  for (i = 0; i <= class.header->num_buckets; i++) {
+  for (i = 0; i < class.header->num_buckets; i++) {
     UNLESS_CLEANUP_RAISE(read_bucket(buckets+i, fp_csv), 
           (fclose(fp_csv), free(class.header), free(class.buckets), 1),
           (h, "Problem reading csv file %s", csvfile));

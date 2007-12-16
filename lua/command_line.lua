@@ -755,9 +755,9 @@ function resize(class, newsize, ...)
     usage()
   elseif not cfg.classes[class] then
     util.die('Unknown class to resize: "', class,
-             '".\nValid classes are:', cfg.classlist())
+             '".\nValid classes are: ', table.concat(cfg.classlist(), ', '))
   else
-    local dbname = cfg.classes[class].dbs[1]
+    local dbname = cfg.classes[class].db
     local stats = core.stats(dbname)
     local tmpname = util.validate(os.tmpname())
     -- XXX non atomic...
@@ -770,7 +770,60 @@ function resize(class, newsize, ...)
   end
 end
 
-table.insert(usage_lines, 'resize <spam|ham> <new database size in bytes>' )
+table.insert(usage_lines, 'resize <class> <new database size in buckets>' )
+
+__doc.dump = [[function (class, csvfile)
+Dumps class database to csv format.
+csvfile is the the name of the csv file to be created or rewritten.
+]]
+
+function dump(class, csvfile, ...)
+  if select('#', ...) > 0
+  or type(class) ~= 'string'
+  or type(csvfile) ~= 'string'
+  then
+    usage()
+  elseif not cfg.classes[class] then
+    util.die('Unknown class to dump: "', class,
+             '".\nValid classes are: ', table.concat(cfg.classlist(), ', '))
+  else
+    local tmpname = util.validate(os.tmpname())
+    local dbname = cfg.classes[class].db
+    core.dump(dbname, tmpname)
+    util.validate(os.rename(tmpname, csvfile))
+    class = util.capitalize(class)
+    util.writeln(class, ' database dumped to ', csvfile)
+  end
+end
+
+table.insert(usage_lines, 'dump <class> <csvfile>' )
+
+__doc.restore = [[function (class, csvfile)
+Restores class database from csv file.
+]]
+
+function restore(class, csvfile, ...)
+  if select('#', ...) > 0
+  or type(class) ~= 'string'
+  or type(csvfile) ~= 'string'
+  then
+    usage()
+  elseif not cfg.classes[class] then
+    util.die('Unknown class to restore: "', class,
+             '".\nValid classes are: ', table.concat(cfg.classlist(), ', '))
+  else
+    local tmpname = util.validate(os.tmpname())
+    local dbname = cfg.classes[class].db
+    --os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force?)
+    core.restore(tmpname, csvfile)
+    util.validate(os.rename(tmpname, dbname))
+    class = util.capitalize(class)
+    util.writeln(class, ' database restored from ', csvfile)
+  end
+end
+
+table.insert(usage_lines, 'restore <class> <csvfile>' )
+
 
 __doc.internals = [[functions(s, ...)
 Shows docs.

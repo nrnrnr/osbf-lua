@@ -129,8 +129,8 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
   if (DEBUG) {
     unsigned j;
     fprintf(stderr, "Scanning image");
-    for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
-      fprintf(stderr, " %u", ((unsigned *)image)[j]);
+    for (j = 0; j < sizeof(*class->header) / sizeof(uint32_t); j++)
+      fprintf(stderr, " %u", ((uint32_t *)image)[j]);
     fprintf(stderr, "\n");
   }
 

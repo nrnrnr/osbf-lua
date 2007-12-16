@@ -481,11 +481,12 @@ function stats(full)
   if classifications > 0 then
     for class in pairs(cfg.classes) do
       local s = stats[class]
-      local true_positives = s.classifications + s.false_negatives - s.false_positives
-      if true_positives > 0 then
-        error_rates[class] = s.false_negatives / true_positives
+      local positives = s.classifications + s.false_negatives - s.false_positives
+      --local true_positives = s.classifications - s.false_positives
+      if positives > 0 then
+        error_rates[class] = s.false_negatives / positives
       end
-      rates[class] = true_positives / classifications
+      rates[class] = positives / classifications
     end
     global_error_rate = false_negatives / classifications
   end
