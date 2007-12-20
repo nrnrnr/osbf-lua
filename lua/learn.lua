@@ -122,13 +122,17 @@ end
                 
 local msgmod = msg
 
-__doc.tone = [[function(text, class) returns old_pR, new_pR or errors
+__doc.tone = [[function(text, class[, count]) returns old_pR, new_pR or errors
 Conditionally train 'text' as belonging to 'class'.  Training is done
 'on or near error' (TONE): if the classifier produces the wrong
 classification (different from 'original'), we train with the
 FALSE_NEGATIVE flag.  Otherwise, if pR (confidence) is below the training
 threshold ('near error' or 'within the reinforcement zone'), we train
 without the FALSE_NEGATIVE flag.
+
+if 'count' is true, this training should also count as an initial classification.
+Should be set when a script is training on messages that have never before been
+classified.
 
 class is the target class.
 old_pR and new pR are the before-training and after-training pRs of the 
@@ -138,11 +142,11 @@ return identical probability ratios.
 
 
 
-local function tone_inner(text, target_class)
+local function tone_inner(text, target_class, count_as_classif)
 
   local k = cfg.constants
   local old_pR, class, _, target_pR =
-    most_likely_pR_and_class(text, k.classify_flags, false, target_class)
+    most_likely_pR_and_class(text, k.classify_flags, count_as_classif, target_class)
   local target_index = class2index[target_class]
 
   if class ~= target_class then
@@ -191,8 +195,9 @@ local function tone_inner(text, target_class)
 end
 
 -- XXX we should be sure always to compute pR of a single class
-local function tone(text, target_class)
-  local orig_pR, new_pR, orig_class, new_class = tone_inner(text, target_class)
+local function tone(text, target_class, count_as_classif)
+  local orig_pR, new_pR, orig_class, new_class =
+    tone_inner(text, target_class, count_as_classif)
   debugf('Tone result: originally %s (pR %.2f), now %s (pR %.2f); target %s\n',
          orig_class, orig_pR, new_class, new_pR, target_class)
   assert(target_class == new_class)
@@ -203,10 +208,10 @@ end
 -- This function implements TONE-HR, a training protocol described in
 -- http://osbf-lua.luaforge.net/papers/trec2006_osbf_lua.pdf
 
-local function tone_msg_and_reinforce_header(lim, target_class)
+local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif)
   -- train on the whole message if on or near error
   local lim_orig_msg = lim.msg
-  local orig_pR, new_pR = tone(lim_orig_msg, target_class)
+  local orig_pR, new_pR = tone(lim_orig_msg, target_class, count_as_classif)
   if new_pR < cfg.classes[target_class].train_below + threshold_offset
   and  math.abs(new_pR - orig_pR) < header_learn_threshold
   then 
@@ -252,28 +257,33 @@ function learn(sfid, class)
   if status ~= 'unlearned' then
     error(learned_as_msg(status))
   end
-  local orig, new = learn_msg(msg, class)
+  local comment, orig, new = learn_msg(msg, class)
   cache.change_file_status(sfid, status, class)
-
-  local comment = orig == new and
-    string.format('Training not needed; confidence %4.2f above threshold', orig) or
-    string.format('Trained as %s: confidence %4.2f -> %4.2f', class, orig, new)
 
   return comment, orig, new
 end  
 
-__doc.learn_msg = [[function(msg, classification)
+__doc.learn_msg = [[function(msg, classification[, count])
 Returns comment, orig_pR, new_pR or calls error
 
 Updates databases to reflect human classification of an unlearned
-message.  Does not touch the cache.
+message.  Does not touch the cache.  'count' should be true
+if this message has never before been classified and we want to
+add the initial classification to the counts in the database.
 ]]
 
-function learn_msg(msg, class)
+function learn_msg(msg, class, count)
   local lim = msg.lim
+  if type(class) ~= 'string' then error('Class passed to learn_msg is not a string')
+  elseif not cfg.classes[class] then error('Unknown class: ' .. class)
+  end
   debugf('\n Learning <%s> with header <%s> as %s...\n', 
          fingerprint(lim.msg), fingerprint(lim.header), class)
-  return tone_msg_and_reinforce_header(lim, class)
+  local orig, new = tone_msg_and_reinforce_header(lim, class, count)
+  local comment = orig == new and
+    string.format('Training not needed; confidence %4.2f above threshold', orig) or
+    string.format('Trained as %s: confidence %4.2f -> %4.2f', class, orig, new)
+  return comment, orig, new
 end
 
 
@@ -511,7 +521,7 @@ function write_stats(verbose)
   local function writef(...) return util.write(string.format(...)) end
 
   local hline = string.rep('-', width)
-  local sfmt  = '%-30s' .. string.rep('%12s', #classes) .. '\n' -- string report
+  local sfmt  = '%-30s' .. string.rep('%12.12s', #classes) .. '\n' -- string report
   local dfmt  = '%-30s' .. string.rep('%12d', #classes) .. '\n' -- integer report
   local ffmt  = '%-30s' .. string.rep('%12d', #classes) .. '\n' -- floating report(!)
   local pfmt  = '%-30s' .. string.rep('%11.1f%%', #classes) .. '\n' -- percentage rpt
@@ -551,6 +561,11 @@ function write_stats(verbose)
   end
 
   report('Classifications', 'classifications', ffmt)
+  local function instances(c)
+    local s = stats[c]
+    return s.classifications - s.false_positives + s.false_negatives 
+  end
+  writef(dfmt, 'Instances of class', classmap(instances))
   report('False negatives', 'false_negatives')
   report('False positives', 'false_positives')
   report('Trainings', 'learnings')

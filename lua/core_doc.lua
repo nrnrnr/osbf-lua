@@ -259,7 +259,8 @@ On error, calls lua_error (since it's of no use to return
 nil, error in a 'for' loop).]]
 
 __doc.isdir = [[function(pathname) returns boolean
-Tells whether pathname is a directory.]]
+Tells whether pathname is a directory.
+External clients should use util.isdir instead]]
 
 __doc.header_size = [[Number of bytes in a database header.
 The size of a database is header_size + bucket_size * num_buckets.]]

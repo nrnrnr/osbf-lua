@@ -1,0 +1,67 @@
+#!/usr/bin/env lua5.1
+-- -*- mode: lua -*-
+
+-- finds low-population messages
+
+----------------------------------------------------------------
+
+local pname = 'osbf3'
+
+local function submod(x) return require (pname .. '.' .. x) end
+
+local osbf = require (pname)
+local util = submod 'util'
+local commands = submod 'commands'
+local msg = submod 'msg'
+local cfg = submod 'cfg'
+local core = submod 'core'
+
+util.progname = arg[0] or 'low-prob'
+
+osbf.options.register { long = 'trace', usage = ' # stack trace on error',
+                   help = [[
+  --trace
+      Don't recover from errors; give a stack trace instead
+]] }
+
+
+
+local ok, options, args = pcall(osbf.options.parse, arg)
+if not ok then
+  util.die(options, '\n')
+end
+if options.trace then
+  pcall = function(f, ...) return true, f(...) end
+end
+osbf.init(options)
+
+local members, total, count = { }, 0, 0
+for class, t in pairs(cfg.classes) do
+  local c = core.open_class(t.db, 'r')
+  members[class] = c.classifications - c.fp + c.fn
+  total = total + c.classifications
+  count = count + 1
+end
+
+local avg = total / count
+local threshold = avg / 2.0
+local small = { } -- classes under threshold
+io.stderr:write('Looking for messages in')
+for _, class in ipairs(cfg.classlist()) do
+  if members[class] < threshold then
+    io.stderr:write(' ', class)
+    small[class] = true
+  end
+end
+io.stderr:write '\n'
+
+for _, file in ipairs(args) do
+  local ok, train, pR, _, _, class = pcall(commands.classify, msg.of_file(file))
+  if ok then
+    if small[class] then 
+      io.stdout:write(file, '\n')
+    end
+  else
+    io.stderr:write(file, ': ', train, '\n')
+  end
+end

@@ -57,11 +57,11 @@ LIBS= $(LUA_LIBS) -lm
 CC= gcc
 PROFLIBS = -ldl 
 
-# LIBDEBUG = -L/usr/lib/debug -L/usr/lib/debug/usr/lib
-# CFLAGS += -g
+LIBDEBUG = -L/usr/lib/debug -L/usr/lib/debug/usr/lib
+CFLAGS += -g
 
-CFLAGS += -O3
-LIBDEBUG = 
+# CFLAGS += -O3
+# LIBDEBUG = 
 
 # CFLAGS += -DDMALLOC
 # LIBS += -ldmalloc

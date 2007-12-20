@@ -373,6 +373,10 @@ Sfids 's' and 'h' are reserved for 'spam' and 'ham', and sfids 'w',
 Once the filter is well trained, training thresholds should be reduced from the 
 default value of 20 to something like 10, to reduce the burden of training.
 (We'd love to have an automatic reduction, but we don't have an algorithm.)
+
+For internal clients, osbf.init adds the following fields:
+
+  db         -- filename holding data for the class
 ]]
 
 class_of_tag = { }

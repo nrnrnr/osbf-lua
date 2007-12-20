@@ -78,7 +78,7 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
   static osbf_class_state states[] = 
     { OSBF_COPIED_R, OSBF_COPIED_RWH, OSBF_COPIED_RW };
     /* map usage to states (for non-native formats only); */
-  int prot;
+  int prot, mmap_flags;
   void *image;
   OSBF_READER **preader;
   int native = 0;
@@ -122,6 +122,7 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
   }
 
   prot  = (usage == OSBF_READ_ONLY) ? PROT_READ : PROT_READ + PROT_WRITE;
+  mmap_flags = prot & PROT_WRITE ? MAP_PRIVATE : MAP_SHARED;
   image = mmap (NULL, class->fsize, prot, MAP_PRIVATE, class->fd, 0);
   UNLESS_CLEANUP_RAISE(image != MAP_FAILED, (close(class->fd), free(class->classname)),
                        (h, "Couldn't mmap %s: %s.", classname, strerror(errno)));
@@ -285,16 +286,18 @@ osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h)
       case OSBF_MAPPED:
         if (class->fsize != osbf_native_image_size(class))
           osbf_raise(h, "This can't happen: native-mapped class has the wrong size");
-        if (lseek(class->fd, 0, SEEK_SET) == (off_t)-1)
-          osbf_raise(h, "This can't happen: failed to seek to beginning of file");
-        write(class->fd, class->header, class->fsize);
+        if (class->usage != OSBF_READ_ONLY) {
+          if (lseek(class->fd, 0, SEEK_SET) == (off_t)-1)
+            osbf_raise(h, "This can't happen: failed to seek to beginning of file");
+          write(class->fd, class->header, class->fsize);
 
-        if (DEBUG) {
-          unsigned j;
-          fprintf(stderr, "Wrote MAPPED image");
-          for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
-            fprintf(stderr, " %u", ((unsigned *)class->header)[j]);
-          fprintf(stderr, "\n");
+          if (DEBUG) {
+            unsigned j;
+            fprintf(stderr, "Wrote MAPPED image");
+            for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
+              fprintf(stderr, " %u", ((unsigned *)class->header)[j]);
+            fprintf(stderr, "\n");
+          }
         }
 
         munmap (class->header, class->fsize);

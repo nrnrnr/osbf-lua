@@ -6,6 +6,8 @@
 #include "osbf_disk.h"
 #include "osbfcvt.h"
 
+#define DEBUG 0
+
 typedef struct {
   OSBF_HEADER_STRUCT_2007_12 headers[1];
 } MY_DISK_IMAGE;
@@ -89,12 +91,14 @@ void osbf_native_write_class(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
     osbf_raise(h, "Version %d format asked to write version %d database as native\n",
                MY_READER.unique_id, class->header->db_version);
 
-  { unsigned j;
+  if (DEBUG) {
+    unsigned j;
     fprintf(stderr, "Writing native class with header");
-    for (j = 0; j < sizeof(*class->header) / sizeof(uint32_t); j++)
+    for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
       fprintf(stderr, " %u", ((uint32_t *)class->header)[j]);
     fprintf(stderr, "\n");
   }
+
   if (fwrite(class->header, sizeof(*class->header), 1, fp) != 1) {
     cleanup_partial_class(class->header, class, 1);
     osbf_raise(h, "%s", "Could not write header to class file %s", classname);
@@ -118,12 +122,14 @@ void osbf_native_write_header(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
     osbf_raise(h, "Version %d format asked to write version %d database as native\n",
                MY_READER.unique_id, class->header->db_version);
 
-  { unsigned j;
-  fprintf(stderr, "Writing native header");
-  for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
-    fprintf(stderr, " %u", ((unsigned *)class->header)[j]);
-  fprintf(stderr, "\n");
+  if (DEBUG) {
+    unsigned j;
+    fprintf(stderr, "Writing native header");
+    for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
+      fprintf(stderr, " %u", ((unsigned *)class->header)[j]);
+    fprintf(stderr, "\n");
   }
+
   if (fwrite(class->header, sizeof(*class->header), 1, fp) != 1) {
     char classname[200];
     strncpy(classname, class->classname, sizeof(classname));

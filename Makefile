@@ -61,4 +61,6 @@ test: install
 
 clean:
 	rm -f $(LIBNAME) $(OBJS) *.so *~
+	rm -f *.o *.gcda *.gcno
+
 

@@ -21,6 +21,11 @@ function table_tab(t)
   setmetatable(t, { __index = table__index })
   return t
 end
+----------------------------------------------------------------
+__doc.isdir = [[function(pathname) returns boolean
+Tells whether pathname is a directory.]]
+isdir = core.isdir
+
 
 ----------------------------------------------------------------
 __doc.tablerep = [[function(v, n) returns array

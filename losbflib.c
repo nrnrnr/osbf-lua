@@ -1023,8 +1023,15 @@ OPENFUN (lua_State * L)
 
   /* push and initialize shared environment */
   lua_newtable(L);
+#if 0
+#if 1
+  lua_insert(L, -2);
+  lua_setfield(L, -2, "exit");
+#else
   lua_pushcfunction(L, lua_osbf_close_cache_and_exit);
   lua_setfield(L, -2, "exit");
+#endif
+#endif
   lua_newtable(L);
   lua_setfield(L, -2, "cache");
 

@@ -23,7 +23,7 @@ bool  - an option that is either present or not; it takes no argument
   register = [[function {long = string, type = type, usage = string, help = string}
 Registers a command-line option used by the main program.
   long  - The long name of the option (short options aren't supported)
-  type  - The type of the option, from the option.std table
+  type  - The type of the option, from the option.std table (defaults to bool)
   usage - A usage line for the option (optional)
   help  - A long help text for the option (optional)
 ]],
