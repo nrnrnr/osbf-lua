@@ -3,3 +3,4 @@ regression.txt
 result
 results
 *.prof
+gmon.out

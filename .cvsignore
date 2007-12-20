@@ -3,3 +3,6 @@ libosbf3.so.*
 lib.so.?.?.?
 gmon.out
 osbf-lua
+*.gcov
+*.o
+*classify-time*

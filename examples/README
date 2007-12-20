@@ -1,0 +1,14 @@
+Here are examples of useful things that can be done with the
+OSBF-Lua API.
+
+Things that are here:
+
+  dir-train     -- trains from files assuming that $(basename $(dirname $i))
+                   is the class of $i
+
+  label-by-hand -- finds low-confidence messages, gets them
+                   hand-labelled, and adds them to the right corpus
+                   (infected with some of NR's mail-display code)
+
+  low-prob      -- finds examples of underpopulated classes, which
+                   can then be added to corpora
