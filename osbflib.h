@@ -29,9 +29,9 @@ extern const char *db_version_names[];
 
 typedef struct
 {
-  uint32_t hash;
-  uint32_t key;
-  uint32_t value;
+  uint32_t hash;    /* bigram hashed with function 1 */
+  uint32_t key;     /* bigram hashed with function 2 */
+  uint32_t value;   /* number of messages trained in which bigram has been seen */
 } OSBF_BUCKET_STRUCT;
 
 typedef struct /* used for disk image, so avoiding enum type for db_version */
@@ -63,7 +63,7 @@ typedef enum osbf_class_usage {
 */
 
 typedef enum osbf_class_state {
-  OSBF_CLOSED, OSBF_COPIED_R, OSBF_COPIED_RWH, OSBF_COPIED_RW, OSBF_MAPPED
+  OSBF_CLOSED, OSBF_COPIED, OSBF_MAPPED
 } osbf_class_state;
 
 /* class structure */

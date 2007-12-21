@@ -35,6 +35,9 @@ $(LIBNAME): $(OBJS) $(XOBJS)
 osbf-lua: $(OBJS) lua.o main.o
 	$(CC) $(CFLAGS)  -o osbf-lua main.o $(OBJS) lua.o $(LIBDEBUG) $(PGLUALIB) $(PG) -ldl -lreadline -lhistory -lncurses $(LIBS) 
 
+mem-test: small.o lua.o main.o
+	$(CC) $(CFLAGS)  -o mem-test main.o small.o lua.o $(LIBDEBUG) $(PGLUALIB) $(PG) -ldl -lreadline -lhistory -lncurses $(LIBS) 
+
 lua.o: config
 main.o: config
 

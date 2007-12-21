@@ -1,0 +1,47 @@
+#!/usr/bin/lua5.1
+
+local keep = { ['1'] = true }
+
+local function do_nothing(s) end
+local function copy(s) return io.stdout:write(s, '\n') end
+
+local function pp(kw)
+  return string.format('^%%s*#%%s*%s', kw)
+end
+
+local ifpat, elsepat, endifpat = pp 'if' .. '%s+(%S+)', pp 'else', pp 'endif'
+local ifdefpat = pp 'ifdef' .. '%s+(%S+)'
+
+local function scan(file, emit, what)
+  while true do
+    l = file:read()
+    if not l then return
+    else
+      local cond = string.match(l, ifpat) or string.match(l, ifdefpat)
+      if cond then
+        io.stderr:write(emit and (keep[cond] and 'keeping ' or 'dropping ') .. cond
+                      or 'scanning past #if ' .. cond, '\n')
+        l = scan(file, emit and keep[cond], cond)
+        if string.find(l, '^%s*#%s*else') then
+          l = scan(file, emit and not keep[cond], cond)
+        end
+        assert(string.find(l, '^%s*#%s*endif'), "No matching #endif for #if")
+      elseif string.find(l, elsepat) or string.find(l, endifpat) then
+        io.stderr:write('found ', l, ' matching #if ', what or '????', '\n')
+        return l
+      elseif emit then
+        io.stdout:write(l, '\n')
+      end
+    end
+  end
+end
+
+if arg[1] then
+  for _, file in ipairs(arg) do
+    local f = assert(io.open(file))
+    scan(f, true)
+    f:close()
+  end
+else
+  scan(io.stdin, true)
+end

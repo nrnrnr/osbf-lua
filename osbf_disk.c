@@ -31,31 +31,31 @@
 
 #define DEBUG 0
 
-/* fail if two readers claim the same unique id or if the number
-   of native readers is unacceptable */
+/* fail if two formats claim the same unique id or if the number
+   of native formats is unacceptable */
 
-static void check_reader_uniqueness(OSBF_HANDLER *h) {
-  OSBF_READER **preader, **r;
+static void check_format_uniqueness(OSBF_HANDLER *h) {
+  OSBF_FORMAT **pformat, **r;
   static int already_checked = 0;
-  int native_readers = 0;
+  int native_formats = 0;
   if (already_checked) return;
-  for (preader = osbf_image_readers; *preader; preader++)
+  for (pformat = osbf_image_formats; *pformat; pformat++)
     {
-      OSBF_READER *reader = *preader;
-      if (reader->native)
-        native_readers++;
-      for (r = preader + 1; *r; r++)
-        if (reader->unique_id == (*r)->unique_id)
-          osbf_raise(h, "OSBF is gravely misconfigured: multiple readers "
+      OSBF_FORMAT *format = *pformat;
+      if (format->native)
+        native_formats++;
+      for (r = pformat + 1; *r; r++)
+        if (format->unique_id == (*r)->unique_id)
+          osbf_raise(h, "OSBF is gravely misconfigured: multiple formats "
                      " share 'unique' id %d,\n  which they call '%s' and '%s'.",
-                     (int)(*r)->unique_id, reader->name, (*r)->name);
+                     (int)(*r)->unique_id, format->name, (*r)->name);
     }
-  if (native_readers < MIN_NATIVE_READERS)
-    osbf_raise(h, "OSBF is misconfigured; it has only %d native readers but requires"
-               " at least %d", native_readers, MIN_NATIVE_READERS);
-  if (native_readers > MAX_NATIVE_READERS)
-    osbf_raise(h, "OSBF is misconfigured; it has %d native readers but expects"
-               " at most %d", native_readers, MAX_NATIVE_READERS);
+  if (native_formats < MIN_NATIVE_FORMATS)
+    osbf_raise(h, "OSBF is misconfigured; it has only %d native formats but requires"
+               " at least %d", native_formats, MIN_NATIVE_FORMATS);
+  if (native_formats > MAX_NATIVE_FORMATS)
+    osbf_raise(h, "OSBF is misconfigured; it has %d native formats but expects"
+               " at most %d", native_formats, MAX_NATIVE_FORMATS);
   already_checked = 1;
 }
                                    
@@ -73,17 +73,13 @@ void
 osbf_open_class (const char *classname, osbf_class_usage usage,
                  CLASS_STRUCT * class, OSBF_HANDLER *h)
 {
-  static int open_flags[] = { O_RDONLY, O_RDWR, O_RDWR };
-     /* map useage to flags */
-  static osbf_class_state states[] = 
-    { OSBF_COPIED_R, OSBF_COPIED_RWH, OSBF_COPIED_RW };
-    /* map usage to states (for non-native formats only); */
+  static int open_flags[] = { O_RDONLY, O_RDWR, O_RDWR }; /* map usage to flags */
   int prot, mmap_flags;
   void *image;
-  OSBF_READER **preader;
+  OSBF_FORMAT **pformat;
   int native = 0;
 
-  check_reader_uniqueness(h);
+  check_format_uniqueness(h);
 
   /* initialize class structure */
   class->fd = -1;
@@ -93,9 +89,8 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
   class->header    = NULL;
   class->buckets   = NULL;
   class->bflags    = NULL;
-  if ((unsigned) usage >= NELEMS(states))
-    osbf_raise(h, "This can't happen: usage value %d out of range", (int)usage);
-  class->state = states[(unsigned)usage];
+  class->state     = OSBF_COPIED;
+                         /* the default unless overwritten by a native format */
 
   class->fsize = check_file (classname);
   osbf_raise_unless(class->fsize >= 0,
@@ -135,35 +130,35 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
     fprintf(stderr, "\n");
   }
 
-  for (preader = osbf_image_readers; *preader; preader++)
+  for (pformat = osbf_image_formats; *pformat; pformat++)
     {
-      OSBF_READER *reader = *preader;
-      if (reader->i_recognize_image(image)) {
+      OSBF_FORMAT *format = *pformat;
+      if (format->i_recognize_image(image)) {
         if (DEBUG)
-          fprintf(stderr, "Recognized file %s as %s\n", classname, reader->longname);
-        if (reader->expected_size(image) != class->fsize)
+          fprintf(stderr, "Recognized file %s as %s\n", classname, format->longname);
+        if (format->expected_size(image) != class->fsize)
           osbf_raise(h, "This can't happen: "
                      "expected %d-byte image but size of file %s is %d bytes", 
-                      (int) reader->expected_size(image), classname,
+                      (int) format->expected_size(image), classname,
                      (int) class->fsize);
-        class->fmt_name = reader->name;
-        if (reader->native) {
-          class->header  = reader->header.find(image, class, h);
-          class->buckets = reader->buckets.find(image, class, h);
+        class->fmt_name = format->name;
+        if (format->native) {
+          class->header  = format->header.find(image, class, h);
+          class->buckets = format->buckets.find(image, class, h);
           class->state = OSBF_MAPPED;
         } else {
           class->header = osbf_malloc(sizeof(*class->header), h, "header");
-          reader->header.copy(class->header, image, class, h);
+          format->header.copy(class->header, image, class, h);
           class->buckets =
             osbf_malloc(class->header->num_buckets * sizeof(*class->buckets),
                         h, "buckets");
-          reader->buckets.copy(class->buckets, image, class, h);
+          format->buckets.copy(class->buckets, image, class, h);
           close(class->fd);
           class->fd = -1;
           munmap(image, class->fsize);
           class->fsize = 0;
         }
-        native = reader->native;
+        native = format->native;
         break;
       }
     }
@@ -208,25 +203,26 @@ void cleanup_partial_class(void *image, CLASS_STRUCT *class, int native) {
 
 static void flush_if_needed(CLASS_STRUCT * class, OSBF_HANDLER *h);
   /* flush header and buckets to disk if needed, then free 
-     them and set to NULL (even on error). 
+     them and set to NULL (even on error).  May be called only
+     if (class->state == OSBF_COPIED).
      */
 
 static void flush_if_needed(CLASS_STRUCT * class, OSBF_HANDLER *h) {
   FILE *fp;
 
   /* if a new version and we are writing, write everything */
-  if (class->state != OSBF_COPIED_R &&
+  if (class->usage != OSBF_READ_ONLY &&
       class->header->db_version != OSBF_CURRENT_VERSION)
-    class->state = OSBF_COPIED_RW;
+    class->usage = OSBF_WRITE_ALL;
 
 #define CLEANUP \
   (free(class->header), free(class->buckets), \
    class->header = NULL, class->buckets = NULL) 
 
-  switch (class->state) {
-    case OSBF_COPIED_R:
+  switch (class->usage) {
+    case OSBF_READ_ONLY:
       break;  /* read-only; disk is good */
-    case OSBF_COPIED_RW: 
+    case OSBF_WRITE_ALL: 
       /* write a complete new file */
       fp = fopen(class->classname, "wb");
       UNLESS_CLEANUP_RAISE(fp != NULL, CLEANUP,
@@ -234,7 +230,7 @@ static void flush_if_needed(CLASS_STRUCT * class, OSBF_HANDLER *h) {
       class->header->db_version = OSBF_CURRENT_VERSION;  /* what we're writing now */
       osbf_native_write_class(class, fp, h);
       break;
-    case OSBF_COPIED_RWH:
+    case OSBF_WRITE_HEADER:
       /* overwrite a new header onto the existing new file */
       fp = fopen(class->classname, "a+b");
       UNLESS_CLEANUP_RAISE(fp != NULL, CLEANUP,
@@ -252,7 +248,7 @@ static void flush_if_needed(CLASS_STRUCT * class, OSBF_HANDLER *h) {
       break;
     default:
       CLEANUP;
-      osbf_raise(h, "This can't happen: bad class state in flush_if_needed()");
+      osbf_raise(h, "This can't happen: bad class usage in flush_if_needed()");
       break;
     }
   CLEANUP;
@@ -302,7 +298,7 @@ osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h)
 
         munmap (class->header, class->fsize);
         break;
-      case OSBF_COPIED_R: case OSBF_COPIED_RW: case OSBF_COPIED_RWH:
+      case OSBF_COPIED:
         flush_if_needed(class, h);
         /* deliberate memory leak; class->classname is lost on error here */
         break;
@@ -373,13 +369,13 @@ static void touch_fd(int fd) {
 
 /****************************************************************/
 
-/* when more readers are added, they should be added here as well */
+/* when more formats are added, they should be added here as well */
 
-extern OSBF_READER osbf_reader_5, osbf_reader_6, osbf_reader_7;
+extern OSBF_FORMAT osbf_format_5, osbf_format_6, osbf_format_7;
 
-OSBF_READER *osbf_image_readers[] = {
-  &osbf_reader_7,
-  &osbf_reader_6,
-  &osbf_reader_5,
+OSBF_FORMAT *osbf_image_formats[] = {
+  &osbf_format_7,
+  &osbf_format_6,
+  &osbf_format_5,
   NULL
 };

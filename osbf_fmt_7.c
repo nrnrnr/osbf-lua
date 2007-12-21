@@ -1,4 +1,4 @@
-/* reader for database version 7 */
+/* format for database version 7 */
 
 #include <stdlib.h>
 #include <string.h>
@@ -15,9 +15,9 @@ static void copy_header (OSBF_HEADER_STRUCT *header, void *image,
 static void copy_buckets(OSBF_BUCKET_STRUCT *buckets, void *image,
                           CLASS_STRUCT *class, OSBF_HANDLER *h);
 
-#define MY_READER osbf_reader_7
+#define MY_FORMAT osbf_format_7
 
-struct osbf_reader MY_READER = {
+struct osbf_format MY_FORMAT = {
   7,  /* my unique id */
   "OSBF-MAGIC-FP-FN",
   "OSBF_Bayes-spectrum file with false negatives, false positives, and magic number",
@@ -45,7 +45,7 @@ typedef struct /* used for disk image, so avoiding enum type for db_version */
 /* If the first four characters of the file are OSBF or FBSO, we recognize it. 
    OSBF indicates a little-endian representation of integers on disk; FBSO is 
    big-endian.  At present we punt files of the wrong endianness, but there's no
-   reason we couldn't provide a non-native reader to convert them.
+   reason we couldn't provide a non-native format to convert them.
 */
 
 typedef OSBF_HEADER_STRUCT_2007_12_13 MY_DISK_IMAGE;
@@ -89,13 +89,13 @@ copy_header (OSBF_HEADER_STRUCT *xxxheader, void *p,
   strncpy(classname, class->classname, sizeof(classname));
   classname[sizeof(*classname)] = '\0';
 
-  if (image->db_version != MY_READER.unique_id)
-    osbf_raise(h, "This can't happen: reader for id %d sees "
+  if (image->db_version != MY_FORMAT.unique_id)
+    osbf_raise(h, "This can't happen: format for id %d sees "
                   "file %s with database version %d",
-               MY_READER.unique_id, class->classname, image->db_version);
+               MY_FORMAT.unique_id, class->classname, image->db_version);
 
   if (image->magic == OSBF_BIG) {
-    cleanup_partial_class(image, class, MY_READER.native);
+    cleanup_partial_class(image, class, MY_FORMAT.native);
     osbf_raise(h, "OSBF class file %s has its bytes swapped---may have been copied"
                " from a machine of the wrong endianness", classname);
   }

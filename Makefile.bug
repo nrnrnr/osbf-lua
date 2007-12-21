@@ -1,0 +1,15 @@
+
+OBJS= main.o small.o lua.o
+LUA_CFLAGS=$(shell pkg-config --cflags lua5.1)
+CFLAGS=-g -Wall ${PIC} -fomit-frame-pointer -pedantic-errors -W -Waggregate-return -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings -Wswitch $(LUA_CFLAGS) -DOPENFUN=luaopen_osbf3_core
+
+
+mem-test: $(OBJS)
+	$(CC) $(CFLAGS)  -o mem-test $(OBJS) \
+        -L/usr/local/lua-5.1.2-dbg/lib -L/usr/lib/debug -L/usr/lib/debug/usr/lib \
+	-ldl -lreadline -lhistory -lncurses -llua -lm
+
+#small.c: losbflib.c
+#	./strip-source losbflib.c > small.c  
+
+

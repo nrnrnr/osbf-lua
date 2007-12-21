@@ -57,8 +57,10 @@ LIBS= $(LUA_LIBS) -lm
 CC= gcc
 PROFLIBS = -ldl 
 
-LIBDEBUG = -L/usr/lib/debug -L/usr/lib/debug/usr/lib
-CFLAGS += -g
+
+
+LIBDEBUG =  -L/usr/local/lua-5.1.2-dbg/lib -L/usr/lib/debug -L/usr/lib/debug/usr/lib
+CFLAGS += -g -fno-optimize-sibling-calls
 
 # CFLAGS += -O3
 # LIBDEBUG = 

@@ -1,4 +1,4 @@
-/* reader for database version 5 */
+/* format for database version 5 */
 
 #include <string.h>
 
@@ -14,9 +14,9 @@ static void copy_header (OSBF_HEADER_STRUCT *header, void *image,
 static void copy_buckets(OSBF_BUCKET_STRUCT *buckets, void *image,
                           CLASS_STRUCT *class, OSBF_HANDLER *h);
 
-#define MY_READER osbf_reader_5
+#define MY_FORMAT osbf_format_5
 
-struct osbf_reader MY_READER = {
+struct osbf_format MY_FORMAT = {
   5,  /* my unique id */
   "OSBF-old",
   "OSBF_Bayes-spectrum file with false negatives only",
@@ -64,7 +64,7 @@ typedef union
 
 static int i_recognize_image(void *p) {
   MY_DISK_IMAGE *image = p;
-  return (image->header.version == MY_READER.unique_id);
+  return (image->header.version == MY_FORMAT.unique_id);
 }
 
 static off_t expected_size(void *p) {
@@ -82,19 +82,19 @@ copy_header (OSBF_HEADER_STRUCT *xxxheader, void *p,
   MY_DISK_IMAGE *image = p;
   OSBF_UNIVERSAL_HEADER uni;
 
-  if (image->header.version != MY_READER.unique_id)
-    osbf_raise(h, "This can't happen: reader for id %d sees "
+  if (image->header.version != MY_FORMAT.unique_id)
+    osbf_raise(h, "This can't happen: format for id %d sees "
                   "file %s with database version %d",
-               MY_READER.unique_id, class->classname, image->header.version);
+               MY_FORMAT.unique_id, class->classname, image->header.version);
 
   if (image->header.db_flags != 0) {
     char classname[200];
     strncpy(classname, class->classname, sizeof(classname));
     classname[sizeof(*classname)] = '\0';
 
-    cleanup_partial_class(image, class, MY_READER.native);
+    cleanup_partial_class(image, class, MY_FORMAT.native);
     osbf_raise(h, "Version %d database %s has nonzero flags %d",
-               MY_READER.unique_id, classname, image->header.db_flags);
+               MY_FORMAT.unique_id, classname, image->header.db_flags);
   }
 
   memset(&uni, 0, sizeof(uni));

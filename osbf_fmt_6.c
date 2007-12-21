@@ -1,4 +1,4 @@
-/* reader for database version 6 */
+/* format for database version 6 */
 
 #include <string.h>
 
@@ -17,9 +17,9 @@ static off_t expected_size(void *image);
 static void *find_header (void *image, CLASS_STRUCT *class, OSBF_HANDLER *h);
 static void *find_buckets(void *image, CLASS_STRUCT *class, OSBF_HANDLER *h);
 
-#define MY_READER osbf_reader_6
+#define MY_FORMAT osbf_format_6
 
-struct osbf_reader MY_READER = {
+struct osbf_format MY_FORMAT = {
   6,  /* my unique id */
   "OSBF-FP-FN",
   "OSBF_Bayes-spectrum file with false positives and negatives",
@@ -46,7 +46,7 @@ off_t osbf_native_image_size  (CLASS_STRUCT *class) {
 
 static int i_recognize_image(void *p) {
   MY_DISK_IMAGE *image = p;
-  return (image->headers[0].db_version == MY_READER.unique_id);
+  return (image->headers[0].db_version == MY_FORMAT.unique_id);
 }
 
 static off_t expected_size(void *p) {
@@ -56,7 +56,7 @@ static off_t expected_size(void *p) {
 
 static int good_image(const MY_DISK_IMAGE *image) {
   return image->headers[0].db_id      == OSBF_DB_ID &&
-         image->headers[0].db_version == MY_READER.unique_id &&
+         image->headers[0].db_version == MY_FORMAT.unique_id &&
          image->headers[0].db_flags   == 0;
 }
 
@@ -68,7 +68,7 @@ static void *find_header (void *p, CLASS_STRUCT *class, OSBF_HANDLER *h) {
                   "  expected version %d (found %d)\n"
                   "  expected flags 0 (found %d)\n",
                OSBF_DB_ID, image->headers[0].db_id,
-               MY_READER.unique_id, image->headers[0].db_version,
+               MY_FORMAT.unique_id, image->headers[0].db_version,
                image->headers[0].db_flags);
   (void)class; /* not used */
   return p;
@@ -87,9 +87,9 @@ void osbf_native_write_class(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
   strncpy(classname, class->classname, sizeof(classname));
   classname[sizeof(classname)-1] = '\0';
   
-  if (class->header->db_version != MY_READER.unique_id)
+  if (class->header->db_version != MY_FORMAT.unique_id)
     osbf_raise(h, "Version %d format asked to write version %d database as native\n",
-               MY_READER.unique_id, class->header->db_version);
+               MY_FORMAT.unique_id, class->header->db_version);
 
   if (DEBUG) {
     unsigned j;
@@ -118,9 +118,9 @@ void osbf_native_write_class(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
 }
 
 void osbf_native_write_header(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
-  if (class->header->db_version != MY_READER.unique_id)
+  if (class->header->db_version != MY_FORMAT.unique_id)
     osbf_raise(h, "Version %d format asked to write version %d database as native\n",
-               MY_READER.unique_id, class->header->db_version);
+               MY_FORMAT.unique_id, class->header->db_version);
 
   if (DEBUG) {
     unsigned j;

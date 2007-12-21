@@ -235,14 +235,11 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
   ts.delims = delims;
 
   microgroom = (flags & NO_MICROGROOM) == 0;
-  switch(class->state) {
-    case OSBF_COPIED_R: case OSBF_CLOSED: case OSBF_COPIED_RWH:
-      osbf_raise(h, "Trying to train on class %s without opening for write",
-                 class->classname != NULL ? class->classname : "(name unknown)");
-      break;
-    case OSBF_MAPPED: case OSBF_COPIED_RW:
-      break; /* training OK */
-  }
+  if (class->state == OSBF_CLOSED)
+    osbf_raise(h, "Trying to train a closed class\n");
+  if (class->usage != OSBF_WRITE_ALL)
+    osbf_raise(h, "Trying to train class %s without opening for write",
+               class->classname);
 
   /*   init the hashpipe with 0xDEADBEEF  */
   for (i = 0; i < OSB_BAYES_WINDOW_LEN; i++)
@@ -289,10 +286,11 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 	    h1 =
 	      hashpipe[0] * hctable1[0] +
 	      hashpipe[window_idx] * hctable1[window_idx];
-	    h2 = hashpipe[0] * hctable2[0] +
 #ifdef CRM114_COMPATIBILITY
+	    h2 = hashpipe[0] * hctable2[0] +
 	      hashpipe[window_idx] * hctable2[window_idx - 1];
 #else
+	    h2 = hashpipe[0] * hctable2[0] +
 	      hashpipe[window_idx] * hctable2[window_idx];
 #endif
 	    hindex = h1 % class->header->num_buckets;
@@ -303,7 +301,7 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 		     PRIu32 "\n", window_idx, h1, h2);
 #endif
 
-	    bindex = osbf_find_bucket (class, h1, h2);
+	    bindex = FAST_FIND_BUCKET (class, h1, h2);
 	    if (bindex < class->header->num_buckets)
 	      {
 		if (BUCKET_IN_CHAIN (class, bindex))
