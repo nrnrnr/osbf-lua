@@ -26,10 +26,7 @@ struct osbf_format MY_FORMAT = {
   1,  /* I am native */
   i_recognize_image,
   expected_size,
-  { (void (*)(OSBF_HEADER_STRUCT *, void *, CLASS_STRUCT *, OSBF_HANDLER *))
-    find_header },
-  { (void (*)(OSBF_BUCKET_STRUCT *, void *, CLASS_STRUCT *, OSBF_HANDLER *))
-    find_buckets },
+  OSBF_FIND_FUNCTIONS(find_header, find_buckets),
 };
 
 

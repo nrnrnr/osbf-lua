@@ -11,6 +11,15 @@
    own unique integer, which will normally be stored *somewhere* in
    the on-disk representation, although it is not a requirement.
 
+   Unique identifiers 0 through 4 are reserved for non-OSBF
+   classification methods implemented in CRM 114.  Unique ID 5
+   identifies the format used in CRM 114 and in OSBF-Lua through
+   version 2.0.4.   This format was a flexible format which kept space
+   in the headers for the addition of new fields.  Unique ID 6
+   identifies a transitional format.  Unique IDs 7 and above will be
+   associated with formats whose on-disk representation begins with
+   the letters OSBF.
+
    Formats come in two flavors: native and non-native.
 
      * A native format uses an on-disk representation that is
@@ -93,6 +102,14 @@ typedef struct osbf_format {
     osbf_find_buckets_fn find;
   } buckets;
 } OSBF_FORMAT;
+
+/* some macros to help with static initializers for the header and buckets unions */
+
+#define OSBF_COPY_FUNCTIONS(h, b) { h }, { b }
+#define OSBF_FIND_FUNCTIONS(h, b) \
+   { (osbf_copy_header_fn)(h) }, { (osbf_copy_buckets_fn)(b) }
+
+
 
 extern void cleanup_partial_class(void *image, CLASS_STRUCT *class, int native);
   /* if anything goes wrong, unmaps image and frees any malloc'd memory */

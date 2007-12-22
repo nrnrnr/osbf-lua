@@ -23,8 +23,7 @@ struct osbf_format MY_FORMAT = {
   0,  /* I am not native */
   i_recognize_image,
   expected_size,
-  { copy_header },
-  { copy_buckets },
+  OSBF_COPY_FUNCTIONS(copy_header, copy_buckets),
 };
 
 /****************************************************************/

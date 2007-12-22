@@ -368,6 +368,10 @@ DEFINE_MUTATE_FUN(fn,              c->header->false_negatives)
 DEFINE_MUTATE_FUN(fp,              c->header->false_positives)
 
 
+/* to provide a buckets array, we have to use a table, not userdata, because the 
+   buckets array must keep the class live, and only a table can keep another
+   value alive.  Therefore we need horrible
+*/
 
 /****************************************************************/
 
@@ -431,8 +435,11 @@ static int lua_osbf_close_cached_classes(lua_State *L) {
   lua_pushnil(L);
   while (lua_next(L, -2) != 0) {
     CLASS_STRUCT *c = check_class(L, -1); /* should always succeed */
-    if (c->state != OSBF_CLOSED)
+    if (c->state != OSBF_CLOSED) {
+      if (DEBUG)
+        fprintf(stderr, "Closing class %s\n", c->classname);
       osbf_close_class(c, L);
+    }
     lua_pop(L, 1); /* keep key for next iteration */
   }
   lua_pop(L, 1); /* pop cache off the stack */
@@ -444,7 +451,7 @@ static int lua_osbf_close_cache_and_exit(lua_State *L) {
   lua_osbf_close_cached_classes(L);
   lua_getfield(L, LUA_ENVIRONINDEX, "exit");  /* s: args exit */
   lua_insert(L, 1);             /* s: exit args */
-  lua_call(L, lua_gettop(L), LUA_MULTRET);
+  lua_call(L, lua_gettop(L)-1, LUA_MULTRET);
   return lua_gettop(L);
 }
 
@@ -910,6 +917,7 @@ static const struct luaL_reg classops[] = {
   FFSTRUCT(bucket_size),
   FFSTRUCT(header_size),
   FFSTRUCT(num_buckets),
+  /*  { "buckets", lua_osbf_class_buckets }, */
   FFSTRUCT(flags),
   FFSTRUCT(id),
   {NULL, NULL}
@@ -1018,25 +1026,20 @@ OPENFUN (lua_State * L)
 
   /* push os.exit onto the stack */
   lua_getfield(L, LUA_GLOBALSINDEX, "os");
-  lua_getfield(L, -1, "exit");
-  lua_remove(L, -2);
+  lua_getfield(L, -1, "exit");  /* s: os os.exit */
 
   /* push and initialize shared environment */
   lua_newtable(L);
-#if 0
-#if 1
-  lua_insert(L, -2);
-  lua_setfield(L, -2, "exit");
-#else
+  lua_pushvalue(L, -1);
+  lua_replace(L, LUA_ENVIRONINDEX);  /* s: os os.exit env */
+  lua_insert(L, -2);                 /* s: os env os.exit */
+  lua_setfield(L, -2, "exit");       /* s: os env */
   lua_pushcfunction(L, lua_osbf_close_cache_and_exit);
-  lua_setfield(L, -2, "exit");
-#endif
-#endif
+  lua_setfield(L, -3, "exit");       /* s: os env */
   lua_newtable(L);
-  lua_setfield(L, -2, "cache");
+  lua_setfield(L, -2, "cache");      /* s: os env */
+  lua_pop(L, 2); 
 
-  /* now make it the environment */
-  lua_replace(L, LUA_ENVIRONINDEX);
 
   /* class as userdata */
   luaL_newmetatable(L, CLASS_METANAME);     /* s: libname metatable */
