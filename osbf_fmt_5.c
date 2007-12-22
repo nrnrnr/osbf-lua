@@ -48,9 +48,9 @@ typedef struct
 
 typedef struct
 {
-  uint32_t hash;
-  uint32_t key;
-  uint32_t value;
+  uint32_t hash1;
+  uint32_t hash2;
+  uint32_t count;
 } MY_BUCKET_STRUCT;
 
 typedef union 
@@ -127,8 +127,8 @@ copy_buckets(OSBF_BUCKET_STRUCT *buckets, void *p,
   MY_DISK_IMAGE *image = p;
   OSBF_UNIVERSAL_BUCKET uni;
 
-  if (sizeof(uni) == sizeof(*buckets) && FIELDS_EQ(buckets, &uni, hash) &&
-      FIELDS_EQ(buckets, &uni, key) && FIELDS_EQ(buckets, &uni, value)) {
+  if (sizeof(uni) == sizeof(*buckets) && FIELDS_EQ(buckets, &uni, hash1) &&
+      FIELDS_EQ(buckets, &uni, hash2) && FIELDS_EQ(buckets, &uni, count)) {
     /* everything matches */
     memcpy(buckets, (OSBF_BUCKET_STRUCT *)image + image->header.buckets_start,
            image->header.num_buckets * sizeof(*buckets));
@@ -144,8 +144,8 @@ copy_buckets(OSBF_BUCKET_STRUCT *buckets, void *p,
 
 static unsigned upconvert_bucket(OSBF_UNIVERSAL_BUCKET *dst, void *src) {
   MY_BUCKET_STRUCT *bucket = src;
-  dst->hash  = bucket->hash;
-  dst->key   = bucket->key;
-  dst->value = bucket->value;
+  dst->hash1 = bucket->hash1;
+  dst->hash2 = bucket->hash2;
+  dst->count = bucket->count;
   return sizeof(*bucket);
 }

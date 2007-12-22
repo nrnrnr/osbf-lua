@@ -46,13 +46,13 @@ osbf_dump (const CLASS_STRUCT *class, const char *csvfile, OSBF_HANDLER *h)
   buckets = class->buckets;
   for (i = 0; i < num_buckets; i++)
     fprintf (fp_csv, "%" PRIu32 ";%" PRIu32 ";%" PRIu32 "\n",
-               buckets[i].hash, buckets[i].key, buckets[i].value);
+               buckets[i].hash1, buckets[i].hash2, buckets[i].count);
   fclose (fp_csv);
 }
 
 static int read_bucket(OSBF_BUCKET_STRUCT *bucket, FILE *fp) {
   return 3 == fscanf (fp, "%" SCNu32 ";%" SCNu32 ";%" SCNu32 "\n",
-                      &bucket->hash, &bucket->key, &bucket->value);
+                      &bucket->hash1, &bucket->hash2, &bucket->count);
 }
 
 void

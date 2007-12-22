@@ -29,9 +29,9 @@ extern const char *db_version_names[];
 
 typedef struct
 {
-  uint32_t hash;    /* bigram hashed with function 1 */
-  uint32_t key;     /* bigram hashed with function 2 */
-  uint32_t value;   /* number of messages trained in which bigram has been seen */
+  uint32_t hash1; /* bigram hashed with function 1 */
+  uint32_t hash2; /* bigram hashed with function 2 */
+  uint32_t count; /* number of msgs trained in which bigram has been seen */
 } OSBF_BUCKET_STRUCT;
 
 typedef struct /* used for disk image, so avoiding enum type for db_version */
@@ -122,25 +122,22 @@ enum osbf_bucket_flags { BUCKET_LOCK_MASK = 0x80, BUCKET_FREE_MASK = 0x40 };
 #define HASH_INDEX(cd, h)       (h % NUM_BUCKETS(cd))
 #define NUM_BUCKETS(cd)         ((cd)->header->num_buckets)
 #define VALID_BUCKET(cd, i)     (i < NUM_BUCKETS(cd))
-#define BUCKET_HASH(cd, i)      ((cd)->buckets[i].hash)
-#define BUCKET_KEY(cd, i)       ((cd)->buckets[i].key)
-#define BUCKET_VALUE(cd, i)     ((cd)->buckets[i].value)
 #define BUCKET_FLAGS(cd, i)     (((cd)->bflags)[i])
-#define BUCKET_RAW_VALUE(cd, i) ((cd)->buckets[i].value)
 #define BUCKET_IS_LOCKED(cd, i) (((cd)->bflags[i]) &  BUCKET_LOCK_MASK)
 #define MARKED_FREE(cd, i)      (((cd)->bflags[i]) &  BUCKET_FREE_MASK)
 #define MARK_IT_FREE(cd, i)     (((cd)->bflags[i]) |= BUCKET_FREE_MASK)
 #define UNMARK_IT_FREE(cd, i)   (((cd)->bflags[i]) &= ~BUCKET_FREE_MASK)
 #define LOCK_BUCKET(cd, i)      (((cd)->bflags[i]) |= BUCKET_LOCK_MASK)
 #define UNLOCK_BUCKET(cd, i)    (((cd)->bflags[i]) &= ~BUCKET_LOCK_MASK)
-#define SET_BUCKET_VALUE(cd, i, val) ((cd)->buckets[i].value = (val))
-#define SETL_BUCKET_VALUE(cd, i, val) \
-                       (SET_BUCKET_VALUE(cd, i, val), (void)LOCK_BUCKET(cd, i))
-                                     
 
-#define BUCKET_IN_CHAIN(cd, i) (BUCKET_VALUE(cd, i) != 0)
-#define BUCKET_HASH_COMPARE(cd, i, h, k) (((cd)->buckets[i].hash) == (h) && \
-                                          ((cd)->buckets[i].key)  == (k))
+#define BUCKET(cd, i) ((cd)->buckets[i])
+#define BUCKET_VALUE(cd, i) (BUCKET(cd, i).count)
+#define BUCKET_HASH(cd, i)  (BUCKET(cd, i).hash1)
+#define BUCKET_KEY(cd, i)   (BUCKET(cd, i).hash2)
+
+#define BUCKET_IN_CHAIN(cd, i) ((cd)->buckets[i].count > 0)
+#define BUCKET_HASH_COMPARE(cd, i, h, k) (((cd)->buckets[i].hash1) == (h) && \
+                                          ((cd)->buckets[i].hash2) == (k))
 #define NEXT_BUCKET(cd, i) ((i) == (NUM_BUCKETS(cd) - 1) ? 0 : (i) + 1)
 #define PREV_BUCKET(cd, i) ((i) == 0 ?  (NUM_BUCKETS(cd) - 1) : (i) - 1)
 
@@ -149,6 +146,14 @@ enum osbf_bucket_flags { BUCKET_LOCK_MASK = 0x80, BUCKET_FREE_MASK = 0x40 };
     !BUCKET_IN_CHAIN(cd, HASH_INDEX(cd, h))) \
      ? HASH_INDEX(cd, h) \
      : osbf_slow_find_bucket(class, HASH_INDEX(cd, h), h, k))
+
+#define HASH_INDEX2(N, i) ((i) % (N))
+#define BUCKET_MATCHES_2(b, h1, h2) ((b).hash1 == (h1) && (b).hash2 == (h2))
+#define FAST_FIND_BUCKET2(class, buckets, num_buckets, h1, h2) \
+  (BUCKET_MATCHES_2(buckets[HASH_INDEX2(num_buckets, h1)], h1, h2) || \
+   buckets[HASH_INDEX2(num_buckets, h1)].count == 0 \
+     ? HASH_INDEX2(num_buckets, h1) \
+     : osbf_slow_find_bucket(class, HASH_INDEX2(num_buckets, h1), h1, h2))
 
 #define NOT_SO_FAST_FIND_BUCKET(cd, h, k) \
   (BUCKET_HASH_COMPARE(cd, HASH_INDEX(cd, h), h, k) \

@@ -28,10 +28,10 @@ osbf_stats (const CLASS_STRUCT *class, STATS_STRUCT * stats,
 
   uint32_t used_buckets = 0, unreachable = 0;
   uint32_t max_chain = 0, num_chains = 0;
-  uint32_t max_value = 0, first_chain_len = 0;
+  uint32_t max_count = 0, first_chain_len = 0;
   uint32_t max_displacement = 0, chain_len_sum = 0;
 
-  uint32_t chain_len = 0, value;
+  uint32_t chain_len = 0, count;
 
   OSBF_BUCKET_STRUCT *buckets;
 
@@ -41,17 +41,17 @@ osbf_stats (const CLASS_STRUCT *class, STATS_STRUCT * stats,
   if (verbose == 1) {
     buckets = class->buckets;
     for (i = 0; i <= class->header->num_buckets; i++) {
-      if ((value = buckets[i].value) != 0) {
+      if ((count = buckets[i].count) != 0) {
         uint32_t distance, right_position;
         uint32_t real_position, rp;
 
         used_buckets++;
         chain_len++;
-        if (value > max_value)
-          max_value = value;
+        if (count > max_count)
+          max_count = count;
 
         /* calculate max displacement */
-        right_position = buckets[i].hash % class->header->num_buckets;
+        right_position = buckets[i].hash1 % class->header->num_buckets;
 	real_position = i;
 	if (right_position <= real_position)
 	  distance = real_position - right_position;
@@ -70,7 +70,7 @@ osbf_stats (const CLASS_STRUCT *class, STATS_STRUCT * stats,
 	        if (rp == real_position)
 	          break;
 	      }
-	    if (buckets[rp].value == 0)
+	    if (buckets[rp].count == 0)
 	      break;
 	  }
 	if (rp != real_position)
@@ -87,7 +87,7 @@ osbf_stats (const CLASS_STRUCT *class, STATS_STRUCT * stats,
 	    chain_len = 0;
 	    /* check if the first chain starts */
 	    /* at the the first bucket */
-	    if (i == 0 && num_chains == 1 && buckets[0].value != 0)
+	    if (i == 0 && num_chains == 1 && buckets[0].count != 0)
 	      first_chain_len = chain_len;
           }
 

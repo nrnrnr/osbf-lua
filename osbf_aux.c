@@ -499,7 +499,8 @@ osbf_update_bucket (CLASS_STRUCT * class, uint32_t bindex, int delta)
   if (delta > 0 &&
       BUCKET_VALUE (class, bindex) + delta >= OSBF_MAX_BUCKET_VALUE)
     {
-      SETL_BUCKET_VALUE (class, bindex, OSBF_MAX_BUCKET_VALUE);
+      BUCKET_VALUE (class, bindex) = OSBF_MAX_BUCKET_VALUE;
+      LOCK_BUCKET(class, bindex);
     }
   else if (delta < 0 && BUCKET_VALUE (class, bindex) <= (uint32_t) (-delta))
     {
@@ -524,7 +525,8 @@ osbf_update_bucket (CLASS_STRUCT * class, uint32_t bindex, int delta)
     }
   else
     {
-      SETL_BUCKET_VALUE (class, bindex, BUCKET_VALUE (class, bindex) + delta);
+      BUCKET_VALUE (class, bindex) = BUCKET_VALUE (class, bindex) + delta;
+      LOCK_BUCKET (class, bindex);
     }
 }
 
@@ -574,9 +576,10 @@ osbf_insert_bucket (CLASS_STRUCT * class,
    *         bindex, hash, key, distance);
    */
 
-  SETL_BUCKET_VALUE (class, bindex, value);
+  BUCKET_VALUE (class, bindex) = value;
   BUCKET_HASH (class, bindex) = hash;
   BUCKET_KEY (class, bindex) = key;
+  LOCK_BUCKET(class, bindex);
 }
 
 /*****************************************************************/
@@ -722,21 +725,21 @@ osbf_import (CLASS_STRUCT *class_to, const CLASS_STRUCT *class_from, OSBF_HANDLE
     {
       uint32_t bindex;
 
-      if (class_from->buckets[i].value == 0)
+      if (class_from->buckets[i].count == 0)
         continue;
 
       bindex = osbf_find_bucket (class_to,
-      			   class_from->buckets[i].hash,
-      			   class_from->buckets[i].key);
+      			   class_from->buckets[i].hash1,
+      			   class_from->buckets[i].hash2);
       if (bindex < class_to->header->num_buckets) {
         if (BUCKET_IN_CHAIN (class_to, bindex)) {
           osbf_update_bucket (class_to, bindex,
-                              class_from->buckets[i].value);
+                              class_from->buckets[i].count);
         } else {
           osbf_insert_bucket (class_to, bindex,
-                              class_from->buckets[i].hash,
-                              class_from->buckets[i].key,
-                              class_from->buckets[i].value);
+                              class_from->buckets[i].hash1,
+                              class_from->buckets[i].hash2,
+                              class_from->buckets[i].count);
         }
       } else {
         osbf_raise(h, ".cfc file %s is full!",
