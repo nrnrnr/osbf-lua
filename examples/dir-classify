@@ -1,0 +1,147 @@
+#!/usr/bin/env lua5.1
+-- -*- mode: lua -*-
+
+-- self-contained script to classify (and conditionally train) on corpora 
+-- that are in directories labelled by class 
+
+require 'osutil'
+
+
+function table.randomized(l)
+  u = { }
+  local n = #l
+  for i = 1, n do
+    u[i] = l[i]
+  end
+  for i = 1, n do
+    j = math.random(n)
+    u[i], u[j] = u[j], u[i]
+  end
+  return u
+end
+
+----------------------------------------------------------------
+
+local pname = 'osbf3'
+
+local function submod(x) return require (pname .. '.' .. x) end
+
+local osbf = require (pname)
+local util = submod 'util'
+local commands = submod 'commands'
+local command_line = submod 'command_line'
+local msg = submod 'msg'
+local cfg = submod 'cfg'
+local core = submod 'core'
+local roc = submod 'roc'
+
+util.progname = arg[0] or 'dir-classify'
+
+osbf.options.register { long = 'trace', usage = ' # stack trace on error',
+                   help = [[
+  --trace
+      Don't recover from errors; give a stack trace instead
+]] }
+
+local ok, options, args = pcall(osbf.options.parse, arg)
+local opts = options
+if not ok then
+  util.die(options, '\n')
+end
+if options.trace then
+  pcall = function(f, ...) return true, f(...) end
+end
+local num_buckets =
+  opts.buckets and (assert(bucket_sizes[opts.buckets] or tonumber(opts.buckets)))
+  or 94321
+local test_dir = os.capture 'tempfile -p osbf-' or '/tmp/osbf-lua-classify'
+os.execute('/bin/rm -rf ' .. test_dir)
+os.execute('/bin/mkdir ' .. test_dir)
+
+opts.udir = opts.udir or test_dir
+
+osbf.init(options, true)
+local email = 'test@test'
+commands.init(email, num_buckets, 'buckets')
+
+local function lines_of_file(f)
+  local l = { }
+  for line in f:lines() do l[#l+1] = line end
+  return l
+end
+
+local function increment(class)
+  db = core.open_class(cfg.classes[class].db, 'rwh')
+  db.classifications = db.classifications + 1
+end
+
+local classifications = { }
+local learnings = 0
+
+local function train_files(files)
+  for _, file in ipairs(files) do
+    if string.find(file, '^@') then
+      local f = assert(io.open(string.match(file, '^@(.*)$')))
+      train_files(table.randomized(lines_of_file(f)))
+      f:close()
+    elseif file == '-' then
+      train_files(table.randomized(lines_of_file(io.stdin)))
+    else
+      local labelled = string.match(file, '([^/]+)/[^/]+$')
+      assert(labelled, 'could not find class in filename ' .. file)
+      local m = msg.of_file(file)
+      local scores = commands.multiclassify(m)
+      local cfn = { actual = labelled, scores = scores, file = file }
+      table.insert(classifications, cfn)
+      local class = roc.most_likely_class(cfn)
+      increment(class)
+      local train = scores[class] < cfg.classes[class].train_below
+      if train or class ~= labelled then
+        local ok, errmsg = pcall(commands.learn_msg, m, labelled)
+        if ok then
+          learnings = learnings + 1
+        else
+          io.stderr:write(errmsg, '\n')
+        end
+      end
+    end
+  end
+end
+
+local start_time = os.time()
+train_files(table.randomized(args))
+local end_time = os.time()
+
+local nclass = #classifications
+
+local function info(...)
+  return io.stdout:write(string.format(...), '\n')
+end
+
+
+
+info('Using %d buckets, %d classifications (%.1f/s) require %d learnings',
+  num_buckets, nclass, (nclass / os.difftime(end_time, start_time)), learnings)
+
+if nclass == 0 then return end
+
+command_line.stats()
+
+local ROCA_fmt = '%9.9s: 1-ROCA%% = %9.6f'
+
+for _, class in ipairs(cfg.classlist()) do
+  local curve = roc.curve(class, classifications)
+  local above = roc.area_above(curve)
+  info(ROCA_fmt, class, 100 * above)
+  if false then
+    local jgraph = io.open(outfilename .. '-' .. class .. '.j', 'w')
+    jgraph:write('newgraph\n')
+    roc.jgraph(jgraph, curve)
+    jgraph:close()
+  end
+end
+
+local above = roc.area_above_hand_till(cfg.classlist(), classifications)
+info(ROCA_fmt, 'Hand-Till', 100 * above)
+
+                                   

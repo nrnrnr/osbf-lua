@@ -37,8 +37,6 @@ osbf.options.register { long = 'trace', usage = ' # stack trace on error',
       Don't recover from errors; give a stack trace instead
 ]] }
 
-
-
 local ok, options, args = pcall(osbf.options.parse, arg)
 if not ok then
   util.die(options, '\n')

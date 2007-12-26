@@ -105,7 +105,7 @@ cfg.text_limit = 500000
 local opcall = pcall
 pcall = function(f, ...) return true, f(...) end
 
-local outfilename = opts.o or 'result'
+local outfilename = opts.o or 'result.lua'
 
 local result = outfilename == '-' and io.stdout or assert(io.open(outfilename, 'w'))
 
