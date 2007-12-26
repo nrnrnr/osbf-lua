@@ -11,10 +11,10 @@ BINNAME=osbf3
 
 MAILFILE = $(shell ./mailfile)
 
-SRCS= losbflib.c osbferrl.c \
+SRCS= losbflib.c osbferrl.c oarray.c \
       osbf_bayes.c osbf_aux.c osbf_disk.c osbf_csv.c osbf_stats.c \
       osbf_fmt_5.c osbf_fmt_6.c osbf_fmt_7.c 
-OBJS= losbflib.o osbferrl.o \
+OBJS= losbflib.o osbferrl.o oarray.o \
       osbf_bayes.o osbf_aux.o osbf_disk.o osbf_csv.o osbf_stats.o \
       osbf_fmt_5.o osbf_fmt_6.o osbf_fmt_7.o
 XOBJS= obsferrs.o
@@ -28,6 +28,7 @@ $(OBJS) $(XOBJS): osbflib.h osbferr.h config pgconfig
 
 osbferrs.o: osbferr.h
 osbf_disk.o: osbf_disk.h
+oarray.o: osbferr.h oarray.h
 
 $(LIBNAME): $(OBJS) $(XOBJS)
 	$(CC) $(CFLAGS) $(LIB_OPTION) -o $(LIBNAME) $(OBJS) $(LIBS)
@@ -59,6 +60,7 @@ uninstall:
 
 test: install
 	$(LUABIN) -l$(MODNAME) ./print-contents $(MODNAME)
+	$(LUABIN) -l$(MODNAME) -l$(MODNAME).roc < /dev/null
 	$(LUABIN) ./test-headers $(MODNAME) $(MAILFILE)
 	$(LUABIN) -l$(MODNAME) -e "m = $(MODNAME).msg.of_file '$(MAILFILE)'" -i
 

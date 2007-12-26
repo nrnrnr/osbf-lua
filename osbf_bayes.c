@@ -113,7 +113,9 @@ static unsigned char *
 get_next_token (unsigned char *p_text, unsigned char *max_p,
 		const char *delims, uint32_t * p_toklen)
 {
-  unsigned char *p_ini = p_text;
+  unsigned char *p_ini;  /* will be set to start of the next token */
+  unsigned char *lim;    /* place beyond which we must not look;
+                            normally max_p unless limit_token_size != 0 */
 
 #if 0
   /* this code is in the inner loop, and we guarantee delims != NULL elsewhere */
@@ -121,26 +123,23 @@ get_next_token (unsigned char *p_text, unsigned char *max_p,
     return NULL;
 #endif
 
+#define DELIMP(P) (!isgraph((int) *(P)) || strchr (delims, (int) *(P)))
+
   /* find nongraph delimited token */
-  while ((p_text < max_p) &&
-	 (!isgraph ((int) *p_text) || strchr (delims, (int) *p_text)))
+  while (p_text < max_p && DELIMP(p_text))
     p_text++;
   p_ini = p_text;
 
-  if (limit_token_size == 0)
-    {
-      /* don't limit the tokens */
-      while ((p_text < max_p) && isgraph ((int) *p_text) &&
-	     !strchr (delims, (int) *p_text))
-	p_text++;
-    }
-  else
-    {
-      /* limit the tokens to max_token_size */
-      while ((p_text < max_p) && (p_text < (p_ini + max_token_size)) &&
-	     isgraph ((int) *p_text) && !strchr (delims, (int) *p_text))
-	p_text++;
-    }
+  if (limit_token_size) {
+    /* limit the tokens to max_token_size */
+    lim = p_ini + max_token_size;
+    if (lim > max_p)
+      lim = max_p;
+  } else {
+    lim = max_p;
+  }
+  while (p_text < lim && !DELIMP(p_text))
+    p_text++;
 
   *p_toklen = p_text - p_ini;
 
@@ -220,6 +219,13 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
   int32_t learn_error;
   int32_t i;
   uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1];
+
+    /* on 5000 msgs from trec06, average number of tokens (including
+       sentinels at ends) is 150; 2/3 of msgs are under 150; 80% are
+       under 200; 90% are under 300.  99% are under 1000.  So if one
+       were to make a copy rather than pipelining, 200 would seem to
+       be a good starting length */
+
   int32_t num_hash_paddings;
   int microgroom;
   struct token_search ts;

@@ -1,10 +1,10 @@
 SRC=$(shell echo *.lua)
 
-all: doc
+all: test
 
 test: 
 	./test-hiding
-	(cd ..; make test)
+	(cd ..; make test < /dev/null)
 
 install: 
 	(cd ..; make install)

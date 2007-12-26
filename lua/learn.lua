@@ -347,6 +347,15 @@ Note that these sfid tags are *classification* tags, not *learning* tags,
 and so they are uppercase.
 ]]
 
+__doc.multiclassify = 
+[[function(msg) returns scores table
+The result is a table indexed by class in which result[class]
+is the confidence the classifier attaches to that class,
+i.e., pR(class).  The function is used only for statistical
+analysis of classification results and never increments the
+'classifications' count of a database.
+]]
+
 local function wrap_subj_tag(s)
   if s and s ~= '' then return '[' .. s .. ']' else return '' end
 end
@@ -365,6 +374,7 @@ train is a boolean or nil;
 target_pR is the pR of target_class
 ]]
 
+
 do
   local core_pR = core.pR
 
@@ -375,10 +385,28 @@ do
     return sum
   end
 
+  function multiclassify(msg)
+    local flags = cfg.constants.classify_flags
+    local sum, probs, trainings = core.classify(msg.lim.msg, dblist, flags)
+    local function prob_not(i) --- probability that it's not dblist[i]
+      local others = util.tablecopy(probs)
+      table.remove(others, i)
+      return sum_positive_numbers(others)
+    end
+
+    assert(#probs == #dblist)
+    local k = #probs - 1
+    assert(k > 0, 'Must decide most likely among two or more things')
+    local scores = { }
+    for class in pairs(cfg.classes) do
+      local i = class2index[class]
+      scores[class] = core_pR(probs[i], prob_not(i) / k) + class_boost[class]
+    end
+    return scores
+  end
+
   function most_likely_pR_and_class(msg, flags, count, target_class)
     -- find the class with the largest pR
-
---for classification_count = 1, (debug and 5 or 1) do
 
     local sum, probs, trainings = core.classify(msg, dblist, flags)
     assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table', 'bad results from core.classify')
@@ -393,7 +421,7 @@ do
     assert(k > 0, 'Must decide most likely among two or more things')
 
     local target_index, target_pR = class2index[target_class]
-    local max_pR, most_likely = -10000, 'this cannot happen'
+    local max_pR, most_likely = -math.huge, 'this cannot happen'
     for i, P in pairs(probs) do
       local class = index2class[i]
       local notP = prob_not(i)
@@ -407,7 +435,7 @@ do
         target_pR = pR
       end
     end
---end
+
     if count then
       local c = core.open_class(class2db[most_likely], 'rwh')
       c.classifications = c.classifications + 1

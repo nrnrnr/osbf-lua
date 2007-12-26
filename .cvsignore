@@ -5,4 +5,5 @@ gmon.out
 osbf-lua
 *.gcov
 *.o
+o*osbf*.c
 *classify-time*

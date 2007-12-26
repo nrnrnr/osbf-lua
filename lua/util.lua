@@ -48,6 +48,30 @@ function tablemap(f, l, ...)
   return data
 end
 ----------------------------------------------------------------
+__doc.tablefilter = [[function(f, l, ...) returns array
+Takes the array l and applies f to every element to
+get a Boolean result. More exactly, the Boolean is f(l[i], ...).
+Returns a new array containing only those elements l[i]
+for which f(l[i], ...) is true.
+]]
+
+function tablefilter(f, l, ...)
+  local data = { }
+  for i = 1, #l do if f(l[i], ...) then data[#data+1] = l[i] end end
+  return data
+end
+----------------------------------------------------------------
+__doc.tablecount = [[function(f, l, ...) returns number
+Takes the array l and returns the number of elements l[i]
+such that f(l[i], ...) holds.
+]]
+
+function tablecount(f, l, ...)
+  local n = 0
+  for i = 1, #l do if f(l[i], ...) then n = n + 1 end end
+  return n
+end
+----------------------------------------------------------------
 __doc.tablecopy = [[function(t) returns table
 Returns a fresh table that contains the keys and
 values obtained from pairs(t).]]

@@ -835,6 +835,7 @@ function internals(s, ...)
   else
     local i = require(_PACKAGE .. 'internals')
     require(_PACKAGE .. 'core_doc')
+    require(_PACKAGE .. 'roc')
     i(io.stdout, s)
   end
 end
