@@ -325,6 +325,8 @@ function add_header(msg, tag, contents)
          'Header contents must be string or number')
   msg = of_any(msg)
   table.insert(msg.headers, tag .. ': ' .. contents)
+  msg.lim = nil
+  msg.header_index = nil
 end
 
 __doc.add_osbf_header = [[function(T, tag, contents)
@@ -356,6 +358,8 @@ function del_header(msg, ...)
       util.log('del_header - ', 'not a valid tag name: ', tag)
     end
   end
+  msg.lim = nil
+  msg.header_index = nil
 end 
 
 __doc.tag_subject = [[function(msg, tag)

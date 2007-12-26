@@ -1,0 +1,55 @@
+#!/usr/bin/lua5.1
+
+--- this script removes information from headers that has
+--- been left by previous spam filters... or at least it tries...
+
+local pname = 'osbf3'
+
+local function submod(x) return require (pname .. '.' .. x) end
+
+local osbf = require (pname)
+local util = submod 'util'
+local commands = submod 'commands'
+local msg = submod 'msg'
+local cfg = submod 'cfg'
+local options = submod 'options'
+local core = submod 'core'
+
+
+for _, file in ipairs(arg) do
+  local m = msg.of_file(file)
+  local delenda = { }
+  for i = 1, #m.headers do
+    local h = string.lower(string.match(m.headers[i], '^(%S-)%s*:'))
+    if h then
+      if (string.find(h, 'spam') or string.find(h, 'osbf')) then
+        table.insert(delenda, 1, i)
+      else
+        m.headers[i] = string.gsub(m.headers[i], '%s+[<%(]sfid%-.-osbf%.lua[%)>]', '')
+      end
+    end
+  end
+  for _, i in ipairs(delenda) do -- goes high to low
+    table.remove(m.headers, i)
+  end
+  local tagpat = '^(%S-)%s*:%s*%[[%+%-]%]%s*'
+  for i in msg.header_indices(m, 'subject') do
+    local h = m.headers[i]
+    while string.find(h, tagpat) do
+      h = string.gsub(h, tagpat, '%1: ')
+    end
+    m.headers[i] = h
+  end
+  msg.header_index = nil
+  local refs = msg.header_tagged(m, 'references')
+  if refs and string.find(refs, '^%s*$') then
+    msg.del_header(m, 'references')
+  end
+  local f, err = io.open(file, 'w')
+  if f then
+    f:write(msg.to_string(m))
+    f:close()
+  else
+    io.stderr:write(file, ': ', err, '\n')
+  end
+end
