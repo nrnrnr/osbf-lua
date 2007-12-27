@@ -365,6 +365,8 @@ It is also possible to include other information:
   conf_boost  -- during classification, a number added to confidence for this 
                  class; larger boost makes the classifier more likely to choose
                  the class (default 0)
+  hr          -- Use Header Reinforcement when training this class
+                 (default true for spam and ham, false otherwise)
   resend      -- if this message is trained, resend it with new headers (default true)
 
 Sfids 's' and 'h' are reserved for 'spam' and 'ham', and sfids 'w',
@@ -387,6 +389,7 @@ Maps both uppercase and lowercase versions of the tag.]]
 local function set_class_defaults()
   local c = classes
   local used = { s = 'spam', h = 'ham', w = true, b = true, e = true }
+  local hr_defaults = { spam = true, ham = false }
   for class, t in pairs(c) do
     assert(type(class) == 'string', 'grave config error -- class is not a string')
     util.insistf(not string.find(class, '[%=%/%;%:%s]'),
@@ -410,6 +413,7 @@ local function set_class_defaults()
     t.db          = dirfilename('database', class .. '.cfc')
     t.train_below = t.train_below or default_threshold
     t.conf_boost  = t.conf_boost  or 0
+    t.hr          = t.hr     == nil and true or t.hr
     t.resend      = t.resend == nil and true or t.resend
     class_of_tag[t.sfid]               = class
     class_of_tag[string.upper(t.sfid)] = class

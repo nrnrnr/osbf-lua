@@ -2,6 +2,8 @@
 -- Practical Considerations for Researchers", by Tom Fawcett:
 --   http://www.hpl.hp.com/techreports/2003/HPL-2003-4.pdf
 
+local io, string = io, string -- debugging
+
 local math, table
     = math, table
 
@@ -133,6 +135,9 @@ local function scurve(posclass, score, cfns)
   R[#R+1] = { x = FP / N, y = TP / P }
   if N == 0 then for i = 1, #R do R[i].x = 1 end end
   if P == 0 then for i = 1, #R do R[i].y = 1 end end
+  if R[#R].x < 1 then
+    R[#R+1] = { x = 1, y = R[#R].y }
+  end
   return R
 end
   
@@ -147,7 +152,13 @@ end
 
 
 function area_above(points)
-  assert(points[1].x == 0 and points[#points].x == 1)
+  if not points[2] then return nil, 'empty ROC curve' end
+  if not ((points[1].x == 0 or points[1].y == 1) and
+          (points[#points].x == 1 or points[#points].y == 1)) then
+    io.stderr:write(string.format('Warning: ROC curve is (%4.2f,%4.2f)..(%4.2f,%4.2f)\n',
+                                  points[1].x, points[1].y, points[2].x, points[2].y))
+  end
+   
   local area = 0
   for i = 1, #points-1 do
     local p1, p2 = points[i], points[i+1]
@@ -163,14 +174,17 @@ function area_above_hand_till(classes, classifications)
   local n = 0
   for i = 1, #classes-1 do
     for j = i+1, #classes do
-      above = above + area_above(curve2(classes[i], classes[j], classifications))
-      n = n + 1
+      local area = area_above(curve2(classes[i], classes[j], classifications))
+      if area then
+        above = above + area
+        n = n + 1
+      end
     end
   end
-  local above_total = 2 * above / (#classes * (#classes - 1))
-  assert(n == #classes * (#classes - 1) / 2)
-  assert(0 <= above_total and above_total <= 1)
-  return above_total
+  local above_average = above / n
+  assert(n <= #classes * (#classes - 1) / 2)
+  assert(0 <= above_average and above_average <= 1)
+  return above_average
 end
 
 

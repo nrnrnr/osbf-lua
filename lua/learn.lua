@@ -212,8 +212,9 @@ local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif
   -- train on the whole message if on or near error
   local lim_orig_msg = lim.msg
   local orig_pR, new_pR = tone(lim_orig_msg, target_class, count_as_classif)
-  if new_pR < cfg.classes[target_class].train_below + threshold_offset
-  and  math.abs(new_pR - orig_pR) < header_learn_threshold
+  if cfg.classes[target_class].hr 
+    and new_pR < cfg.classes[target_class].train_below + threshold_offset
+    and math.abs(new_pR - orig_pR) < header_learn_threshold
   then 
     -- Iterative training on the header only (header reinforcement)
     -- as described in the paper.  Continues until pR it exceeds a

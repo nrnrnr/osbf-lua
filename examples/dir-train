@@ -37,17 +37,42 @@ osbf.options.register { long = 'trace', usage = ' # stack trace on error',
       Don't recover from errors; give a stack trace instead
 ]] }
 
-local ok, options, args = pcall(osbf.options.parse, arg)
+osbf.options.register { long = 'init', usage = ' # initialize new -udir' }
+
+local ok, opts, args = pcall(osbf.options.parse, arg)
 if not ok then
-  util.die(options, '\n')
+  util.die(opts, '\n')
 end
-if options.trace then
+if opts.trace then
   pcall = function(f, ...) return true, f(...) end
 end
-osbf.init(options)
+local existing_dir = opts.udir
+if not existing_dir then
+  local test_dir = '/tmp/osbf-dir-train'
+  os.execute('/bin/rm -rf ' .. test_dir)
+  os.execute('/bin/mkdir ' .. test_dir)
+  opts.udir = test_dir
+end
 
-args = table.randomized(args)
-for _, file in ipairs(args) do
+osbf.init(opts, opts.init or not existing_dir)
+if opts.init or not existing_dir then
+  io.stderr:write 'Initializing...\n'
+  if opts.config then
+    os.execute(string.format("cp '%s' %s/config.lua", opts.config, opts.udir))
+  end
+  commands.init('nr@localhost', 94321, 'buckets')
+else
+  io.stderr:write('Existing dir ', tostring(existing_dir), '\n')
+end
+
+
+local function lines_of_file(f)
+  local l = { }
+  for line in f:lines() do l[#l+1] = line end
+  return l
+end
+
+local function train_file(file)
   local class = string.match(file, '([^/]+)/[^/]+$')
   assert(class, 'could not find class in filename ' .. file)
   local ok, comment = pcall(commands.learn_msg, msg.of_file(file), class, true)
@@ -55,5 +80,16 @@ for _, file in ipairs(args) do
     io.stdout:write(file, ': ', comment, '\n')
   else
     io.stderr:write(file, ': ', comment, '\n')
+  end
+end
+
+args = table.randomized(args)
+for _, file in ipairs(args) do
+  if file == '-' then
+    for _, file in ipairs(table.randomized(lines_of_file(io.stdin))) do
+      train_file(file)
+    end
+  else
+    train_file(file)
   end
 end

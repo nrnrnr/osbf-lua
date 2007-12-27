@@ -322,6 +322,7 @@ function table.sorted_keys(t, lt)
   table.sort(l, lt)
   return l
 end
+table_sorted_keys = table.sorted_keys
 
 __doc.case_lt = [[function(s1, s2) returns boolean.
 Performs a caseless comparison between s1 and s2. If they are equal,

@@ -41,7 +41,13 @@ local function internals(out, s)
   else
     local module, member
     if osbf[s] then
-      module, member = s, nil
+      if type(osbf[s]) == 'table' then
+        module, member = s, nil
+      else
+        module, member = osbfname, s
+        assert(osbf[osbfname] == nil)
+        osbf[osbfname] = osbf
+      end
     else
       module, member = string.match(s, '^([^%.]+)%.([^%.]+)$')
     end
@@ -63,7 +69,7 @@ local function internals(out, s)
       if string.find(k, '^__') then return end
       local d = string.gsub(doc[k], '\n\n', '\n  \n')
       d = string.gsub(d, '\n(.)', '\n  %1')
-      local exported = osbf[module][k] ~= nil
+      local exported = type(osbf[module]) ~= 'table' or osbf[module][k] ~= nil
       if not exported then
         d = string.gsub(d, '^%s*function', 'local function')
       end
@@ -96,7 +102,7 @@ local function internals(out, s)
       if doc[member] then
         document(member)
       elseif osbf[module][member] then
-        out:write(s, " seems to exist, but it's not documented")
+        out:write(s, " seems to exist, but it's documented not")
       else
         out:write('There is no such thing as ', s, '\n')
       end

@@ -123,7 +123,7 @@ function parse(args, options)
     if eq == '=' and value == '' then
       util.die('option ' .. args[1] .. ' is ambiguous')
     end
-    if not key or key == '' and value == '' and table.remove(args, 1) then
+    if not key or args[1] == '-' then
       break -- no more options
     else
       table.remove(args, 1)
