@@ -104,6 +104,8 @@ cfg.text_limit = 500000
 
 local opcall = pcall
 pcall = function(f, ...) return true, f(...) end
+osbf.command_line.pcall = pcall
+opcall = pcall
 
 local outfilename = opts.o or 'result.lua'
 
@@ -124,7 +126,7 @@ for l in assert(io.lines(trecdir .. 'index')) do
   if debug then io.stderr:write("\nMsg ", file) end 
   table.insert(files, file)
   local m = msg.of_file(trecdir .. file)
-  local scores = commands.multiclassify(m)
+  local probs, scores = commands.multiclassify(m.lim.msg)
   local cfn = { actual = labelled, scores = scores, file = file }
   table.insert(classifications, cfn)
   local class = roc.most_likely_class(cfn)

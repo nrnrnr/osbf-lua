@@ -72,6 +72,29 @@ function tablecount(f, l, ...)
   return n
 end
 ----------------------------------------------------------------
+__doc.key_max = [[function(t, [, f, ...]) returns non-nil or calls error
+Takes table t, in which every value must be a number, and
+returns key k such that f(t[k], ...) is as large as possible;
+if f is nil then it uses tonumber. Ties are broken arbitrarily.  
+
+Calls error() if value cannot be converted to a number or if table is
+empty.
+]]
+
+function key_max(t, f, ...)
+  local key, max = nil, -math.huge  -- best key and value
+  f = f or tonumber
+  for k, v in pairs(t) do
+    local x = f(v, ...)
+    if type(x) ~= 'number' then error('Comparing non-number ' .. tostring(x), 2) end
+    if x > max then
+      key, max = k, x
+    end
+  end
+  if not key then error('Passing empty table to util.key_max', 2) end
+  return key
+end
+----------------------------------------------------------------
 __doc.tablecopy = [[function(t) returns table
 Returns a fresh table that contains the keys and
 values obtained from pairs(t).]]
@@ -157,6 +180,29 @@ function mkdir(path)
       die('Could not create directory ', path)
     end
   end
+end
+----------------------------------------------------------------
+__doc.reserved = [[set of reserved words in Lua
+Represented as table with reserved word as key and true as value.
+]]
+local reserved = { }
+do local list = { "and", "break", "do", "else", "elseif",
+                  "end", "false", "for", "function", "if",
+                  "in", "local", "nil", "not", "or", "repeat",
+                  "return", "then", "true", "until", "while",
+                }
+  for _, w in pairs(list) do reserved[w] = true end
+end
+----------------------------------------------------------------
+__doc.sum = [[function(list) returns number
+Takes a (possibly empty) list of numbers and returns their sum.
+Crashes if an element of the list cannot be added to the sum.
+]]
+
+function sum(l)
+  local sum = 0
+  for i = 1, #l do sum = sum + l[i] end
+  return sum
 end
 ----------------------------------------------------------------
 
@@ -312,7 +358,8 @@ end
 
 ----------------------------------------------------------------
 
-__doc.table_sorted_keys = [[Return sorted list of keys in a table.]]
+__doc.table_sorted_keys   = [[Return sorted list of keys in a table.]]
+__doc.table_sorted_values = [[Return sorted list of values in a table.]]
 
 function table.sorted_keys(t, lt)
   local l = { }
@@ -323,6 +370,16 @@ function table.sorted_keys(t, lt)
   return l
 end
 table_sorted_keys = table.sorted_keys
+
+function table.sorted_values(t, lt)
+  local l = { }
+  for _, v in pairs(t) do
+    table.insert(l, v)
+  end
+  table.sort(l, lt)
+  return l
+end
+table_sorted_values = table.sorted_values
 
 __doc.case_lt = [[function(s1, s2) returns boolean.
 Performs a caseless comparison between s1 and s2. If they are equal,
@@ -510,7 +567,7 @@ function generate_hex_string(len)
     math.randomseed(os.time())
     s = string.gsub(string.rep(' ', bytes), '.',
                       function(c)
-                        return string.char(math.random(256)-1)
+                        return string.char(math.random(0, 255))
                       end)
   end
   s = string.gsub(s, '.', function(c)

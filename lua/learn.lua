@@ -144,9 +144,8 @@ return identical probability ratios.
 
 local function tone_inner(text, target_class, count_as_classif)
 
-  local k = cfg.constants
   local old_pR, class, _, target_pR =
-    most_likely_pR_and_class(text, k.classify_flags, count_as_classif, target_class)
+    most_likely_pR_and_class(text, count_as_classif, target_class)
   local target_index = class2index[target_class]
 
   if class ~= target_class then
@@ -165,13 +164,13 @@ local function tone_inner(text, target_class, count_as_classif)
     end
 
     -- guarantee that starting class for tone-hr is the target class
-    local new_pR, new_class = most_likely_pR_and_class(text, k.classify_flags)
+    local new_pR, new_class = most_likely_pR_and_class(text)
     debugf("Tone after 1 FALSE_NEGATIVE training: classified %s (pR %.2f); target class %s\n",
            new_class, new_pR, target_class)
     for i = 1, mistake_limit do
       if new_class == target_class then break end
       core.learn(text, dblist[target_index]) -- no FALSE_NEGATIVE flag here
-      new_pR, new_class = most_likely_pR_and_class(text, k.classify_flags)
+      new_pR, new_class = most_likely_pR_and_class(text)
       debugf(" Tone %d - forcing right class: classified %s (pR %.2f); target class %s\n",
            i, new_class, new_pR, target_class)
     end
@@ -185,7 +184,7 @@ local function tone_inner(text, target_class, count_as_classif)
     -- overtraining-protection threshold in order to protect the integrity
     -- of the database.
     core.learn(text, dblist[target_index])
-    local new_pR, new_class = most_likely_pR_and_class(text, k.classify_flags)
+    local new_pR, new_class = most_likely_pR_and_class(text)
     debugf("Tone - near error, after training: classified %s (pR %.2f -> %.2f); target class %s\n",
            new_class, old_pR, new_pR, target_class)
     return old_pR, new_pR, class, new_class
@@ -221,18 +220,18 @@ local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif
     -- calculated threshold or pR changes by another threshold or we
     -- run out of iterations.  Thresholds and iteration counts were
     -- determined empirically.
-    local trd = threshold_reinforcement_degree * offset_max_threshold
-    local rd  = reinforcement_degree * header_learn_threshold
-    local k   = cfg.constants
+    local trd   = threshold_reinforcement_degree * offset_max_threshold
+    local rd    = reinforcement_degree * header_learn_threshold
+    local flags = cfg.constants.learn_flags + core.EXTRA_LEARNING
     local pR
     local index = class2index[target_class]
     local lim_orig_header = lim.header
     for i = 1, reinforcement_limit do
       -- (may exit early if the change in new_pR is big enough)
       pR = new_pR
-      core.learn(lim_orig_header, dblist[index], k.learn_flags+core.EXTRA_LEARNING)
+      core.learn(lim_orig_header, dblist[index], flags)
       debugf('Reinforced %d class %s with pR = %.2f\n', i, target_class, pR)
-      new_pR = most_likely_pR_and_class(lim_orig_msg, k.classify_flags)
+      new_pR = most_likely_pR_and_class(lim_orig_msg)
       if new_pR > trd or math.abs (pR - new_pR) >= rd then
         break
       end
@@ -311,14 +310,14 @@ but the message was previously learned as %s.]],
 
   local lim = msg.lim
   local k = cfg.constants
-  local old_pR = most_likely_pR_and_class(lim.msg, k.classify_flags)
+  local old_pR = most_likely_pR_and_class(lim.msg)
   local db = class2db[status]
   core.unlearn(lim.msg, db, k.learn_flags+core.FALSE_NEGATIVE)
-  local pR, class = most_likely_pR_and_class(lim.msg, k.classify_flags)
+  local pR, class = most_likely_pR_and_class(lim.msg)
   for i = 1, parms.reinforcement_limit do
     if class == status and pR > threshold_offset then
       core.unlearn(lim.header, db, k.learn_flags)
-      pR, class = most_likely_pR_and_class(lim.msg, k.classify_flags)
+      pR, class = most_likely_pR_and_class(lim.msg)
     else
       break
     end
@@ -349,11 +348,15 @@ and so they are uppercase.
 ]]
 
 __doc.multiclassify = 
-[[function(msg) returns scores table
-The result is a table indexed by class in which result[class]
-is the confidence the classifier attaches to that class,
-i.e., pR(class).  The function is used only for statistical
-analysis of classification results and never increments the
+[[function(text) returns probs table, conf table
+Returns two tables: probs and scores.  Each is indexed by class.
+probs[class] is the probability that the text belongs to the class.
+conf[class] is the confidence that the text belongs the the class,
+which is the log of the ratio of probs[class] to the average
+probability of the other classes, i.e., pR(class).
+
+Because the multiclassify function may be used for statistical
+analysis of classification results, it does not increment the
 'classifications' count of a database.
 ]]
 
@@ -362,7 +365,7 @@ local function wrap_subj_tag(s)
 end
 
 __doc.most_likely_pR_and_class = 
-[[function(text, flags, count, target_class) returns pR, classification, train, target_pR
+[[function(text, count, target_class) returns pR, classification, train, target_pR
 text is the text to be classified.
 flags are the flags for classification.
 count is optional; if given it is a boolean indicating whether to increment
@@ -377,76 +380,52 @@ target_pR is the pR of target_class
 
 
 do
-  local core_pR = core.pR
+  local cflags
+  cfg.after_loading_do(function() flags = cfg.constants.classify_flags end)
 
-  local function sum_positive_numbers(l)
-    table.sort(l)
-    local sum = 0
-    for i = 1, #l do sum = sum + l[i] end
-    return sum
-  end
-
-  function multiclassify(msg)
-    local flags = cfg.constants.classify_flags
-    local sum, probs, trainings = core.classify(msg.lim.msg, dblist, flags)
+  function multiclassify(text)
+    local sum, probs, trainings = core.classify(text, dblist, cflags)
     local function prob_not(i) --- probability that it's not dblist[i]
-      local others = util.tablecopy(probs)
-      table.remove(others, i)
-      return sum_positive_numbers(others)
+      local saved = probs[i]
+      probs[i] = 0
+      local answer = util.sum(util.table_sorted_values(probs))
+      probs[i] = saved
+      return answer
     end
 
     assert(#probs == #dblist)
     local k = #probs - 1
     assert(k > 0, 'Must decide most likely among two or more things')
-    local scores = { }
+
+    local scores, cprobs = { }, { }
     for class in pairs(cfg.classes) do
       local i = class2index[class]
-      scores[class] = core_pR(probs[i], prob_not(i) / k) + class_boost[class]
+      local Pnot = prob_not(i)
+      scores[class] = core.pR(probs[i], Pnot / k) + class_boost[class]
+      cprobs[class] = probs[i]
+      debugf('%-20s = %8.3g; P(others) = %8.3g; pR(%s) = %.2f\n',
+             'P(' .. class .. ')', cprobs[class], Pnot, class, scores[class])
     end
-    return scores
+    return cprobs, scores
   end
 
-  function most_likely_pR_and_class(msg, flags, count, target_class)
+  function most_likely_pR_and_class(text, count, target_class)
     -- find the class with the largest pR
 
-    local sum, probs, trainings = core.classify(msg, dblist, flags)
-    assert(type(sum) == 'number' and type(probs) == 'table' and type(trainings) == 'table', 'bad results from core.classify')
-    local function prob_not(i) --- probability that it's not dblist[i]
-      local others = util.tablecopy(probs)
-      table.remove(others, i)
-      return sum_positive_numbers(others)
-    end
-
-    assert(#probs == #dblist)
-    local k = #probs - 1
-    assert(k > 0, 'Must decide most likely among two or more things')
-
-    local target_index, target_pR = class2index[target_class]
-    local max_pR, most_likely = -math.huge, 'this cannot happen'
-    for i, P in pairs(probs) do
-      local class = index2class[i]
-      local notP = prob_not(i)
-      local pR = core_pR(P, notP / k) + class_boost[class]
-      debugf('%-20s = %8.3g; P(others) = %8.3g; pR(%s) = %.2f\n',
-             'P(' .. class .. ')', P, notP, class, pR)
-      if pR > max_pR then
-        max_pR, most_likely = pR, class
-      end
-      if i == target_index then
-        target_pR = pR
-      end
-    end
+    local probs, scores = multiclassify(text)
+    local class = util.key_max(scores)
+    local pR = scores[class]
 
     if count then
-      local c = core.open_class(class2db[most_likely], 'rwh')
+      local c = core.open_class(class2db[class], 'rwh')
       c.classifications = c.classifications + 1
       -- no close needed; let it be garbage-collected
     end
-    local train = max_pR < cfg.classes[most_likely].train_below
+    local train = pR < cfg.classes[class].train_below
     debugf('Classified %s as class %s with confidence %.2f%s\n',
-           table.concat(cfg.classlist(), '/'), most_likely, max_pR,
+           table.concat(cfg.classlist(), '/'), class, max_pR,
            train and ' (train)' or '')
-    return max_pR, most_likely, train, target_pR
+    return pR, class, train, target_class and scores[target_class]
   end
 end
 
@@ -476,8 +455,7 @@ function classify (msg)
 
   debugf('\nClassifying msg %s...\n', fingerprint(msg.lim.msg))
   local pR, class, train =
-    most_likely_pR_and_class(msg.lim.msg, cfg.constants.classify_flags,
-                             cfg.count_classifications)
+    most_likely_pR_and_class(msg.lim.msg, cfg.count_classifications)
   local t = assert(cfg.classes[class], 'missing configuration for class')
   
   if not sfid_tag then
