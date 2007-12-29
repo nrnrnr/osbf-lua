@@ -51,7 +51,7 @@ extern int OPENFUN (lua_State * L);  /* exported to the outside world */
 
 
 /* configurable constants */
-extern uint32_t microgroom_chain_length;
+extern uint32_t microgroom_displacement_trigger;
 extern uint32_t microgroom_stop_after;
 extern double K1, K2, K3;
 extern uint32_t max_token_size, max_long_tokens;
@@ -85,7 +85,7 @@ lua_osbf_config (lua_State * L)
   lua_getfield (L, 1, "max_chain");
   if (lua_isnumber (L, -1))
     {
-      microgroom_chain_length = luaL_checknumber (L, -1);
+      microgroom_displacement_trigger = luaL_checknumber (L, -1);
       options_set++;
     }
   lua_pop (L, 1);

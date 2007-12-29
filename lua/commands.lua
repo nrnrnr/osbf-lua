@@ -80,7 +80,7 @@ be one of these values:
    bytes        -- number of bytes in one database
    totalbytes   -- number of bytes in all databases
 email is the address for subject-line commands.
-lang (optional) is a string with the language for report_locale in config.
+lang (optional) is a string with the language for cache.report_locale in config.
 ]]
 
 do
@@ -99,6 +99,9 @@ do
 
     local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
     util.tablemap(util.mkdir, ds)
+    if cfg.cache.use_subdirs then
+      cache.make_cache_subdirs(dirs.cache)
+    end
 
     if divide[units] then size = math.floor(size / #cfg.classlist()) end
     local buckets = to_buckets(size)

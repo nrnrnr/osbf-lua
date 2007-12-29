@@ -27,12 +27,47 @@ extern const char *db_version_names[];
   /* Array pointing to names, indexable by any enum_db_version */
 
 
+/* A variation on a Bloom filter, represented as a sequence of buckets.
+   We hash a bigram two ways to find a count.  */
+
 typedef struct
 {
   uint32_t hash1; /* bigram hashed with function 1 */
   uint32_t hash2; /* bigram hashed with function 2 */
   uint32_t count; /* number of msgs trained in which bigram has been seen */
 } OSBF_BUCKET_STRUCT;
+
+/* The following terminology and invariants apply to the array of buckets:
+
+  - If the count is nonzero, both hash1 and hash2 are nonzero.
+  - If the count is zero, the bucket is available to be allocated.
+  - A maxmimal sequence of buckets with nonzero counts is called a *chain*.
+    A sequence may wrap around from buckets[num_buckets-1] to buckets[0].
+  - If the count for a bigram is nonzero, its bucket will be located
+    in the chain containing buckets[hash1 % num_buckets], and furthermore,
+    it will be to the right of position (hash1 % num_buckets) in the chain.
+    If a bug in the code caused a bucket to violate this invariant, the bucket
+    would be deemed *unreachable*.
+  - The distance between a bucket's actual position an (hash1 % num_buckets)
+    is called the bucket's *displacement*.
+  - The number of probes required to find an existing bucket is its displacement 
+    plus one.
+  - To keep probing cost down, the maximum displacement is capped at the value of 
+    'microgroom_displacement_trigger'.  This number can be built in by means
+    of the macro OSBF_MICROGROOM_DISPLACEMENT_TRIGGER, but it is more typical for 
+    the macro to be zero, in which case the maximum permissible displacement
+    is calculated (how? by what function?)
+  - If a displacement exceeds the trigger, some buckets are removed from the
+    chain by the *microgroomer*.  The microgroomer seems surprisingly complicated, 
+    but the idea is simple:
+      . Find the smallest counts in the chain (that are not 'locked', whatever
+        that means) and force them to zero
+      . Move buckets as needed to re-establish the invariant that every bucket b
+        is located in the chain containing buckets[b->hash1 % num_buckets]
+
+*/
+
+
 
 typedef struct /* used for disk image, so avoiding enum type for db_version */
 {
@@ -172,9 +207,9 @@ enum osbf_bucket_flags { BUCKET_LOCK_MASK = 0x80, BUCKET_FREE_MASK = 0x40 };
 #define OSBF_DEFAULT_SPARSE_SPECTRUM_FILE_LENGTH 94321
 
 /* max chain len - microgrooming is triggered after this, if enabled */
-/* #define OSBF_MICROGROOM_CHAIN_LENGTH 29 */
+/* #define OSBF_MICROGROOM_DISPLACEMENT_TRIGGER 29 */
 /* if the value is zero the length will be calculated automatically */
-#define OSBF_MICROGROOM_CHAIN_LENGTH 0
+#define OSBF_MICROGROOM_DISPLACEMENT_TRIGGER 0
 
 /* max number of buckets groom-zeroed */
 #define OSBF_MICROGROOM_STOP_AFTER 128

@@ -319,7 +319,7 @@ local function learner(cmd)
         local sfid
         if msg.has_sfid(m) then
           sfid = msg.sfid(m)
-        elseif not (cfg.use_sfid and cfg.save_for_training) then
+        elseif not (cfg.use_sfid and cfg.cache.use) then
           error('Cannot learn or unlearn messages because the configuration file\n'..
                 'is set ' .. (cfg.use_sfid and 'not to save messages' or
                               'not to use sfids'))
@@ -590,7 +590,7 @@ function filter(...)
       local train, confidence, sfid_tag, subj_tag, class = commands.classify(m)
       if not options.nosfid and cfg.use_sfid then
         local sfid = cache.generate_sfid(sfid_tag, confidence)
-        if not options.nocache and cfg.save_for_training then
+        if not options.nocache and cfg.cache.use then
           cache.store(sfid, msg.to_orig_string(m))
         end
         msg.insert_sfid(m, sfid, cfg.insert_sfid_in)

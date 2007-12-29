@@ -1,8 +1,10 @@
-local assert, ipairs, pairs, require, tostring, type, setmetatable
-    = assert, ipairs, pairs, require, tostring, type, setmetatable
+local assert, ipairs, pairs, require, tostring, type, setmetatable, error
+    = assert, ipairs, pairs, require, tostring, type, setmetatable, error
 
 local package, string, os, math, table, io
     = package, string, os, math, table, io
+
+local print = print -- debug
 
 local prog = _G.arg and _G.arg[0] or 'OSBF'
 
@@ -71,8 +73,6 @@ Valid values are:
  {"references"}, {"message-id"} or {"references", "message-id"}.
 ]],
 
-  save_for_training = [[Save messages for later training,
-if set to true. Defaults to true.]],
   log_incoming      = [[Log all incoming messages, if set to true.
 Defauts to true.]],
   log_learned       = [[Log all learned messages, if set to true.
@@ -87,7 +87,6 @@ excessive files per dir. The subdirs must be created before you enable
 this option.
 ]],
 
-
   count_classifications = [[Flag to turn on or off classification
 counting.]],
 
@@ -97,36 +96,39 @@ To have the original behavior, that is, just a report message, comment
 this option out or set it to false.
 ]],
 
-  report_locale = [[Language to use in the cache-report training message.
-  Default of true uses the user's locale; otherwise we understand
-  'en_US' and 'pt_BR'.
-]],
-
   mail_cmd = [[Command to send pre-formatted command messages.
 Defaults to  "/usr/lib/sendmail -it < %s".  The %s in the command
 will be replaced with the name of a file containing the pre-formatted
 message to be sent.
 ]],
 
-  cache_report_limit = [[Limit on the number of messages in a single
- cache report. Defaults to 50.
-]],
-
-  cache_report_order_by =[[Option to set what to order sfids by in cache
-report. Valid values are 'date' and 'score' (absolute value). Defaults to
-'score'.
-]],
-
-  cache_report_order = [[Sets the order of messages in cache report.
-  '<' => older to newer; '>' => newer to older.
-  Defauts to '<'.
-]],
-
   command_address = [[Email address where command-messages should be
   sent to. Normally, this is set to user's email address.
 ]],
 
+  cache = [[
+Table of properties of the message cache.  If omitted, no cache is used.
+Properties include:
+  use              Boolean indicating whether to use the cache (default $use)
+  use_subdirs      Cache messages in subdirectories to reduce the number of files
+                   per directory (default $use_subdirs)
+  keep_learned     When expiring the cache, keep at least this many
+                   messages trained for each class (default $keep_learned)
+  report_limit     Maxmimum number of messages in one cache report (default $report_limit)
+  report_order_by  What to order sfids by in cache report: 'date' or 'confidence'
+                   (default '$report_order_by')
+  report_order     The order of messages in cache report: 'ascending' or 'descending'
+                   (default '$report_order')
+  report_locale    Language to use in the cache-report training message.
+                   Default of $report_locale uses the user's locale; otherwise we 
+                   understand 'en_US' and 'pt_BR'.
+]],
+
 }
+
+__doc.cache = string.gsub(__doc.cache, '%$([%w_]+)',
+                          function (s) return tostring(d.cache[s]) end)
+
 
 ----------------------------------------------------------------
 
@@ -420,6 +422,40 @@ local function set_class_defaults()
   end
 end
 
+__doc.cache_validate = [[
+A table of functions returning boolean
+Each function is named with the name of a key in the cfg.cache table,
+and if present, is used to tell whether the value in the table is sensible.
+]]
+cache_validate = { } -- functions placed here by cache module
+
+local function set_cache_defaults()
+  if cache == nil or cache == true then
+    cache = d.cache
+  elseif cache == false then
+    cache = util.table_copy(d.cache)
+    cache.use = false
+  elseif type(cache) == 'table' then
+    for k, v in pairs(d.cache) do
+      if cache[k] == nil then cache[k] = v end
+    end
+    for k, v in pairs(cache) do
+      if d.cache[k] == nil then
+        error('Superfluous field cache.' .. tostring(k) .. ' in configuration file')
+      end
+    end
+  else
+    error('Bad cache field in configuration file (want boolean or table; got ' ..
+          type(cache) .. ')')
+  end
+  for k, v in pairs(cache) do
+    local ok = cache_validate[k]
+    if ok and not ok(v) then
+      error('Bad value ' .. tostring(v) .. ' for cache.' .. k)
+    end
+  end
+end
+
 __doc.classlist = [[function() returns sorted list of class names]]
 do
   local the_classes
@@ -444,6 +480,7 @@ end
 local function init(options, no_dirs_ok)
   set_dirs(options, no_dirs_ok)
   load_if_readable(configfile)
+  set_cache_defaults()
   set_class_defaults()
   loaded = true
   for _, f in ipairs(postloads) do

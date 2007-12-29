@@ -223,6 +223,24 @@ function subdir(sfid)
   end
 end
 
+----------------------------------------------------------------
+
+__doc.make_cache_subdirs = [[function ([dir]) returns nothing
+Make subdirectories of the cache directory, or of 'dir' 
+if dir is given.
+]]
+
+function make_cache_subdirs(dir)
+  dir = dir or cfg.dirs.cache
+  for day = 1, 31 do
+    for hour = 0, 23 do
+      local subdir = table.concat { dir, slash, day, slash, hour }
+      util.mkdir(subdir)
+    end
+  end
+end
+
+
 __doc.filename = [[function(sfid, status) returns string
 Given a message's sfid and status, returns the pathname of that
 message in the cache.  The caller is trusted; there's no guarantee
@@ -257,7 +275,7 @@ The change in status must be the result of learning or unlearning.]]
 function change_file_status(sfid, status, classification)
   if status ~= classification
   and (classification == 'unlearned' or status == 'unlearned') then
-    if cfg.save_for_training then
+    if cfg.cache.use then
       util.insist(os.rename(filename(sfid, status), filename(sfid, classification)))
     end
   else
@@ -363,33 +381,55 @@ end
 
 ----------------------------------------------------------------
 
+function cfg.cache_validate.use(s) return type(s) == 'boolean' end
+function cfg.cache_validate.keep_learned(s)
+  return type(s) == 'number' and s >= 0
+end
+cfg.cache_validate.report_limit = cfg.cache_validate.keep_learned
+
+----------------------------------------------------------------
 __doc.sort_sfids = [[function(sfids) returns sfids
 Sorts a list of sfids (in place) into the order specified by 
-cfg.cache_report_order_by (date or confidence) and
-cfg.cache_report_order ('<' or '>').  Returns sfids just for convenience.
+cfg.cache.report_order_by (date or confidence) and
+cfg.cache.report_order ('ascending' or 'descending').  Returns sfids just for convenience.
 ]]
 
-
-function sort_sfids(sfids)
-  -- some hacking here to avoid recomputing table_of_sfid at every comparison
-  local key = { }  -- caches table_of_sfid.xxx computation for duration of sort
+do
   local keyfuns =
     { date = function(_, s) return table_of_sfid(s).time end,
       confidence = function(_, s) return table_of_sfid(s).confidence end }
-  local keyfun =
-    assert(keyfuns[cfg.cache_report_order_by], 'unknown option to order by')
-  
-  setmetatable(key, { __index = keyfun })
-  local ltfuns = 
-    { ['<'] = function(s1, s2) return key[s1] < key[s2] end,
-      ['>'] = function(s1, s2) return key[s1] > key[s2] end }
-  table.sort(sfids, assert(ltfuns[cfg.cache_report_order], 'unknown operator'))
-  return sfids
+
+  local ltkeys = { ascending = 'ascending', descending = 'descending' }
+
+  function cfg.cache_validate.report_order(s)
+    return s and ltkeys[s] ~= nil
+  end
+    
+  function cfg.cache_validate.report_order_by(s)
+    return s and keyfuns[s] ~= nil
+  end
+    
+  function sort_sfids(sfids)
+    -- some hacking here to avoid recomputing table_of_sfid at every comparison
+    local key = { }  -- caches table_of_sfid.xxx computation for duration of sort
+    local keyfun =
+      assert(keyfuns[cfg.cache.report_order_by], 'unknown option to order by')
+    local ltfuns =
+      { ascending  = function(s1, s2) return key[s1] < key[s2] end,
+        descending = function(s1, s2) return key[s1] > key[s2] end }
+    if not util.same_keys(ltfuns, ltkeys) then
+      error('OSBF-Lua has an internal error around report_order')
+    end
+    
+    setmetatable(key, { __index = keyfun })
+    table.sort(sfids, assert(ltfuns[cfg.cache.report_order], 'unknown operator'))
+    return sfids
+  end
 end
 ----------------------------------------------------------------
 
 __doc.yield_two_days_sfids = [[function() yields sfids in cache in the
-order specified by cfg.cache_report_order.
+order specified by cfg.cache.report_order.
 If subdir is in use, yields only sfids from last two days.]]
 
 local function yield_two_days_sfids()
@@ -415,6 +455,7 @@ end
 
 __doc.two_days_sfids = [[function() returns iterator
 Iterator successively yields a sfid from cache, in the oreder
-specified by cfg.cache_report_order.]]
+specified by cfg.cache.report_order.]]
 
 function two_days_sfids() return coroutine.wrap(yield_two_days_sfids) end
+

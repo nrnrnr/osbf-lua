@@ -72,6 +72,19 @@ function tablecount(f, l, ...)
   return n
 end
 ----------------------------------------------------------------
+__doc.same_keys = [[function(t1, t2) returns boolean
+Returns true if and only if tables t1 and t2 have the same keys.
+Crashes if t1 or t2 is not a table.
+]]
+
+function same_keys(t1, t2)
+  local function subkeys(t1, t2)
+    for k in pairs(t1) do if t2[k] == nil then return false end end
+    return true
+  end
+  return subkeys(t1, t2) and subkeys(t2, t1)
+end
+----------------------------------------------------------------
 __doc.key_max = [[function(t, [, f, ...]) returns non-nil or calls error
 Takes table t, in which every value must be a number, and
 returns key k such that f(t[k], ...) is as large as possible;

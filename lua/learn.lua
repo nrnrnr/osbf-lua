@@ -423,7 +423,7 @@ do
     end
     local train = pR < cfg.classes[class].train_below
     debugf('Classified %s as class %s with confidence %.2f%s\n',
-           table.concat(cfg.classlist(), '/'), class, max_pR,
+           table.concat(cfg.classlist(), '/'), class, pR,
            train and ' (train)' or '')
     return pR, class, train, target_class and scores[target_class]
   end

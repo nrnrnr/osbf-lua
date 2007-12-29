@@ -32,7 +32,7 @@
 
 #define BUCKET_BUFFER_SIZE 5000
 
-uint32_t microgroom_chain_length = OSBF_MICROGROOM_CHAIN_LENGTH;
+uint32_t microgroom_displacement_trigger = OSBF_MICROGROOM_DISPLACEMENT_TRIGGER;
 uint32_t microgroom_stop_after = OSBF_MICROGROOM_STOP_AFTER;
 
 /*****************************************************************/
@@ -43,119 +43,109 @@ uint32_t microgroom_stop_after = OSBF_MICROGROOM_STOP_AFTER;
  * At the end, all buckets still marked as free are zeroed.
  */
 void
-osbf_packchain (CLASS_STRUCT * class, uint32_t packstart, uint32_t packlen)
+osbf_packchain(CLASS_STRUCT * class, uint32_t packstart, uint32_t packlen)
 {
   uint32_t packend, ifrom, ito, free_start;
   uint32_t thash;
 
   packend = packstart + packlen;
-  if (packend >= NUM_BUCKETS (class))
-    packend -= NUM_BUCKETS (class);
+  if (packend >= NUM_BUCKETS(class))
+    packend -= NUM_BUCKETS(class);
 
   if (DEBUG_packchain) {
     uint32_t i, rp, d, h;
-    fprintf (stderr, "Before packing\n");
-    for (i = packstart; i != packend; i = NEXT_BUCKET (class, i))
-      {
-	h = BUCKET_HASH (class, i);
-	rp = HASH_INDEX (class, h);
-	if (i >= rp)
-	  d = i - rp;
-	else
-	  d = NUM_BUCKETS (class) + i - rp;
-	fprintf (stderr, " i: %5" PRIu32 " d: %3" PRIu32 " value: %" PRIu32
-		 " h: %08X flags: %02X\n", i, d, BUCKET_VALUE (class, i),
-		 h, BUCKET_FLAGS (class, i));
-      }
+    fprintf(stderr, "Before packing\n");
+    for (i = packstart; i != packend; i = NEXT_BUCKET(class, i)) {
+      h = BUCKET_HASH(class, i);
+      rp = HASH_INDEX(class, h);
+      if (i >= rp)
+        d = i - rp;
+      else
+        d = NUM_BUCKETS(class) + i - rp;
+      fprintf(stderr, " i: %5" PRIu32 " d: %3" PRIu32 " value: %" PRIu32
+              " h: %08X flags: %02X\n", i, d, BUCKET_VALUE(class, i),
+              h, BUCKET_FLAGS(class, i));
+    }
   }
 
 
   /* search the first marked-free bucket */
   for (free_start = packstart;
-       free_start != packend; free_start = NEXT_BUCKET (class, free_start))
-    if (MARKED_FREE (class, free_start))
+       free_start != packend; free_start = NEXT_BUCKET(class, free_start))
+    if (MARKED_FREE(class, free_start))
       break;
 
-  if (free_start != packend)
-    {
-      for (ifrom = NEXT_BUCKET (class, free_start);
-	   ifrom != packend; ifrom = NEXT_BUCKET (class, ifrom))
-	{
-	  if (!MARKED_FREE (class, ifrom))
-	    {
-	      /* see if there's a free bucket closer to its right place */
-	      thash = BUCKET_HASH (class, ifrom);
-	      ito = HASH_INDEX (class, thash);
+  if (free_start != packend) {
+    for (ifrom = NEXT_BUCKET(class, free_start);
+         ifrom != packend; ifrom = NEXT_BUCKET(class, ifrom)) {
+      if (!MARKED_FREE(class, ifrom)) {
+        /* see if there's a free bucket closer to its right place */
+        thash = BUCKET_HASH(class, ifrom);
+        ito = HASH_INDEX(class, thash);
 
-	      while (ito != ifrom && !MARKED_FREE (class, ito))
-		ito = NEXT_BUCKET (class, ito);
+        while (ito != ifrom && !MARKED_FREE(class, ito))
+          ito = NEXT_BUCKET(class, ito);
 
-	      /* if found a marked-free bucket, use it */
-	      if (MARKED_FREE (class, ito))
-		{
-		  /* copy bucket and flags */
-		  BUCKET_HASH (class, ito) = thash;
-		  BUCKET_KEY (class, ito) = BUCKET_KEY (class, ifrom);
-		  BUCKET_VALUE (class, ito) = BUCKET_VALUE (class, ifrom);
-		  BUCKET_FLAGS (class, ito) = BUCKET_FLAGS (class, ifrom);
-		  /* mark the from bucket as free */
-		  MARK_IT_FREE (class, ifrom);
-		}
-	    }
-	}
+        /* if found a marked-free bucket, use it */
+        if (MARKED_FREE(class, ito)) {
+          /* copy bucket and flags */
+          BUCKET_HASH(class, ito) = thash;
+          BUCKET_KEY(class, ito) = BUCKET_KEY(class, ifrom);
+          BUCKET_VALUE(class, ito) = BUCKET_VALUE(class, ifrom);
+          BUCKET_FLAGS(class, ito) = BUCKET_FLAGS(class, ifrom);
+          /* mark the from bucket as free */
+          MARK_IT_FREE(class, ifrom);
+        }
+      }
+    }
+  }
+
+  if (DEBUG_packchain) {
+    uint32_t i, rp, d, h;
+    fprintf(stderr, "Before zeroing\n");
+    for (i = packstart; i != packend; i = NEXT_BUCKET(class, i)) {
+      h = BUCKET_HASH(class, i);
+      rp = HASH_INDEX(class, h);
+      if (i >= rp)
+        d = i - rp;
+      else
+        d = NUM_BUCKETS(class) + i - rp;
+      fprintf(stderr, " i: %5" PRIu32 " d: %3" PRIu32 " value: %" PRIu32
+              " h: %08X flags: %02X\n", i, d, BUCKET_VALUE(class, i),
+              h, BUCKET_FLAGS(class, i));
+    }
+  }
+
+  for (ito = packstart; ito != packend; ito = NEXT_BUCKET(class, ito))
+    if (MARKED_FREE(class, ito)) {
+      BUCKET_VALUE(class, ito) = 0;
+      UNMARK_IT_FREE(class, ito);
     }
 
   if (DEBUG_packchain) {
     uint32_t i, rp, d, h;
-    fprintf (stderr, "Before zeroing\n");
-    for (i = packstart; i != packend; i = NEXT_BUCKET (class, i))
-      {
-	h = BUCKET_HASH (class, i);
-	rp = HASH_INDEX (class, h);
-	if (i >= rp)
-	  d = i - rp;
-	else
-	  d = NUM_BUCKETS (class) + i - rp;
-	fprintf (stderr, " i: %5" PRIu32 " d: %3" PRIu32 " value: %" PRIu32
-		 " h: %08X flags: %02X\n", i, d, BUCKET_VALUE (class, i),
-		 h, BUCKET_FLAGS (class, i));
-      }
-  }
-
-  for (ito = packstart; ito != packend; ito = NEXT_BUCKET (class, ito))
-    if (MARKED_FREE (class, ito))
-      {
-	BUCKET_VALUE (class, ito) = 0;
-	UNMARK_IT_FREE (class, ito);
-      }
-
-  if (DEBUG_packchain) {
-    uint32_t i, rp, d, h;
-    fprintf (stderr, "After packing\n");
-    for (i = packstart; i != packend; i = NEXT_BUCKET (class, i))
-      {
-	h = BUCKET_HASH (class, i);
-	rp = HASH_INDEX (class, h);
-	if (i >= rp)
-	  d = i - rp;
-	else
-	  d = NUM_BUCKETS (class) + i - rp;
-	fprintf (stderr, " i: %5" PRIu32 " d: %3" PRIu32 " value: %" PRIu32
-		 " h: %08X flags: %02X\n", i, d, BUCKET_VALUE (class, i),
-		 h, BUCKET_FLAGS (class, i));
-      }
+    fprintf(stderr, "After packing\n");
+    for (i = packstart; i != packend; i = NEXT_BUCKET(class, i)) {
+      h = BUCKET_HASH(class, i);
+      rp = HASH_INDEX(class, h);
+      if (i >= rp)
+        d = i - rp;
+      else
+        d = NUM_BUCKETS(class) + i - rp;
+      fprintf(stderr, " i: %5" PRIu32 " d: %3" PRIu32 " value: %" PRIu32
+              " h: %08X flags: %02X\n", i, d, BUCKET_VALUE(class, i),
+              h, BUCKET_FLAGS(class, i));
+    }
   }
 
 }
-
 /*****************************************************************/
 
 /*
  * Prune and pack a chain in a class database
  * Returns the number of freed (zeroed) buckets
  */
-uint32_t
-osbf_microgroom (CLASS_STRUCT * class, uint32_t bindex)
+uint32_t osbf_microgroom(CLASS_STRUCT * class, uint32_t bindex)
 {
   uint32_t i_aux, j_aux, right_position;
   static uint32_t microgroom_count = 0;
@@ -174,35 +164,33 @@ osbf_microgroom (CLASS_STRUCT * class, uint32_t bindex)
    *  then prune just that chain.
    */
   min_value = OSBF_MAX_BUCKET_VALUE;
-  i_aux = j_aux = HASH_INDEX (class, bindex);
-  min_value_any = BUCKET_VALUE (class, i_aux);
+  i_aux = j_aux = HASH_INDEX(class, bindex);
+  min_value_any = BUCKET_VALUE(class, i_aux);
 
-  if (!BUCKET_IN_CHAIN (class, i_aux))
-    return 0;			/* initial bucket not in a chain! */
+  if (!BUCKET_IN_CHAIN(class, i_aux))
+    return 0;                   /* initial bucket not in a chain! */
 
-  while (BUCKET_IN_CHAIN (class, i_aux))
-    {
-      if (BUCKET_VALUE (class, i_aux) < min_value_any)
-	min_value_any = BUCKET_VALUE (class, i_aux);
-      if (BUCKET_VALUE (class, i_aux) < min_value &&
-	  !BUCKET_IS_LOCKED (class, i_aux))
-	min_value = BUCKET_VALUE (class, i_aux);
-      i_aux = PREV_BUCKET (class, i_aux);
-      if (i_aux == j_aux)
-	break;			/* don't hang if we have a 100% full .css file */
-      /* fprintf (stderr, "-"); */
-    }
+  while (BUCKET_IN_CHAIN(class, i_aux)) {
+    if (BUCKET_VALUE(class, i_aux) < min_value_any)
+      min_value_any = BUCKET_VALUE(class, i_aux);
+    if (BUCKET_VALUE(class, i_aux) < min_value &&
+        !BUCKET_IS_LOCKED(class, i_aux))
+      min_value = BUCKET_VALUE(class, i_aux);
+    i_aux = PREV_BUCKET(class, i_aux);
+    if (i_aux == j_aux)
+      break;                    /* don't hang if we have a 100% full .css file */
+    /* fprintf (stderr, "-"); */
+  }
 
   /*  now, move the index to the first bucket in this chain. */
-  i_aux = NEXT_BUCKET (class, i_aux);
+  i_aux = NEXT_BUCKET(class, i_aux);
   packstart = i_aux;
   /* find the end of the chain */
-  while (BUCKET_IN_CHAIN (class, i_aux))
-    {
-      i_aux = NEXT_BUCKET (class, i_aux);
-      if (i_aux == packstart)
-	break;			/* don't hang if we have a 100% full .cfc file */
-    }
+  while (BUCKET_IN_CHAIN(class, i_aux)) {
+    i_aux = NEXT_BUCKET(class, i_aux);
+    if (i_aux == packstart)
+      break;                    /* don't hang if we have a 100% full .cfc file */
+  }
   /*  now, the index is right after the last bucket in this chain. */
 
   /* only >, not >= in this case, otherwise the packlen would be 0
@@ -210,16 +198,14 @@ osbf_microgroom (CLASS_STRUCT * class, uint32_t bindex)
    */
   if (i_aux > packstart)
     packlen = i_aux - packstart;
-  else				/* if i_aux == packstart, packlen = header->buckets */
-    packlen = NUM_BUCKETS (class) + i_aux - packstart;
+  else                          /* if i_aux == packstart, packlen = header->buckets */
+    packlen = NUM_BUCKETS(class) + i_aux - packstart;
 
   /* if no unlocked bucket can be zeroed, zero any */
-  if (groom_locked > 0 || min_value == OSBF_MAX_BUCKET_VALUE)
-    {
-      groom_locked = 1;
-      min_value = min_value_any;
-    }
-  else
+  if (groom_locked > 0 || min_value == OSBF_MAX_BUCKET_VALUE) {
+    groom_locked = 1;
+    min_value = min_value_any;
+  } else
     groom_locked = 0;
 
 /*
@@ -286,42 +272,38 @@ osbf_microgroom (CLASS_STRUCT * class, uint32_t bindex)
      packstart, packlen, microgroom_stop_after); */
 
   /* while no bucket is zeroed...  */
-  while (zeroed_countdown == microgroom_stop_after)
-    {
-      /*
-         fprintf(stderr, "Start: %lu, stop_after: %u, max_distance: %lu,
-         min_value: %lu\n", packstart,
-         microgroom_stop_after, max_distance, min_value);
-       */
-      i_aux = packstart;
-      while (BUCKET_IN_CHAIN (class, i_aux) && zeroed_countdown > 0)
-	{
-	  /* check if it's a candidate */
-	  if ((BUCKET_VALUE (class, i_aux) == min_value) &&
-	      (!BUCKET_IS_LOCKED (class, i_aux) || (groom_locked != 0)))
-	    {
-	      /* if it is, check the distance */
-	      right_position = HASH_INDEX (class, BUCKET_HASH (class, i_aux));
-	      if (right_position <= i_aux)
-		distance = i_aux - right_position;
-	      else
-		distance = NUM_BUCKETS (class) + i_aux - right_position;
-	      if (distance < max_distance)
-		{
-		  MARK_IT_FREE (class, i_aux);
-		  zeroed_countdown--;
-		}
-	    }
-	  i_aux++;
-	  if (i_aux >= NUM_BUCKETS (class))
-	    i_aux = 0;
-	}
-
-      /*  if none was zeroed, increase the allowed distance between the */
-      /*  candidade's position and its right place. */
-      if (zeroed_countdown == microgroom_stop_after)
-	max_distance++;
+  while (zeroed_countdown == microgroom_stop_after) {
+    /*
+       fprintf(stderr, "Start: %lu, stop_after: %u, max_distance: %lu,
+       min_value: %lu\n", packstart,
+       microgroom_stop_after, max_distance, min_value);
+     */
+    i_aux = packstart;
+    while (BUCKET_IN_CHAIN(class, i_aux) && zeroed_countdown > 0) {
+      /* check if it's a candidate */
+      if ((BUCKET_VALUE(class, i_aux) == min_value) &&
+          (!BUCKET_IS_LOCKED(class, i_aux) || (groom_locked != 0))) {
+        /* if it is, check the distance */
+        right_position = HASH_INDEX(class, BUCKET_HASH(class, i_aux));
+        if (right_position <= i_aux)
+          distance = i_aux - right_position;
+        else
+          distance = NUM_BUCKETS(class) + i_aux - right_position;
+        if (distance < max_distance) {
+          MARK_IT_FREE(class, i_aux);
+          zeroed_countdown--;
+        }
+      }
+      i_aux++;
+      if (i_aux >= NUM_BUCKETS(class))
+        i_aux = 0;
     }
+
+    /*  if none was zeroed, increase the allowed distance between the */
+    /*  candidade's position and its right place. */
+    if (zeroed_countdown == microgroom_stop_after)
+      max_distance++;
+  }
 
   /*
      fprintf (stderr,
@@ -330,7 +312,7 @@ osbf_microgroom (CLASS_STRUCT * class, uint32_t bindex)
    */
 
   /* now we pack the chains */
-  osbf_packchain (class, packstart, packlen);
+  osbf_packchain(class, packstart, packlen);
 
   /* return the number of zeroed buckets */
   return (microgroom_stop_after - zeroed_countdown);
@@ -537,43 +519,43 @@ void
 osbf_insert_bucket (CLASS_STRUCT * class,
 		    uint32_t bindex, uint32_t hash, uint32_t key, int value)
 {
-  uint32_t right_index, distance;
+  uint32_t right_index, displacement;
   int microgroom = 1;
 
   /* "right" bucket index */
   right_index = HASH_INDEX (class, hash);
-  /* distance from right position to free position */
-  distance = (bindex >= right_index) ? bindex - right_index :
+  /* displacement from right position to free position */
+  displacement = (bindex >= right_index) ? bindex - right_index :
     NUM_BUCKETS (class) - (right_index - bindex);
 
   /* if not specified, max chain len is automatically specified */
-  if (microgroom_chain_length == 0)
+  if (microgroom_displacement_trigger == 0)
     {
       /* from experimental values */
-      microgroom_chain_length = 14.85 + 1.5E-4 * NUM_BUCKETS (class);
+      microgroom_displacement_trigger = 14.85 + 1.5E-4 * NUM_BUCKETS (class);
       /* not less than 29 */
-      if (microgroom_chain_length < 29)
-	microgroom_chain_length = 29;
+      if (microgroom_displacement_trigger < 29)
+	microgroom_displacement_trigger = 29;
     }
 
   if (microgroom && (value > 0))
-    while (distance > microgroom_chain_length)
+    while (displacement > microgroom_displacement_trigger)
       {
 	/*
-	 * fprintf (stderr, "hindex: %lu, bindex: %lu, distance: %lu\n",
-	 *          hindex, bindex, distance);
+	 * fprintf (stderr, "hindex: %lu, bindex: %lu, displacement: %lu\n",
+	 *          hindex, bindex, displacement);
 	 */
 	osbf_microgroom (class, PREV_BUCKET (class, bindex));
 	/* get new free bucket index */
 	bindex = osbf_find_bucket (class, hash, key);
-	distance = (bindex >= right_index) ? bindex - right_index :
+	displacement = (bindex >= right_index) ? bindex - right_index :
 	  NUM_BUCKETS (class) - (right_index - bindex);
       }
 
   /*
    *   fprintf (stderr,
-   *   "new bucket at %lu, hash: %lu, key: %lu, distance: %lu\n",
-   *         bindex, hash, key, distance);
+   *   "new bucket at %lu, hash: %lu, key: %lu, displacement: %lu\n",
+   *         bindex, hash, key, displacement);
    */
 
   BUCKET_VALUE (class, bindex) = value;

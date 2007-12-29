@@ -152,7 +152,7 @@ local function set_language(opt_locale)
   ----- set language according to locale
   local locale =
     opt_locale or
-    type(cfg.report_locale) == 'string' and cfg.report_locale or
+    type(cfg.cache.report_locale) == 'string' and cfg.cache.report_locale or
     os.getenv 'LANGUAGE' or
     'posix'
   for l in string.gmatch(locale, '[^:]+') do
@@ -555,7 +555,7 @@ function generate_training_message(email, temail, opt_locale)
   -- we use that instead (local variable ct below).
   local train_below = 350 / math.sqrt(2*min_learnings+0.1)
 
-  local max_sfids = cfg.cache_report_limit
+  local max_sfids = cfg.cache.report_limit
 
   -- Adds all learnable sfids in cache and within reinforcement
   -- zone, up to max_sfids.

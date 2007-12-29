@@ -43,7 +43,7 @@ struct token_search
 #define TMPBUFFSIZE 512
 char tempbuf[TMPBUFFSIZE + 2];
 
-extern uint32_t microgroom_chain_length;
+extern uint32_t microgroom_displacement_trigger;
 uint32_t max_token_size = OSBF_MAX_TOKEN_SIZE;
 uint32_t max_long_tokens = OSBF_MAX_LONG_TOKENS;
 uint32_t limit_token_size = 0;
