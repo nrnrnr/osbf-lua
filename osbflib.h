@@ -56,14 +56,20 @@ typedef struct
     'microgroom_displacement_trigger'.  This number can be built in by means
     of the macro OSBF_MICROGROOM_DISPLACEMENT_TRIGGER, but it is more typical for 
     the macro to be zero, in which case the maximum permissible displacement
-    is calculated (how? by what function?)
+    is calculated by the expression max(14.85 + 1.5E-4 * NUM_BUCKETS (class), 29)
+    in the function osbf_insert_bucket. The expression is a line that passes by
+    the points (94321, 29) and (4000037, 615), determined by experiments. For
+    databases with less than 94321 buckets, the maximum displacement is constant
+    and equal to 29.
+
   - If a displacement exceeds the trigger, some buckets are removed from the
     chain by the *microgroomer*.  The microgroomer seems surprisingly complicated, 
     but the idea is simple:
-      . Find the smallest counts in the chain (that are not 'locked', whatever
-        that means) and force them to zero
+      . Find the smallest counts in the chain that are not 'locked' and force
+        them to zero. Counts that change during a learning are locked so we
+        don't zero what we've just learned.
       . Move buckets as needed to re-establish the invariant that every bucket b
-        is located in the chain containing buckets[b->hash1 % num_buckets]
+        is located in the chain containing buckets[b->hash1 % num_buckets].
 
 */
 
