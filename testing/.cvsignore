@@ -4,3 +4,4 @@ result
 results
 *.prof
 gmon.out
+cachegrind.out.*

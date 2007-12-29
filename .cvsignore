@@ -3,7 +3,11 @@ libosbf3.so.*
 lib.so.?.?.?
 gmon.out
 osbf-lua
+mem-test
 *.gcov
 *.o
 o*osbf*.c
 *classify-time*
+cachegrind.out.*
+*.prof
+hr*-results
