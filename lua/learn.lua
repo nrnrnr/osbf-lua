@@ -335,7 +335,7 @@ end
 local msgmod = msg
 
 __doc.classify = 
-[[function(msg) returns train, pR, sfid tag, subject tag, classification
+[[function(msg, [probs, conf]) returns train, pR, sfid tag, subject tag, class
 train is a boolean or nil; 
 pR is the log of ratio of the probability for the chosen class;
 it represents the confidence in the classification, where 0 is no
@@ -343,13 +343,18 @@ confidence at all (zero information) and 20 is high confidence
 (training not warranted).
 tags are always strings
 
+Probs and conf are optional arguments that must be the result
+of calling commands.multiclassify on msg.lim.msg.  They are there
+so some clients can avoid having to call the classifier twice;
+if they are not present, classify() will call multiclassify() itself.
+
 Note that these sfid tags are *classification* tags, not *learning* tags,
 and so they are uppercase.
 ]]
 
 __doc.multiclassify = 
 [[function(text) returns probs table, conf table
-Returns two tables: probs and scores.  Each is indexed by class.
+Returns two tables: probs and conf.  Each is indexed by class.
 probs[class] is the probability that the text belongs to the class.
 conf[class] is the confidence that the text belongs the the class,
 which is the log of the ratio of probs[class] to the average
@@ -365,17 +370,20 @@ local function wrap_subj_tag(s)
 end
 
 __doc.most_likely_pR_and_class = 
-[[function(text, count, target_class) returns pR, classification, train, target_pR
+[[function(text, count, tgt_class, probs, conf) returns pR, class, train, tgt_pR
 text is the text to be classified.
 flags are the flags for classification.
 count is optional; if given it is a boolean indicating whether to increment
 the number of classifications in the database of the most likely class.
-target_class is optional. If given, its pR will be returned as the last argument.
+tgt_class is optional. If given, its pR will be returned as the last argument.
+
+probs and conf are also optional; if given, they must be the result of calling 
+multiclassify() on the same text
 
 pR the log of ratio of the probability for the chosen class;
 classification is the most likely class
 train is a boolean or nil; 
-target_pR is the pR of target_class
+tgt_pR is the pR of tgt_class
 ]]
 
 
@@ -384,37 +392,42 @@ do
   cfg.after_loading_do(function() flags = cfg.constants.classify_flags end)
 
   function multiclassify(text)
-    local sum, probs, trainings = core.classify(text, dblist, cflags)
+    local sum, problist, trainings = core.classify(text, dblist, cflags)
     local function prob_not(i) --- probability that it's not dblist[i]
-      local saved = probs[i]
-      probs[i] = 0
-      local answer = util.sum(util.table_sorted_values(probs))
-      probs[i] = saved
+      local saved = problist[i]
+      problist[i] = 0
+      local answer = util.sum(util.table_sorted_values(problist))
+      problist[i] = saved
       return answer
     end
 
-    assert(#probs == #dblist)
-    local k = #probs - 1
+    assert(#problist == #dblist)
+    local k = #problist - 1
     assert(k > 0, 'Must decide most likely among two or more things')
 
-    local scores, cprobs = { }, { }
+    local probs, conf = { }, { }
     for class in pairs(cfg.classes) do
       local i = class2index[class]
+      probs[class] = problist[i]
       local Pnot = prob_not(i)
-      scores[class] = core.pR(probs[i], Pnot / k) + class_boost[class]
-      cprobs[class] = probs[i]
+      conf[class] = core.pR(problist[i], Pnot / k) + class_boost[class]
       debugf('%-20s = %8.3g; P(others) = %8.3g; pR(%s) = %.2f\n',
-             'P(' .. class .. ')', cprobs[class], Pnot, class, scores[class])
+             'P(' .. class .. ')', probs[class], Pnot, class, conf[class])
     end
-    return cprobs, scores
+    return probs, conf
   end
 
-  function most_likely_pR_and_class(text, count, target_class)
+  function most_likely_pR_and_class(text, count, target_class, probs, conf)
     -- find the class with the largest pR
 
-    local probs, scores = multiclassify(text)
-    local class = util.key_max(scores)
-    local pR = scores[class]
+    if not (probs and conf) then
+      if probs or conf then
+        error("Classifier got probabilities or confidence but not both")
+      end
+      probs, conf = multiclassify(text)
+    end
+    local class = util.key_max(conf)
+    local pR = conf[class]
 
     if count then
       local c = core.open_class(class2db[class], 'rwh')
@@ -425,11 +438,11 @@ do
     debugf('Classified %s as class %s with confidence %.2f%s\n',
            table.concat(cfg.classlist(), '/'), class, pR,
            train and ' (train)' or '')
-    return pR, class, train, target_class and scores[target_class]
+    return pR, class, train, target_class and conf[target_class]
   end
 end
 
-function classify (msg)
+function classify (msg, probs, conf)
   local sfid_tag, subj_tag
 
   -- whitelist messages with the header 'X-Spamfilter-Lua-Whitelist: <cfg.pwd>'
@@ -455,7 +468,7 @@ function classify (msg)
 
   debugf('\nClassifying msg %s...\n', fingerprint(msg.lim.msg))
   local pR, class, train =
-    most_likely_pR_and_class(msg.lim.msg, cfg.count_classifications)
+    most_likely_pR_and_class(msg.lim.msg, cfg.count_classifications, nil, probs, conf)
   local t = assert(cfg.classes[class], 'missing configuration for class')
   
   if not sfid_tag then

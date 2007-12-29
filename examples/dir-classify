@@ -31,6 +31,7 @@ local util = submod 'util'
 local commands = submod 'commands'
 local command_line = submod 'command_line'
 local msg = submod 'msg'
+local log = submod 'log'
 local cfg = submod 'cfg'
 local core = submod 'core'
 local roc = submod 'roc'
@@ -109,13 +110,15 @@ local function train_files(files)
       assert(labelled, 'could not find class in filename ' .. file)
       if classes[labelled] then
         local m = msg.of_file(file)
-        local scores = commands.multiclassify(m)
-        local cfn = { actual = labelled, scores = scores, file = file }
+        local probs, conf = commands.multiclassify(m.lim.msg)
+        local cfn = { actual = labelled, probs = probs, conf = conf, file = file,
+                      crc32 = core.crc32(msg.to_orig_string(m)) }
         table.insert(classifications, cfn)
-        local class = roc.most_likely_class(cfn)
+        local class = util.key_max(conf)
         increment(class)
-        local train = scores[class] < cfg.classes[class].train_below
-        if train or class ~= labelled then
+        cfn.train = conf[class] < cfg.classes[class].train_below
+        log.lua('dir_classify', cfn)
+        if cfn.train or class ~= labelled then
           local ok, errmsg = pcall(commands.learn_msg, m, labelled)
           if ok then
             learnings = learnings + 1

@@ -1,6 +1,9 @@
 local require, print, pairs, type, assert, loadfile, setmetatable, tonumber, error =
       require, print, pairs, type, assert, loadfile, setmetatable, tonumber, error
 
+local pcall 
+    = pcall
+
 local io, string, table, os, package, select, tostring, math, coroutine =
       io, string, table, os, package, select, tostring, math, coroutine
 
@@ -9,6 +12,8 @@ module(...)
 local core = require(_PACKAGE .. 'core')
 
 __doc = { }
+
+
 
 ----------------------------------------------------------------
 --- Special tables.
@@ -25,7 +30,6 @@ end
 __doc.isdir = [[function(pathname) returns boolean
 Tells whether pathname is a directory.]]
 isdir = core.isdir
-
 
 ----------------------------------------------------------------
 __doc.tablerep = [[function(v, n) returns array
@@ -198,7 +202,7 @@ end
 __doc.reserved = [[set of reserved words in Lua
 Represented as table with reserved word as key and true as value.
 ]]
-local reserved = { }
+reserved = { }
 do local list = { "and", "break", "do", "else", "elseif",
                   "end", "false", "for", "function", "if",
                   "in", "local", "nil", "not", "or", "repeat",
@@ -206,6 +210,78 @@ do local list = { "and", "break", "do", "else", "elseif",
                 }
   for _, w in pairs(list) do reserved[w] = true end
 end
+
+----------------------------------------------------------------
+
+__doc.image = [[function(v) returns string or calls error()
+Returns a string which, if evaluated by a Lua interpreter,
+re-creates a value isomorphic to v.  There are restrictions:
+
+  - v may be composed only of tables, numbers, 
+    booleans, strings, and nil
+
+  - the reconstruction does not preserve sharing or metatables
+
+  - there must be no cycles in v
+
+Calls violating these restrictions will fail by calling error() 
+or (in the case of cycles).
+]]
+
+function image(v, n, visited)
+  visited = visited or { }
+  local parts = { }
+  local function add(...)
+    for i = 1, select('#', ...) do
+      parts[#parts+1] = select(i, ...)
+    end
+  end
+
+  local images = { 
+    ['nil'] = function(x) add 'nil'                     end,
+    number  = function(x) add (tostring(x))             end,
+    boolean = function(x) add (tostring(x))             end,
+    string  = function(x) add (string.format('%q', x))  end,
+  }
+  local function add_keyimage(k)
+    if type(k) == 'string' and string.find(k, '^%a[%w_]*$') and not reserved[k] then
+      add(k)
+    else
+      add('[ ', image(k, ''), ' ]')
+    end
+  end
+
+  function images.table(x, n, visited)
+    if visited[x] then error('Tried to image a cyclic table') end
+    visited[x] = true
+    add '{ '
+    local pfx = ''
+    local listed = { }
+    for i = 1, #x do
+      add(pfx)
+      pfx = ', '
+      add(image(x[i], n, visited))
+      listed[i] = true
+    end
+    local pfx = '\n' .. n .. '  '
+    for k, v in pairs(x) do
+      if not listed[i] then
+        add(pfx)
+        add_keyimage(k)
+        add(' = ', image(v, n .. '  '), ', ')
+      end
+    end
+    add('\n' .. n .. '}')
+  end
+
+  local f = images[type(v)]
+  if not f then error('Cannot write image of value of type ' .. type(v)) end
+  f(v, n or '', visited)
+  return table.concat(parts)
+end
+
+
+
 ----------------------------------------------------------------
 __doc.sum = [[function(list) returns number
 Takes a (possibly empty) list of numbers and returns their sum.
@@ -218,64 +294,6 @@ function sum(l)
   return sum
 end
 ----------------------------------------------------------------
-
-__doc.set_log_file = [[function(logfile) sets log file to logfile.]]
-
-__doc.log = [[function(...) log args to logfile, prepending date and time.]]
-
-do
-  -- holds default log filename
-  local logfile
-  local fh
-
-  function set_log_file(file)
-    assert(type(file) == 'string')
-    logfile = file
-  end
-
-  local function print_table(t)
-    fh:write('{')
-    for k, v in pairs(t) do
-      fh:write(' ', tostring(k), ' = ')
-      if type(v) == 'table' then
-        print_table(v)
-      else
-        fh:write(tostring(v))
-      end
-      fh:write( ', ')
-    end
-    fh:write('}')
-  end
-
-  local function log_aux(first, ...)
-    if type(first) == 'table' then
-      print_table(first)
-    else
-      fh:write(tostring(first))
-    end
-    if select('#', ...) > 0 then
-      fh:write(', ')
-      log_aux(...)
-    else
-      fh:write('\n')
-    end
-  end
-
-  function log(...)
-    local err
-    fh, err = io.open(logfile, 'a+')
-    if fh then
-      fh:write(os.date("%c - "))
-      log_aux(...)
-      fh:close()
-      return true
-    else
-      error('Cannot open logfile ' .. logfile .. ': err')
-    end
-  end
-
-end
-
 __doc.die = [[function(...) If output is not set to message, kills process
 Writes all arguments to io.stderr, then newline, then calls os.exit with
 nonzero exit status.
@@ -286,9 +304,12 @@ doesn't ignore filter result messages.
 
 --- Die with a fatal error message
 function die(...)
+  local ok, log = pcall(require, 'log') -- cannot require log until util is fully loaded
+  if ok then
+    pcall(log.lua, 'die', { date = os.date(), err = table.concat { ... } })
+  end
   if is_output_set_to_message() then
     writeln_error(...)
-    log(...)
     exit(0)
   else
     if progname then
@@ -312,7 +333,10 @@ end
 
 __doc.errorf = [[function(...) applies string.format and then error]]
 function errorf(...)
-  error(string.format(...), 2)
+  local log = require 'log' -- cannot be required until util is fully loaded
+  local s = string.format(...)
+  pcall(log.lua, 'error', { date = os.date(), err = s })
+  error(s, 2)
 end
 
 __doc.insist = [[function(v, msg) if v == nil calls error(msg) otherwise returns v]]

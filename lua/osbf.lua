@@ -5,12 +5,11 @@
 local require, print, pairs, ipairs, type, io, string, table, os, _G =
       require, print, pairs, ipairs, type, io, string, table, os, _G
 
-local modname = ...
+module(...)
 
-module(modname)
-
-local boot = require (modname .. '.boot')
-require (modname .. '.commands')
+-- can't use _PACKAGE here because that's for siblings, not children
+local boot = require (_NAME .. '.boot')
+require (_NAME .. '.commands')
 init = boot.init
 
 __doc = {

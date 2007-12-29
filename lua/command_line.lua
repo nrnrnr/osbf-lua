@@ -15,6 +15,7 @@ local commands = require (_PACKAGE .. 'commands')
 local msg      = require (_PACKAGE .. 'msg')
 local cache    = require (_PACKAGE .. 'cache')
 local options  = require (_PACKAGE .. 'options')
+local log      = require (_PACKAGE .. 'log')
 require(_PACKAGE .. 'learn') -- loaded into 'commands'
 
 local function eprintf(...) return util.write_error(string.format(...)) end
@@ -308,7 +309,8 @@ Learn messages as belonging to the specified class. The ... are the
 message specs.
 ]]
 
-local function learner(cmd)
+local function learner(command_name)
+  local cmd = assert(commands[command_name])
   return function(classification, ...)
     local has_class = cfg.classes[classification]
     if cmd == commands.learn and not has_class then
@@ -316,21 +318,30 @@ local function learner(cmd)
             table.concat(cfg.classlist(), ', '))
     else
       for m in has_class and msgs(...) or msgs(classification, ... ) do
-        local sfid
+        local sfid, cfn_info, crc32
         if msg.has_sfid(m) then
           sfid = msg.sfid(m)
         elseif not (cfg.use_sfid and cfg.cache.use) then
-          error('Cannot learn or unlearn messages because the configuration file\n'..
-                'is set ' .. (cfg.use_sfid and 'not to save messages' or
-                              'not to use sfids'))
+          error('Cannot ' .. command_name .. ' messages because ' ..
+                ' the configuration file is set\n  '..
+                (cfg.use_sfid and 'not to save messages' or 'not to use sfids'))
         else
-          local train, conf, sfid_tag, subj_tag, classification = commands.classify(m)
+          local probs, conftag = commands.multiclassify(m.lim.msg)
+          local train, conf, sfid_tag, subj_tag, class =
+            commands.classify(m, probs, conf)
+          local orig = msg.to_orig_string(m)
+          crc32 = core.crc32(orig)
+          cfn_info = { probs = probs, conf = conftab, train = train, class = class }
           sfid = cache.generate_sfid(sfid_tag, conf)
-          cache.store(sfid, msg.to_orig_string(m))
+          cache.store(sfid, orig)
         end
 
         local comment = cmd(sfid, has_class and classification or nil)
         util.writeln(comment)
+        log.lua_log(command_name,
+                    { class = classification, sfid = sfid,
+                      crc32 = crc32 or core.crc32(msg.to_org_string(m)),
+                      classification = cfn_info })
         -- redelivers message if it was trained and config calls for a resend
         -- subject tag and it was a subject command 
         -- (is_output_set_to_message())
@@ -348,7 +359,7 @@ local function learner(cmd)
               'will be sent to you.')
           else
             util.writeln(' Error: unable to resend original message.')
-            util.log(err)
+            log.logf('Could resend message %s: %s', sfid, err)
           end
         end
       end
@@ -356,10 +367,10 @@ local function learner(cmd)
   end
 end
 
-__doc.learn = 'Closure to learn messages as belonging to the specified class.\n'
-learn   = learner(commands.learn)
+__doc.learn   = 'Closure to learn messages as belonging to the specified class.\n'
 __doc.unlearn = 'Closure to unlearn messages as belonging to the specified class.\n'
-unlearn = learner(commands.unlearn)
+learn   = learner 'learn'
+unlearn = learner 'unlearn'
 
 table.insert(usage_lines, 'learn    <spam|ham>  [<sfid|filename> ...]')
 table.insert(usage_lines, 'unlearn [<spam|ham>] [<sfid|filename> ...]')
@@ -399,7 +410,9 @@ function resend(sfid)
     msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
     util.unset_output_to_message()
     io.stdout:write(msg.to_string(m))
-    util.log('resend\n', msg.to_string(m))
+    log.lua('resend', { date = os.date(), msg = msg.to_string(m) })
+      --- XXX do we have to log the whole message here, or can we just log the sfid?
+      --- (trying to keep a constant among of logging per event)
   else
     util.writeln(err)
   end
@@ -460,10 +473,17 @@ function classify(...)
     end 
   
   for m, what in msgs(unpack(argv)) do
-    local train, confidence, tag, _, class = commands.classify(m)
+    local probs, conf = commands.multiclassify(m.lim.msg)
+    local train, confidence, tag, _, class = commands.classify(m, probs, conf)
+    local sfid
     if options.cache then
-      cache.store(cache.generate_sfid(tag, confidence), msg.to_orig_string(m))
+      sfid = cache.generate_sfid(tag, confidence)
+      cache.store(sfid, msg.to_orig_string(m))
     end
+    local crc32 = core.crc32(msg.to_orig_string(m))
+    log.lua('classify', { date = os.date(), probs = probs, conf = conf,
+                              class = class, sfid = sfid, crc32 = crc32,
+                              train = train })
     util.write(what, ' is ', show(confidence, tag, class),
                train and ' [needs training]' or '', m.eol)
   end
@@ -505,7 +525,7 @@ local function run_batch_cmd(sfid, cmd, m)
         util.writeln( ' The message will be re-delivered to you if still in cache.')
       else
         util.writeln('Error: could not send the ', cmd, ' command.')
-        util.log(err)
+        log.logf('Could not send %s: %s', cmd, err)
       end
     else
       run(unpack(args))
@@ -587,14 +607,21 @@ function filter(...)
     if have_subject_cmd then
       exec_subject_line_command(cmd, m)
     else
-      local train, confidence, sfid_tag, subj_tag, class = commands.classify(m)
+      local probs, conf = commands.multiclassify(m.lim.msg)
+      local train, confidence, sfid_tag, subj_tag, class =
+        commands.classify(m, probs, conf)
+      local crc32 = core.crc32(msg.to_orig_string(m))
+      local sfid
       if not options.nosfid and cfg.use_sfid then
-        local sfid = cache.generate_sfid(sfid_tag, confidence)
+        sfid = cache.generate_sfid(sfid_tag, confidence)
         if not options.nocache and cfg.cache.use then
           cache.store(sfid, msg.to_orig_string(m))
         end
         msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
       end
+      log.lua('filter', { date = os.date(), probs = probs, conf = conf,
+                              class = class, sfid = sfid, crc32 = crc32,
+                              train = train })
       if not options.notag and cfg.tag_subject then
         msg.tag_subject(m, subj_tag)
       end

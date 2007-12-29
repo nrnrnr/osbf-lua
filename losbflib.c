@@ -880,6 +880,45 @@ dir_gc (lua_State * L)
     closedir (d);
   return 0;
 }
+/**********************************************************/
+
+/* 32-bit Cyclic Redundancy Code  implemented by A. Appel 1986  
+ 
+   this works only if POLY is a prime polynomial in the field
+   of integers modulo 2, of order 32.  Since the representation of this
+   won't fit in a 32-bit word, the high-order bit is implicit.
+   IT MUST ALSO BE THE CASE that the coefficients of orders 31 down to 25
+   are zero.  Fortunately, we have a candidate, from
+	E. J. Watson, "Primitive Polynomials (Mod 2)", Math. Comp 16 (1962).
+   It is:  x^32 + x^7 + x^5 + x^3 + x^2 + x^1 + x^0
+
+   Now we reverse the bits to get:
+	111101010000000000000000000000001  in binary  (but drop the last 1)
+           f   5   0   0   0   0   0   0  in hex
+*/
+
+#define POLY 0xf5000000
+
+static uint32_t crc_table[256];
+
+static void init_crc(void) {
+  int i, j, sum;
+  for (i=0; i<256; i++) {
+    sum=0;
+    for(j = 8-1; j>=0; j=j-1)
+      if (i&(1<<j)) sum ^= ((uint32_t)POLY)>>j;
+    crc_table[i]=sum;
+  }
+}
+
+static int lua_crc32(lua_State *L) {
+  size_t n;
+  const unsigned char *s = (const unsigned char *)luaL_checklstring(L, 1, &n);
+  uint32_t sum = 0;
+  do sum = (sum>>8) ^ crc_table[(sum^(*s++))&0xff]; while (--n > 0);
+  lua_pushnumber(L, (lua_Number) sum);
+  return 1;
+}
 
 /**********************************************************/
 
@@ -1011,6 +1050,7 @@ static const struct luaL_reg osbf[] = {
   {"chdir", lua_osbf_changedir},
   {"dir", l_dir},
   {"isdir", l_is_dir},
+  {"crc32", lua_crc32},
   {NULL, NULL}
 };
 
@@ -1023,6 +1063,8 @@ OPENFUN (lua_State * L)
 {
   const char *libname = luaL_checkstring(L, -1);
 
+  init_crc();
+  
   /* push os.exit onto the stack */
   lua_getfield(L, LUA_GLOBALSINDEX, "os");
   lua_getfield(L, -1, "exit");  /* s: os os.exit */

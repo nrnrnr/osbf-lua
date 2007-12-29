@@ -355,7 +355,8 @@ function del_header(msg, ...)
         table.remove(msg.headers, indices[i])
       end
     else
-      util.log('del_header - ', 'not a valid tag name: ', tag)
+      log.logf('del_header tried to delete header with invalid tag name %s',
+               tostring(tag))
     end
   end
   msg.lim = nil
@@ -607,8 +608,7 @@ function rfc2822_to_localtime_or_nil(date)
                       day=day, hour=hh, min=mm, sec=ss}
 
   if not ts then
-    --util.log(date)
-    return nil
+    util.errorf('Failed to convert [[%s]] to local time', date)
   end
 
   -- find out the local offset to UTC
@@ -706,7 +706,8 @@ function send_message(message)
     os.execute(string.format(cfg.mail_cmd, tmpfile))
     os.remove(tmpfile)
   else
-    util.log('Error sending message:\n', err, '\n', message)
+    log.lua('error', { date = os.date(),  command = 'msg.send_message',
+                           tmpfile = tmpfile, err = err, message = message })
     error('Could not open ' .. tmpfile .. ' to send message: ' .. err)
   end
 end

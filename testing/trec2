@@ -51,36 +51,7 @@ end
 
 
 
-function image(v, n)
-  local images = { }
-  local parts = { }
-  local function add(...)
-    for i = 1, select('#', ...) do
-      parts[#parts+1] = select(i, ...)
-    end
-  end
-
-  images['nil'] = function(x) add 'nil' end
-  function images.number(x) add(tostring(x)) end
-  function images.string(x)  add(string.format('%q', x)) end
-  function images.boolean(x) add (x and 'true' or 'false') end
-  function images.table(x, n)
-    add '{ '
-    local pfx = nil
-    for k, v in pairs(x) do
-      if pfx then add(pfx) end
-      pfx = pfx or '\n' .. n .. '  '
-      add('[ ', image(k, ''), ' ] = ', image(v, n .. '  '), ', ')
-    end
-    add '}'
-  end
-
-  local f = images[type(v)]
-  if not f then error('Cannot write image of value of type ' .. type(v)) end
-  f(v, n or '')
-  return table.concat(parts)
-end
-
+local image = util.image
 
 -- try to avoid collisions on multiple tests
 local test_dir = os.capture 'tempfile -p osbf-' or '/tmp/osbf-lua'

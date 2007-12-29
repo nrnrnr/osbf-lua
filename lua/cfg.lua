@@ -50,7 +50,7 @@ the reinforcement zone.
   training_not_necessary_multi = [[
 Result format string for messages which don't need training and 
 which use a multiple classifications (more than two classes).
-It expects two arguments: string representations of the scores and
+It expects two arguments: string representations of the confidences and
 the reinforcement zones.
 ]],
 
@@ -289,7 +289,6 @@ function set_dirs(options, no_dirs_ok)
       end
     end
   end
-  util.set_log_file(dirs.log .. 'osbf_log')
 end
 
 

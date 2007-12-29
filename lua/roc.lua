@@ -35,7 +35,7 @@ table containing the result of a single classification.
 Required fields are
 
   actual:    string containing the actual class of the message
-  scores:    a table indexed by class giving the confidence for
+  conf:      a table indexed by class giving the confidence for
              that class
 ]]
 
@@ -96,12 +96,12 @@ local function memoize(score)
 end
 
 local function score1(class)
-  return memoize(function (cfn) return assert(cfn.scores[class]) end)
+  return memoize(function (cfn) return assert(cfn.conf[class]) end)
 end
 
 local function score2(class1, class2)
   return memoize(function (cfn)
-                   return assert(cfn.scores[class1]) - assert(cfn.scores[class2])
+                   return assert(cfn.conf[class1]) - assert(cfn.conf[class2])
                  end)
 end
 
@@ -123,7 +123,7 @@ local function scurve(posclass, score, cfns)
     local f_i = score(c)
     if f_i ~= f_prev then
       R[#R+1] = { x = FP / N, y = TP / P, score = f_i, actual = c.actual,
-                  s_actual = c.scores[c.actual] }
+                  actual_conf = c.conf[c.actual] }
       f_prev = f_i
     end
     if c.actual == posclass then
@@ -135,6 +135,9 @@ local function scurve(posclass, score, cfns)
   R[#R+1] = { x = FP / N, y = TP / P }
   if N == 0 then for i = 1, #R do R[i].x = 1 end end
   if P == 0 then for i = 1, #R do R[i].y = 1 end end
+  if R[1].x > 0 then
+    table.insert(R, 1, { x = 0, y = 0 })
+  end
   if R[#R].x < 1 then
     R[#R+1] = { x = 1, y = R[#R].y }
   end
@@ -187,20 +190,6 @@ function area_above_hand_till(classes, classifications)
   return above_average
 end
 
-
-__doc.most_likely_class = [[function (classification) returns class
-Takes a classification and returns a class with a maximal score.
-]]
-
-function most_likely_class(c)
-  local best, bscore = nil, -math.huge
-  for class, score in pairs(c.scores) do
-    if score > bscore then
-      best, bscore = class, score
-    end
-  end
-  return best or error("No scores in classification?!")
-end
 
 __doc.jgraph = [[function(file, graph[, extra])
 Write the graph to 'file' as a jgraph curve,
