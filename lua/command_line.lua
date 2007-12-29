@@ -825,7 +825,7 @@ end
 table.insert(usage_lines, 'restore <class> <csvfile>' )
 
 
-__doc.internals = [[functions(s, ...)
+__doc.internals = [[function(s, ...)
 Shows docs.
 ]]
 
@@ -841,6 +841,10 @@ function internals(s, ...)
 end
 
 table.insert(usage_lines, 'internals [<module>|<module>.<function>]')
+
+----------------------------------------------------------------
+
+
 
 ----------------------------------------------------------------
 

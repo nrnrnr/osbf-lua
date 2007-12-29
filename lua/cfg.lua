@@ -80,13 +80,6 @@ Defaults to true.]],
   log_dir           = [[Name of the log dir, relative to the user
 osbf-lua dir. Defaults to "log".]],
 
-  use_sfid_subdir = [[If use_sfid_subdir is true, messages cached
-for later training are saved under a subdir under log_dir, formed by
-the day of the month and the time the message arrived (DD/HH), to avoid
-excessive files per dir. The subdirs must be created before you enable
-this option.
-]],
-
   count_classifications = [[Flag to turn on or off classification
 counting.]],
 

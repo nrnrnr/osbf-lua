@@ -561,6 +561,41 @@ an html tag.]]
   setmetatable(html, meta)
 end
 ----------------------------------------------------------------
+do
+
+  local seconds = { s = 1, sec = 1, second = 1,
+                    min = 60, minute = 60,
+                    hour = 60 * 60, hr = 60 * 60 }
+  seconds.day   =  24 * seconds.hour
+  seconds.week  =   7 * seconds.day
+  seconds.month =  30 * seconds.day
+  seconds.year  = 365 * seconds.day
+
+  local base_units = table_sorted_keys(seconds)
+  local understood = table.concat(base_units, ", ")
+
+__doc.to_seconds = [[function(number, units)
+Converts the number of units of time to seconds.
+Understands these units and their plurals:
+  ]] .. understood
+
+  for _, k in pairs(base_units) do
+    if k ~= 's' then
+      seconds[k .. 's'] = seconds[k]
+    end
+  end
+
+  function to_seconds(number, units)
+    if not seconds[units] then
+      for k, v in pairs(seconds) do print(k, v) end
+      error('Unknown unit of time ' .. units)
+    else
+      return number * seconds[units]
+    end
+  end
+end
+
+----------------------------------------------------------------
 
 __doc.generate_hex_string = [[function(len) returns a string of random hex
 chars, with size len. The string is generated from random bytes read from

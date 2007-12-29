@@ -216,7 +216,7 @@ or if subdirectories are not used, returns the empty string.]]
 
 function subdir(sfid)
   local t = table_of_sfid(sfid) -- guarantees we have a sfid even if t not used
-  if cfg.use_sfid_subdir then
+  if cfg.cache.use_subdirs then
     return table.concat { t.day, slash, t.hour, slash }
   else
     return ''
@@ -434,7 +434,7 @@ If subdir is in use, yields only sfids from last two days.]]
 
 local function yield_two_days_sfids()
   local sfid_subdirs = 
-    cfg.use_sfid_subdir and
+    cfg.cache.use_subdirs and
     {os.date("%d/%H/", os.time()- 24*3600), os.date("%d/%H/", os.time())}
                 -- yesterday and today
     or {""}
@@ -459,3 +459,63 @@ specified by cfg.cache.report_order.]]
 
 function two_days_sfids() return coroutine.wrap(yield_two_days_sfids) end
 
+----------------------------------------------------------------
+
+__doc.expiry_candidates = [[function(seconds) returns list of sfids
+Returns a list of sfids in the cache that are older than the given
+number of seconds and that are not among the N youngest learned
+messages, where N = cfg.cache.keep_learned.  These are candidates
+for being removed from the cache.
+]]
+
+function expiry_candidates(seconds)
+  local now = os.time()
+  local learned = { } -- table of lists, indexed by learned tag
+  local delenda = { } -- old messages to be removed
+  for _, t in pairs(cfg.classes) do learned[t.sfid] = { } end
+
+  local function add_file(filename)
+    local ok, t = pcall(table_of_sfid, filename)
+    if ok then
+      if t.learned then
+        table.insert(learned[t.learned], t)
+      elseif os.difftime(now, t.time) > seconds then
+        table.insert(delenda, filename)
+      end
+    end
+  end
+
+  local function add_dir(dirname)
+    for f in core.dir(dirname) do
+      add_file(f)
+    end
+  end
+
+  local cache = cfg.dirs.cache
+  if cfg.cache.use_subdirs then
+    for day = 1, 31 do
+      for hour = 0, 23 do
+        add_dir(table.concat {cache, slash, day, slash, hour})
+      end
+    end
+  else    
+    add_dir(cache)
+  end
+        
+  for _, sfids in pairs(learned) do
+    -- sort them, keep the youngest N, plus any others as young as seconds
+    table.sort(sfids, function (t1, t2) return t1.time < t2.time end)
+    local i = cfg.cache.keep_learned + 1
+    while i <= #sfids and os.difftime(now, sfids[i].time) <= seconds do
+      i = i + 1
+    end
+    -- delete the rest
+    while i <= #sfids do
+      table.insert(delenda, sfids[i])
+    end
+  end
+
+  return delenda
+end
+
+  
