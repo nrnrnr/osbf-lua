@@ -107,21 +107,24 @@ message to be sent.
 ]],
 
   cache = [[
-Table of properties of the message cache.  If omitted, no cache is used.
+Table of properties of the message cache.  
+If omitted, no cache is used; if true, use a cache with default properties.
+
 Properties include:
   use              Boolean indicating whether to use the cache (default $use)
-  use_subdirs      Cache messages in subdirectories to reduce the number of files
-                   per directory (default $use_subdirs)
+  use_subdirs      Put messages in subdirectories, reducing the number of
+                   files per directory (default $use_subdirs)
   keep_learned     When expiring the cache, keep at least this many
                    messages trained for each class (default $keep_learned)
-  report_limit     Maxmimum number of messages in one cache report (default $report_limit)
-  report_order_by  What to order sfids by in cache report: 'date' or 'confidence'
-                   (default '$report_order_by')
-  report_order     The order of messages in cache report: 'ascending' or 'descending'
-                   (default '$report_order')
+  report_limit     Maxmimum number of messages in one cache report
+                   (default $report_limit)
+  report_order_by  What to order sfids by in cache report: the choices are
+                   'date' or 'confidence' (default '$report_order_by')
+  report_order     The order of messages in cache report: the choices are
+                   'ascending' or 'descending' (default '$report_order')
   report_locale    Language to use in the cache-report training message.
-                   Default of $report_locale uses the user's locale; otherwise we 
-                   understand 'en_US' and 'pt_BR'.
+                   Default of $report_locale uses the user's locale; 
+                   otherwise we understand 'en_US' and 'pt_BR'.
 ]],
 
 }
