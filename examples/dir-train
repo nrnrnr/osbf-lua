@@ -81,8 +81,8 @@ local function train_file(file)
   local ok, comment = pcall(commands.learn_msg, m, class, true)
   if ok then
     io.stdout:write(file, ': ', comment, '\n')
-    log.lua('dir_train', { crc32 = core.crc32(msg.to_orig_string(m)),
-                           class = class, comment = comment, file = file })
+    log.lua('dir_train', log.dt { crc32 = core.crc32(msg.to_orig_string(m)),
+                                  class = class, comment = comment, file = file })
   else
     io.stderr:write(file, ': ', comment, '\n')
   end

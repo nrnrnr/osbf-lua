@@ -306,7 +306,7 @@ doesn't ignore filter result messages.
 function die(...)
   local ok, log = pcall(require, 'log') -- cannot require log until util is fully loaded
   if ok then
-    pcall(log.lua, 'die', { date = os.date(), err = table.concat { ... } })
+    pcall(log.lua, 'die', log.dt { err = table.concat { ... } })
   end
   if is_output_set_to_message() then
     writeln_error(...)
@@ -335,7 +335,7 @@ __doc.errorf = [[function(...) applies string.format and then error]]
 function errorf(...)
   local log = require 'log' -- cannot be required until util is fully loaded
   local s = string.format(...)
-  pcall(log.lua, 'error', { date = os.date(), err = s })
+  pcall(log.lua, 'error', log.dt { err = s })
   error(s, 2)
 end
 

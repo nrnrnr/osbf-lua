@@ -117,7 +117,7 @@ local function train_files(files)
         local class = util.key_max(conf)
         increment(class)
         cfn.train = conf[class] < cfg.classes[class].train_below
-        log.lua('dir_classify', cfn)
+        log.lua('dir_classify', log.dt(cfn))
         if cfn.train or class ~= labelled then
           local ok, errmsg = pcall(commands.learn_msg, m, labelled)
           if ok then

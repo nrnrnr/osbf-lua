@@ -1,7 +1,7 @@
 -- Everything to do with logging
 
-local io, table, pairs, string, require, type
-    = io, table, pairs, string, require, type 
+local io, os, table, pairs, string, require, type
+    = io, os, table, pairs, string, require, type 
 
 module(...)
 
@@ -36,5 +36,18 @@ function lua(f, v)
 end
 
 function logf(...)
-  return lua('log', os.date() .. ': ' .. string.format(...))
+  return lua('log', dt { message = string.format(...) })
 end
+
+__doc.dt = [[function(table) returns table
+log.dt(t) adds 'date' and 'time' fields to table t
+using os.date() and os.time(), then returns t.  
+Existing 'date' and 'time' fields are undisturbed.
+]]
+
+function dt(t)
+  t.date = t.date or os.date()
+  t.time = t.time or os.time()
+  return t
+end
+

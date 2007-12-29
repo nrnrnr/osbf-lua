@@ -338,7 +338,7 @@ local function learner(command_name)
 
         local comment = cmd(sfid, has_class and classification or nil)
         util.writeln(comment)
-        log.lua_log(command_name,
+        log.lua(command_name, log.dt
                     { class = classification, sfid = sfid,
                       crc32 = crc32 or core.crc32(msg.to_org_string(m)),
                       classification = cfn_info })
@@ -410,7 +410,7 @@ function resend(sfid)
     msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
     util.unset_output_to_message()
     io.stdout:write(msg.to_string(m))
-    log.lua('resend', { date = os.date(), msg = msg.to_string(m) })
+    log.lua('resend', log.dt { msg = msg.to_string(m) })
       --- XXX do we have to log the whole message here, or can we just log the sfid?
       --- (trying to keep a constant among of logging per event)
   else
@@ -481,9 +481,8 @@ function classify(...)
       cache.store(sfid, msg.to_orig_string(m))
     end
     local crc32 = core.crc32(msg.to_orig_string(m))
-    log.lua('classify', { date = os.date(), probs = probs, conf = conf,
-                              class = class, sfid = sfid, crc32 = crc32,
-                              train = train })
+    log.lua('classify', log.dt { probs = probs, conf = conf, train = train,
+                                 class = class, sfid = sfid, crc32 = crc32 })
     util.write(what, ' is ', show(confidence, tag, class),
                train and ' [needs training]' or '', m.eol)
   end
@@ -619,9 +618,8 @@ function filter(...)
         end
         msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
       end
-      log.lua('filter', { date = os.date(), probs = probs, conf = conf,
-                              class = class, sfid = sfid, crc32 = crc32,
-                              train = train })
+      log.lua('filter', log.dt { probs = probs, conf = conf, train = train,
+                                 class = class, sfid = sfid, crc32 = crc32 })
       if not options.notag and cfg.tag_subject then
         msg.tag_subject(m, subj_tag)
       end

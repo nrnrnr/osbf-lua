@@ -706,8 +706,8 @@ function send_message(message)
     os.execute(string.format(cfg.mail_cmd, tmpfile))
     os.remove(tmpfile)
   else
-    log.lua('error', { date = os.date(),  command = 'msg.send_message',
-                           tmpfile = tmpfile, err = err, message = message })
+    log.lua('error', log.dt { command = 'msg.send_message',
+                              tmpfile = tmpfile, err = err, message = message })
     error('Could not open ' .. tmpfile .. ' to send message: ' .. err)
   end
 end
