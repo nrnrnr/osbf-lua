@@ -10,6 +10,7 @@ local util = submod 'util'
 local commands = submod 'commands'
 local msg = submod 'msg'
 local cfg = submod 'cfg'
+local log = submod 'log'
 local options = submod 'options'
 local core = submod 'core'
 
@@ -142,6 +143,7 @@ function label_next(ms)
   c.classifications = c.classifications + 1
   local class, other = get_label(t, { q = true, d = true, n = true })
   if class then
+    log.lua('label_by_hand', log.dt { class = class, file = filename[t.msg] })
     add_to_corpus(filename[t.msg], class)
     if t.train or class ~= t.class then
       commands.learn_msg(t.msg, class)
@@ -306,6 +308,7 @@ end
 dofile(os.getenv('HOME') .. '/.lmrc')
 
 require 'nrmime'
+require 'ioutil'
 
 local M = Luamail
 local P = M.preferences()
@@ -318,30 +321,32 @@ local classlist = table.concat(cfg.classlist(), ' ')
 
 function get_label(t, special)
   local file = filename[t.msg]
-  local e = Parser:parse_open(file)
-  if e then
-    os.execute('reset')
-    local outfile = io.popen('less -i -X -e', 'w')
+  local ok, e = pcall(Parser.parse_open, Parser, file)
+  os.execute('reset')
+  local outfile = io.popen('less -i -X -e', 'w')
+  if ok and e then
     M.run.show(outfile, e)
-    outfile:close()
-    local function subst(s)
-      if s == t.class then
-        return string.upper(s) .. string.format(' [%.1f]', t.conf)
-      else
-        return s
-      end
+  else
+    outfile:write(io.contents(file))
+  end
+  outfile:close()
+  local function subst(s)
+    if s == t.class then
+      return string.upper(s) .. string.format(' [%.1f]', t.conf)
+    else
+      return s
     end
-    local options = string.gsub(classlist, '%S+', subst)
-    local class
-    repeat
-      io.stdout:write('Class [', options, ']? ')
-      io.stdout:flush()
-      class = io.read()
-    until cfg.classes[class] or special[class] or class == ''
-    if class == '' then return t.class
-    elseif special[class] then return nil, class
-    else return class
-    end
+  end
+  local options = string.gsub(classlist, '%S+', subst)
+  local class
+  repeat
+    io.stdout:write('Class [', options, ']? ')
+    io.stdout:flush()
+    class = io.read()
+  until cfg.classes[class] or special[class] or class == ''
+  if class == '' then return t.class
+  elseif special[class] then return nil, class
+  else return class
   end
 end
 

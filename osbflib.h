@@ -68,8 +68,11 @@ typedef struct
       . Find the smallest counts in the chain that are not 'locked' and force
         them to zero. Counts that change during a learning are locked so we
         don't zero what we've just learned.
+      . Prefer to zero buckets with displacement 0 because they are probably 
+        older and perhaps not as relevant to the user's current message stream.
       . Move buckets as needed to re-establish the invariant that every bucket b
         is located in the chain containing buckets[b->hash1 % num_buckets].
+
 
 */
 

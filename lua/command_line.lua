@@ -498,21 +498,29 @@ end
 
 -- checks and maps batch-commands to valid string commands
 local valid_batch_cmds = {
-  ham = {'learn', 'ham'},
   none = {'do_nothing'},
   recover = {'recover'},
   resend = {'resend'},
   remove = {'remove'},
-  spam = {'learn', 'spam'},
   undo = {'unlearn'},
   whitelist_from = {'whitelist', 'add', 'from'},
   whitelist_subject = {'whitelist', 'add', 'subject'},
 } 
+
+do
+  local function make_classes_commands()
+    for c in pairs(cfg.classes) do
+      valid_batch_cmds[c] = valid_batch_cmds[c] or { 'learn', c }
+    end
+  end
+
+  cfg.after_loading_do(make_classes_commands)
+end
  
 local function run_batch_cmd(sfid, cmd, m)
   local args = {}
   if type(valid_batch_cmds[cmd]) == 'table' then
-    local args = {unpack(valid_batch_cmds[cmd])}
+    local args = {unpack(valid_batch_cmds[cmd])} -- copies table
     table.insert(args, sfid)
     util.write(tostring(sfid), ': ')
     if cmd == 'recover' or cmd == 'resend' then
