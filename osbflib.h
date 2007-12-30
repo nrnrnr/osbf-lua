@@ -45,34 +45,33 @@ typedef struct
     A sequence may wrap around from buckets[num_buckets-1] to buckets[0].
   - If the count for a bigram is nonzero, its bucket will be located
     in the chain containing buckets[hash1 % num_buckets], and furthermore,
-    it will be to the right of position (hash1 % num_buckets) in the chain.
-    If a bug in the code caused a bucket to violate this invariant, the bucket
-    would be deemed *unreachable*.
-  - The distance between a bucket's actual position an (hash1 % num_buckets)
+    it will be at, or to the right of, position (hash1 % num_buckets) in the
+    chain. If a bug in the code caused a bucket to violate this invariant,
+    the bucket would be deemed *unreachable*.
+  - The distance between a bucket's actual position and (hash1 % num_buckets)
     is called the bucket's *displacement*.
-  - The number of probes required to find an existing bucket is its displacement 
-    plus one.
-  - To keep probing cost down, the maximum displacement is capped at the value of 
-    'microgroom_displacement_trigger'.  This number can be built in by means
-    of the macro OSBF_MICROGROOM_DISPLACEMENT_TRIGGER, but it is more typical for 
-    the macro to be zero, in which case the maximum permissible displacement
-    is calculated by the expression max(14.85 + 1.5E-4 * NUM_BUCKETS (class), 29)
-    in the function osbf_insert_bucket. The expression is a line that passes by
-    the points (94321, 29) and (4000037, 615), determined by experiments. For
-    databases with less than 94321 buckets, the maximum displacement is constant
-    and equal to 29.
+  - The number of probes required to find an existing bucket is its
+    displacement plus one.
+  - To keep probing cost down, the maximum displacement is capped at the value
+    of 'microgroom_displacement_trigger'. This number can be built in by means
+    of the macro OSBF_MICROGROOM_DISPLACEMENT_TRIGGER, but it is more typical
+    for the macro to be zero, in which case the maximum permissible
+    displacement is calculated by max(14.85 + 1.5E-4 * NUM_BUCKETS (class), 29)
+    in the function osbf_insert_bucket. The expression is a line that passes
+    through the points (94321, 29) and (4000037, 615), determined by
+    experiments. For databases with less than 94321 buckets, the maximum
+    displacement is constant and equal to 29.
 
   - If a displacement exceeds the trigger, some buckets are removed from the
-    chain by the *microgroomer*.  The microgroomer seems surprisingly complicated, 
-    but the idea is simple:
+    chain by the *microgroomer*.  The microgroomer seems surprisingly
+    complicated, but the idea is simple:
       . Find the smallest counts in the chain that are not 'locked' and force
         them to zero. Counts that change during a learning are locked so we
         don't zero what we've just learned.
       . Prefer to zero buckets with displacement 0 because they are probably 
         older and perhaps not as relevant to the user's current message stream.
-      . Move buckets as needed to re-establish the invariant that every bucket b
-        is located in the chain containing buckets[b->hash1 % num_buckets].
-
+      . Move buckets as needed to re-establish the invariant that every bucket
+        b is located in the chain containing buckets[b->hash1 % num_buckets].
 
 */
 
