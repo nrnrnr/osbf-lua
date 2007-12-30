@@ -215,7 +215,7 @@ Content-Type: text/html
 Content-Transfer-Encoding: quoted-printable
 
 $body
-----=-=-=-train-report-boundary-=-=-=
+----=-=-=-train-report-boundary-=-=-=--
 ]]
 
   local body = [[<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
