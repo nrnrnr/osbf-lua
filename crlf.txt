@@ -1,0 +1,37 @@
+Summary of RFC 2822:
+
+1- all headers must terminate with CRLF - section 2.2
+2- there must be at least two header fields: Date: and From: - section 3.6;
+3- the body may be empty - section 2.1 and 3.6;
+4- if the body is empty the CRLF before the body *may* not be present -
+section 3.6;
+5- if the body is present there must be two CRLF in sequence, one that
+terminates the last header field and another that separates the header
+from the body - section 3.6;
+6- CR and LF must only occur together as CRLF in the message - sections
+2.2 and 2.3.
+
+CRLF is the EOL when a message is sent. When stored <CRLF> is the EOL of
+the system (LF for Unix, CRLF for DOS/Windows/OS-2, CR for Mac OS up to
+version 9 - http://en.wikipedia.org/wiki/Newline).
+
+----------------------------------------------------------------
+
+Here are the nooncompliant messags in TREC corpus (identified by Fidelis):
+
+TREC 2006 - public English corpus
+---------------------------------------
+                           Ham     Spam
+---------------------------------------
+Messags OK               12673    21501
+Missing EOL (*)             38      205
+Missing Date: and From:    121        6
+Missing only Date:          65     3189
+Missing only From:          13       11
+---------------------------------------
+Total                    12910    24912
+---------------------------------------
+
+(*) Missing EOL means that it was not possible to identify the EOL
+sequence. Normally because more than on type (CR, LF, CRLF) was found.
+
