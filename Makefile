@@ -50,7 +50,9 @@ ifneq ($(STRIP),no)
 	strip $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT)
 endif
 	cp lua/*.lua $(LUAMODULE_DIR)/$(MODNAME)
-	mv $(LUAMODULE_DIR)/$(MODNAME)/osbf.lua $(LUAMODULE_DIR)/$(MODNAME).lua
+	# cp and rm may work where mv will not (directory permissions)
+	cp $(LUAMODULE_DIR)/$(MODNAME)/osbf.lua $(LUAMODULE_DIR)/$(MODNAME).lua
+	rm $(LUAMODULE_DIR)/$(MODNAME)/osbf.lua
 	echo "#! $(LUABIN)" > $(BINDIR)/$(BINNAME)
 	lua -e "x=string.gsub(io.read('*a'),'osbf','$(MODNAME)') io.write(x)" < lua/osbf >> $(BINDIR)/$(BINNAME)
 	chmod +x $(BINDIR)/$(BINNAME)
