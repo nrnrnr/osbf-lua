@@ -108,9 +108,7 @@ osbf_stats (const CLASS_STRUCT *class, STATS_STRUCT * stats,
       }
   }
 
-  stats->db_id = class->header->db_id;
   stats->db_version = class->header->db_version;
-  stats->db_flags = class->header->db_flags;
   stats->total_buckets = class->header->num_buckets;
   stats->bucket_size = sizeof(*class->buckets);
   stats->header_size = sizeof(class->header);

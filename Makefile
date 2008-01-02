@@ -11,6 +11,7 @@ BINNAME=osbf3
 
 MAILFILE = $(shell ./mailfile)
 
+HFILES= oarray.h osbf_disk.h osbfcvt.h osbferr.h osbflib.h
 SRCS= losbflib.c osbferrl.c oarray.c \
       osbf_bayes.c osbf_aux.c osbf_disk.c osbf_csv.c osbf_stats.c \
       osbf_fmt_5.c osbf_fmt_6.c osbf_fmt_7.c 
@@ -68,4 +69,9 @@ clean:
 	rm -f $(LIBNAME) $(OBJS) *.so *~
 	rm -f *.o *.gcda *.gcno
 
+
+depend: $(SRCS) $(HFILES) strip-lua-headers
+	gcc $(CFLAGS) -MM $(SRCS) | ./strip-lua-headers `pkg-config --cflags lua5.1` > $@
+
+include ./depend
 

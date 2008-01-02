@@ -10,10 +10,10 @@
 
 static int i_recognize_image(void *image);
 static off_t expected_size(void *image);
-static void copy_header (OSBF_HEADER_STRUCT *header, void *image,
-                         CLASS_STRUCT *class, OSBF_HANDLER *h);
-static void copy_buckets(OSBF_BUCKET_STRUCT *buckets, void *image,
-                          CLASS_STRUCT *class, OSBF_HANDLER *h);
+static void *find_header (void *image, CLASS_STRUCT *class, OSBF_HANDLER *h);
+static void *find_buckets(void *image, CLASS_STRUCT *class, OSBF_HANDLER *h);
+
+#define DEBUG 1
 
 #define MY_FORMAT osbf_format_7
 
@@ -21,25 +21,13 @@ struct osbf_format MY_FORMAT = {
   7,  /* my unique id */
   "OSBF-MAGIC-FP-FN",
   "OSBF_Bayes-spectrum file with false negatives, false positives, and magic number",
-  0,  /* I am not native */
+  1,  /* I am native */
   i_recognize_image,
   expected_size,
-  OSBF_COPY_FUNCTIONS(copy_header, copy_buckets),
+  OSBF_FIND_FUNCTIONS(find_header, find_buckets),
 };
 
 /****************************************************************/
-
-typedef struct /* used for disk image, so avoiding enum type for db_version */
-{
-  uint32_t magic;               /* OSBF or FBSO */
-  uint32_t db_version;		/* database version as it was on disk */
-  uint32_t num_buckets;		/* number of buckets in the file */
-  uint32_t learnings;		/* number of trainings done */
-  uint32_t false_negatives;	/* number of false not classifications as this class */
-  uint32_t false_positives;	/* number of false classifications as this class */
-  uint64_t classifications;	/* number of classifications */
-  uint32_t extra_learnings;	/* number of extra trainings done */
-} OSBF_HEADER_STRUCT_2007_12_13;
 
 /* If the first four characters of the file are OSBF or FBSO, we recognize it. 
    OSBF indicates a little-endian representation of integers on disk; FBSO is 
@@ -47,7 +35,7 @@ typedef struct /* used for disk image, so avoiding enum type for db_version */
    reason we couldn't provide a non-native format to convert them.
 */
 
-typedef OSBF_HEADER_STRUCT_2007_12_13 MY_DISK_IMAGE;
+typedef OSBF_HEADER_STRUCT_2008_01 MY_DISK_IMAGE;
 typedef OSBF_BUCKET_STRUCT MY_BUCKET_STRUCT;
 
 #define U(c) ((unsigned char)(c))
@@ -72,81 +60,139 @@ static int i_recognize_image(void *p) {
 
 static off_t expected_size(void *p) {
   MY_DISK_IMAGE *image = p;
-  unsigned num_buckets =
+  uint32_t num_buckets =
     image->magic == OSBF_LITTLE ? image->num_buckets : swap(image->num_buckets);
   return sizeof(*image) + sizeof(MY_BUCKET_STRUCT) * num_buckets;
 }
 
-static void
-copy_header (OSBF_HEADER_STRUCT *xxxheader, void *p,
-             CLASS_STRUCT *class, OSBF_HANDLER *h) 
-{
+off_t osbf_native_image_size  (CLASS_STRUCT *class) {
+  return expected_size(class->header);
+}
+
+static void *find_header (void *p, CLASS_STRUCT *class, OSBF_HANDLER *h) {
   MY_DISK_IMAGE *image = p;
-  OSBF_UNIVERSAL_HEADER uni;
-
-  char classname[200];
-  strncpy(classname, class->classname, sizeof(classname));
-  classname[sizeof(*classname)] = '\0';
-
-  if (image->db_version != MY_FORMAT.unique_id)
-    osbf_raise(h, "This can't happen: format for id %d sees "
-                  "file %s with database version %d",
-               MY_FORMAT.unique_id, class->classname, image->db_version);
-
   if (image->magic == OSBF_BIG) {
+    char classname[200];
+    strncpy(classname, class->classname, sizeof(classname));
+    classname[sizeof(classname)-1] = '\0';
     cleanup_partial_class(image, class, MY_FORMAT.native);
     osbf_raise(h, "OSBF class file %s has its bytes swapped---may have been copied"
                " from a machine of the wrong endianness", classname);
   }
-
-  memset(&uni, 0, sizeof(uni));
-  uni.db_version      = image->db_version;
-  uni.db_id           = OSBF_DB_ID;
-  uni.buckets_start   = (OSBF_BUCKET_STRUCT *)(image+1) - (OSBF_BUCKET_STRUCT *)image;
-  uni.num_buckets     = image->num_buckets;
-  uni.learnings       = image->learnings;
-  uni.false_negatives = image->false_negatives;
-  uni.false_positives = image->false_positives;
-  uni.classifications = image->classifications;
-  uni.extra_learnings = image->extra_learnings;
-
-  osbf_native_header_of_universal(xxxheader, &uni);
-
+  if (image->db_version != MY_FORMAT.unique_id)
+    osbf_raise(h, "Bad internal invariants for image:\n"
+               "  expected unique id (database version) %d, but found %d\n",
+               MY_FORMAT.unique_id, image->db_version);
+  return p;
 }
 
-
-static unsigned upconvert_bucket(OSBF_UNIVERSAL_BUCKET *dst, void *src);
-
-/* all this goo is meant to be evaluated at compile time; hence the macros */
-
-#define FIELD_OFFSET(P, f) ((char *)&(P)->f - (char *)(P))
-#define FIELDS_EQ(P1, P2, f) \
-  sizeof((P1)->f) == sizeof((P2)->f) && FIELD_OFFSET(P1, f) == FIELD_OFFSET(P2, f)
-
-static void 
-copy_buckets(OSBF_BUCKET_STRUCT *buckets, void *p,
-             CLASS_STRUCT *class, OSBF_HANDLER *h) {
+static void *find_buckets (void *p, CLASS_STRUCT *class, OSBF_HANDLER *h) {
   MY_DISK_IMAGE *image = p;
-  OSBF_UNIVERSAL_BUCKET uni;
+  (void)class; (void)h; /* not used */
+  return image+1;
+}
 
-  if (sizeof(uni) == sizeof(*buckets) && FIELDS_EQ(buckets, &uni, hash1) &&
-      FIELDS_EQ(buckets, &uni, hash2) && FIELDS_EQ(buckets, &uni, count)) {
-    /* everything matches */
-    memcpy(buckets, (OSBF_BUCKET_STRUCT *)(image + 1),
-           image->num_buckets * sizeof(*buckets));
-  } else {
-    osbf_raise(h, "bucket format has changed; upconverter in osbf_fmt_7.c needs "
-               "to be checked");
-    osbf_native_buckets_of_universal(buckets, (OSBF_BUCKET_STRUCT *)(image + 1),
-                                     upconvert_bucket, image->num_buckets);
+void osbf_native_write_class(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
+  char classname[200];
+  strncpy(classname, class->classname, sizeof(classname));
+  classname[sizeof(classname)-1] = '\0';
+  
+  if (class->header->db_version != MY_FORMAT.unique_id)
+    osbf_raise(h, "Version %d format asked to write version %d database as native\n",
+               MY_FORMAT.unique_id, class->header->db_version);
+
+  if (DEBUG) {
+    unsigned j;
+    fprintf(stderr, "Writing native class with header");
+    for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
+      fprintf(stderr, " %u", ((uint32_t *)class->header)[j]);
+    fprintf(stderr, "\n");
   }
-  (void)class; /* not otherwise used */
+
+  if (fwrite(class->header, sizeof(*class->header), 1, fp) != 1) {
+    cleanup_partial_class(class->header, class, 1);
+    osbf_raise(h, "%s", "Could not write header to class file %s", classname);
+  }
+  if (fwrite(class->buckets, sizeof(*class->buckets), class->header->num_buckets, fp)
+      != class->header->num_buckets) {
+    cleanup_partial_class(class->header, class, 1);
+    remove(classname); /* salvage is impossible */
+    osbf_raise(h, "Could not write buckets to class file %s", classname);
+  }
+  if (expected_size(class->header) != ftell(fp)) {
+    long size = expected_size(class->header);
+    cleanup_partial_class(class->header, class, 1);
+    osbf_raise(h, "Wrote %ld bytes to file %s; expected to write %ld bytes", 
+               ftell(fp), classname, size);
+  }
 }
 
-static unsigned upconvert_bucket(OSBF_UNIVERSAL_BUCKET *dst, void *src) {
-  MY_BUCKET_STRUCT *bucket = src;
-  dst->hash1 = bucket->hash1;
-  dst->hash2 = bucket->hash2;
-  dst->count = bucket->count;
-  return sizeof(*bucket);
+void osbf_native_write_header(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
+  if (class->header->db_version != MY_FORMAT.unique_id)
+    osbf_raise(h, "Version %d format asked to write version %d database as native\n",
+               MY_FORMAT.unique_id, class->header->db_version);
+
+  if (DEBUG) {
+    unsigned j;
+    fprintf(stderr, "Writing native header");
+    for (j = 0; j < sizeof(*class->header) / sizeof(unsigned); j++)
+      fprintf(stderr, " %u", ((unsigned *)class->header)[j]);
+    fprintf(stderr, "\n");
+  }
+
+  if (fwrite(class->header, sizeof(*class->header), 1, fp) != 1) {
+    char classname[200];
+    strncpy(classname, class->classname, sizeof(classname));
+    classname[sizeof(classname)-1] = '\0';
+    cleanup_partial_class(class->header, class, 1);
+    osbf_raise(h, "Could not write header to class file %s", class->classname);
+  }
 }
+
+
+
+/*****************************************************************/
+
+void
+osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets, OSBF_HANDLER *h)
+{
+  FILE *f;
+  uint32_t i_aux;
+  MY_DISK_IMAGE image;
+  OSBF_BUCKET_STRUCT bucket = { 0, 0, 0 };
+  
+  f = create_file_if_absent(cfcfile, h);
+
+  /* zero all fields in header and buckets */
+  memset(&image, 0, sizeof(image));
+
+  /* Set the header. */
+  image.magic       = OSBF_LITTLE;
+  image.db_version  = MY_FORMAT.unique_id;
+  image.num_buckets = num_buckets;
+
+  /* Write header */
+  osbf_raise_unless (fwrite (&image, sizeof (image), 1, f) == 1, h,
+                     "Couldn't write the file header: '%s'", cfcfile);
+
+  /*  Initialize CFC hashes - zero all buckets */
+  for (i_aux = 0; i_aux < num_buckets; i_aux++)
+    if (fwrite (&bucket, sizeof (bucket), 1, f) != 1)
+      osbf_raise(h, "Couldn't write to: '%s'", cfcfile);
+
+  osbf_raise_unless(ftell(f) == expected_size(&image), h,
+                    "Internal fault: bad size calculation");
+  fclose (f);
+}
+
+void osbf_native_header_of_universal(OSBF_HEADER_STRUCT *dst,
+                                     const OSBF_UNIVERSAL_HEADER *src) {
+  dst->magic           = OSBF_LITTLE;
+  dst->db_version      = src->db_version;
+  dst->num_buckets     = src->num_buckets;
+  dst->learnings       = src->learnings;
+  dst->false_negatives = src->false_negatives;
+  dst->false_positives = src->false_positives;
+  dst->classifications = src->classifications;
+  dst->extra_learnings = src->extra_learnings;
+} 

@@ -163,12 +163,7 @@ lua_osbf_config (lua_State * L)
 static int
 lua_osbf_createdb (lua_State * L)
 {
-  const char *cfcname = luaL_checkstring(L, 1);
-  uint32_t buckets    = (uint32_t) luaL_checkint(L, 2);
-  uint32_t db_flags = 0;
-
-  osbf_create_cfcfile (cfcname, buckets, OSBF_DB_ID, OSBF_DB_FP_FN_VERSION,
-                       db_flags, L);
+  osbf_create_cfcfile (luaL_checkstring(L, 1), (uint32_t) luaL_checkint(L, 2), L);
   return 0;
 }
 
@@ -332,8 +327,7 @@ DEFINE_FIELD_FUN(filename,        lua_pushstring(L, c->classname))
 DEFINE_FIELD_FUN(version,         lua_pushnumber(L, c->header->db_version))
 DEFINE_FIELD_FUN(version_name,    lua_pushstring(L, c->fmt_name))
 DEFINE_FIELD_FUN(num_buckets,     lua_pushnumber(L, c->header->num_buckets))
-DEFINE_FIELD_FUN(id,              lua_pushnumber(L, c->header->db_id))
-DEFINE_FIELD_FUN(flags,           lua_pushnumber(L, c->header->db_flags))
+DEFINE_FIELD_FUN(id,              lua_pushnumber(L, c->header->db_version))
 DEFINE_FIELD_FUN(bucket_size,     lua_pushnumber(L, sizeof(*c->buckets)))
 DEFINE_FIELD_FUN(header_size,     lua_pushnumber(L, sizeof(*c->header)))
 DEFINE_FIELD_FUN(learnings,       lua_pushnumber(L, c->header->learnings))
@@ -341,6 +335,8 @@ DEFINE_FIELD_FUN(classifications, lua_pushnumber(L, c->header->classifications))
 DEFINE_FIELD_FUN(extra_learnings, lua_pushnumber(L, c->header->extra_learnings))
 DEFINE_FIELD_FUN(fn,              lua_pushnumber(L, c->header->false_negatives))
 DEFINE_FIELD_FUN(fp,              lua_pushnumber(L, c->header->false_positives))
+DEFINE_FIELD_FUN(false_negatives, lua_pushnumber(L, c->header->false_negatives))
+DEFINE_FIELD_FUN(false_positives, lua_pushnumber(L, c->header->false_positives))
 DEFINE_FIELD_FUN(, lua_pushnil(L))
 
 #define DEFINE_MUTATE_FUN(fname, lvalue)                             \
@@ -675,14 +671,8 @@ lua_osbf_stats (lua_State * L)
   osbf_stats (check_class(L, -1), &stats, L, full);
   lua_newtable (L);
 
-  lua_pushnumber (L, (lua_Number) stats.db_id);
-  lua_setfield(L, -2, "db_id");
-
   lua_pushnumber (L, (lua_Number) stats.db_version);
   lua_setfield(L, -2, "db_version");
-
-  lua_pushnumber (L, (lua_Number) stats.db_flags);
-  lua_setfield(L, -2, "db_flags");
 
   lua_pushnumber (L, (lua_Number) stats.total_buckets);
   lua_setfield(L, -2, "buckets");
@@ -949,6 +939,8 @@ static const struct luaL_reg classops[] = {
   FFSTRUCT(extra_learnings),
   FFSTRUCT(fn),
   FFSTRUCT(fp),
+  FFSTRUCT(false_negatives),
+  FFSTRUCT(false_positives),
   FFSTRUCT(mode),
   FFSTRUCT(version),
   FFSTRUCT(version_name),
@@ -956,7 +948,6 @@ static const struct luaL_reg classops[] = {
   FFSTRUCT(header_size),
   FFSTRUCT(num_buckets),
   /*  { "buckets", lua_osbf_class_buckets }, */
-  FFSTRUCT(flags),
   FFSTRUCT(id),
   {NULL, NULL}
 };

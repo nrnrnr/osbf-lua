@@ -21,8 +21,8 @@
 
 
 enum db_version { OSBF_DB_BASIC_VERSION = 0, OSBF_DB_2007_11_VERSION = 5,
-                  OSBF_DB_FP_FN_VERSION = 6 };
-#define OSBF_CURRENT_VERSION OSBF_DB_FP_FN_VERSION
+                  OSBF_DB_FP_FN_VERSION = 6, OSBF_DB_MAGIC_VERSION = 7 };
+#define OSBF_CURRENT_VERSION OSBF_DB_MAGIC_VERSION
 extern const char *db_version_names[];
   /* Array pointing to names, indexable by any enum_db_version */
 
@@ -79,18 +79,17 @@ typedef struct
 
 typedef struct /* used for disk image, so avoiding enum type for db_version */
 {
+  uint32_t magic;               /* OSBF or FBSO */
   uint32_t db_version;		/* database version as it was on disk */
-  uint32_t db_id;		/* database identification -- which is what, exactly?*/
-  uint32_t db_flags;		/* for future use */
   uint32_t num_buckets;		/* number of buckets in the file */
   uint32_t learnings;		/* number of trainings done */
   uint32_t false_negatives;	/* number of false not classifications as this class */
   uint32_t false_positives;	/* number of false classifications as this class */
   uint64_t classifications;	/* number of classifications */
   uint32_t extra_learnings;	/* number of extra trainings done */
-} OSBF_HEADER_STRUCT_2007_12;
+} OSBF_HEADER_STRUCT_2008_01;
 
-typedef OSBF_HEADER_STRUCT_2007_12 OSBF_HEADER_STRUCT;
+typedef OSBF_HEADER_STRUCT_2008_01 OSBF_HEADER_STRUCT;
 
 /* what the client promises to do with a class */
 typedef enum osbf_class_usage {
@@ -132,9 +131,7 @@ typedef struct
 /* database statistics structure */
 typedef struct
 {
-  uint32_t db_id;
   uint32_t db_version;
-  uint32_t db_flags;
   uint32_t total_buckets;
   uint32_t bucket_size;
   uint32_t used_buckets;
@@ -152,11 +149,6 @@ typedef struct
 } STATS_STRUCT;
 
 #define NELEMS(A) (sizeof(A)/sizeof((A)[0]))
-
-/* Database version */
-enum osbf_database_ids {  /* NR is very puzzled about what 5 means */
-  OSBF_DB_ID = 5
-};
 
 /****************************************************************/
 
@@ -293,9 +285,7 @@ extern void
 osbf_insert_bucket (CLASS_STRUCT * dbclass, uint32_t bindex,
 		    uint32_t hash, uint32_t key, int value);
 extern void
-osbf_create_cfcfile (const char *cfcfile, uint32_t buckets,
-		     uint32_t db_id, uint32_t db_version,
-                     uint32_t db_flags, OSBF_HANDLER *h);
+osbf_create_cfcfile (const char *cfcfile, uint32_t buckets, OSBF_HANDLER *h);
 
 extern void
 osbf_dump    (const CLASS_STRUCT *cfcfile, const char *csvfile, OSBF_HANDLER *h);

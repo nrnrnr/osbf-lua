@@ -97,11 +97,11 @@ for l in assert(io.lines(trecdir .. 'index')) do
   if debug then io.stderr:write("\nMsg ", file) end 
   table.insert(files, file)
   local m = msg.of_file(trecdir .. file)
-  local probs, scores = commands.multiclassify(m.lim.msg)
-  local cfn = { actual = labelled, scores = scores, file = file }
+  local probs, conf = commands.multiclassify(m.lim.msg)
+  local cfn = { actual = labelled, conf = conf, file = file }
   table.insert(classifications, cfn)
-  local class = roc.most_likely_class(cfn)
-  local train = scores[class] < cfg.classes[class].train_below
+  local class = util.key_max(conf)
+  local train = conf[class] < cfg.classes[class].train_below
   if train or class ~= labelled then
     local ok, errmsg = opcall(commands.learn_msg, m, labelled)
     if ok then

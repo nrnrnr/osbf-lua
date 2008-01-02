@@ -59,5 +59,10 @@ void osbf_native_buckets_of_universal(OSBF_BUCKET_STRUCT *dst,
      then returns the size in bytes of the non-native bucket.
      Nobody will call this function until the bucket format changes */
 
+/* Database version */
+enum osbf_database_ids {  
+  OSBF_DB_ID = 5 /* Obsolete ID related to CRM 114 */
+};
+
 #endif
 

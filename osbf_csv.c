@@ -38,7 +38,7 @@ osbf_dump (const CLASS_STRUCT *class, const char *csvfile, OSBF_HANDLER *h)
 
   fprintf(fp_csv,
           "%" SCNu32 ";%" SCNu32 "\n%" SCNu32 ";%" SCNu32 "\n",
-          class->header->db_id, class->header->db_flags,
+          class->header->db_version, 0,
           class->header->num_buckets, class->header->learnings);
 
   
@@ -62,6 +62,7 @@ osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h)
   CLASS_STRUCT class;
   OSBF_BUCKET_STRUCT *buckets;
   uint32_t i;
+  uint32_t garbage; /* placeholder for flags in legacy formats */
 
   memset(&class, 0, sizeof(class));
   class.classname = osbf_malloc(strlen(cfcfile)+1, h, "class name");
@@ -78,7 +79,7 @@ osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h)
   UNLESS_CLEANUP_RAISE(
      4 == fscanf (fp_csv,
 		  "%" SCNu32 ";%" SCNu32 "\n%" SCNu32 ";%" SCNu32 "\n",
-                  &class.header->db_id, &class.header->db_flags,
+                  &class.header->db_version, &garbage,
 		  &class.header->num_buckets, &class.header->learnings),
      fclose (fp_csv),
      (h, "csv file %s doesn't have a valid header", csvfile));
