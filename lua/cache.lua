@@ -127,15 +127,25 @@ end
 do
   local last_s, last_t = {}  -- initial last_s can't possibly match any arg
 
+  local rid_pat
+  loose_sfid_pat = nil -- used in msg_extract_sfid
+  local full_sfid_pat = nil
+
+  local function set_pats()
+    rid_pat = string.gsub(cfg.rightid, '%W', '%%%1')
+    loose_sfid_pat = 'sfid%-.-%@' .. rid_pat .. '%-?%l?'
+    full_sfid_pat = '^sfid%-(%a)%-(%d%d%d%d)(%d%d)(%d%d)%-(%d%d)(%d%d)(%d%d)%-' ..
+                    '([%+%-]%d+%.%d+)%-(%d+)%@(' .. rid_pat .. ')(%-?)(%l?)$'
+  end
+  cfg.after_loading_do(set_pats)
+
   function table_of_sfid(s)
     if last_s == s then return last_t end -- cache
     if type(s) ~= 'string' then
       util.errorf('Non-string value %s used as sfid', tostring(s))
     end
     local tag, year, month, day, hour, min, sec, confidence,
-          serial, rightid, dash, learned =
-      string.match(s, '^sfid%-(%a)%-(%d%d%d%d)(%d%d)(%d%d)%-(%d%d)(%d%d)(%d%d)%-' ..
-                   '([%+%-]%d+%.%d+)%-(%d+)%@(.-)(%-?)(%l?)$')
+          serial, rightid, dash, learned = s:match(full_sfid_pat)
     if not (tag and learned) then
       error("Ill-formed sfid " .. s)
     end

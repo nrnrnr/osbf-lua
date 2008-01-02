@@ -460,19 +460,25 @@ end
 __doc.extract_sfid = [[function(msg[, spec]) returns string or calls error
 Extracts the sfid from the headers of the specified message.]]
 
+local ref_pat, com_pat -- depend on cfg and cache; don't set until needed
+
 function extract_sfid(msg, spec)
   -- if the sfid was not given in the command, extract it
   -- from the references or in-reply-to field
 
+  ref_pat = ref_pat or '.*<(' .. cache.loose_sfid_pat .. ')>'
+  com_pat = com_pat or '.*%((' .. cache.loose_sfid_pat .. ')%)'
+  
+
   for refs in headers_tagged(msg, 'references') do
     -- match the last sfid in the field (hence the initial .*)
-    local sfid = string.match(refs, '.*<(sfid%-.-)>')
+    local sfid = refs:match(ref_pat)
     if sfid then return sfid end
   end
 
   -- if not found as a reference, try as a comment in In-Reply-To or in References
   for field in headers_tagged(msg, 'in-reply-to', 'references') do
-    local sfid = string.match(field, '.*%((sfid%-.-)%)')
+    local sfid = field:match(com_pat)
     if sfid then return sfid end
   end
   
