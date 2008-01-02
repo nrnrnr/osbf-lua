@@ -326,7 +326,7 @@ local function learner(command_name)
                 ' the configuration file is set\n  '..
                 (cfg.use_sfid and 'not to save messages' or 'not to use sfids'))
         else
-          local probs, conftag = commands.multiclassify(m.lim.msg)
+          local probs, conf = commands.multiclassify(m.lim.msg)
           local train, conf, sfid_tag, subj_tag, class =
             commands.classify(m, probs, conf)
           local orig = msg.to_orig_string(m)

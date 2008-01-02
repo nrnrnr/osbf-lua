@@ -220,6 +220,7 @@ function of_any(v)
   elseif cache.is_sfid(v) then
     local m = of_sfid(v)
     if not m then error('sfid ' .. v .. ' is missing from the cache') end
+    return m
   else
     assert(type(v) == 'string')
     local f = io.open(v, 'r')
@@ -230,6 +231,7 @@ function of_any(v)
       if not msg then
         util.errorf("'%s' is not a sfid, a readable file, or an RFC 822 message", v)
       end
+      return msg
     end
   end
 end
