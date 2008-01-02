@@ -762,3 +762,75 @@ function set_output_to_message(m, subject)
   util.set_output_to_message(boundary, table.concat(headers, m.eol), m.eol)
 end
 
+----------------------------------------------------------------
+do 
+  local default_synopsis_width = 60
+  __doc.synopsis = [[function(T, w) returns string
+  Returns a string of width w (default $w) which is a synopsis of the
+  message T.  The synopsis is formed from the Subject: line and the
+  first few words of the body.]]
+
+  __doc.synopsis = __doc.synopsis:gsub('%$w', default_synopsis_width)
+
+  local function choose_body_part(m)
+    local ct = header_tagged(m, 'content-type')
+    if not ct or not string.find(ct, 'multipart/') then
+      return m.body
+    end
+  --  io.stderr:write('content-type is ', ct, '\n')
+    local boundary = string.match(ct, 'boundary="(.-)"')
+                  or string.match(ct, 'boundary=(%S+)')
+                if not boundary then return m.body end
+    local bpat = '[\n\r]%-%-' .. string.gsub(boundary, '%W', '%%%1') .. '.-[\n\r]'
+    local _, next = string.find(m.body, bpat)
+  --  io.stderr:write('first boundary at ', tostring(next), '\n')
+    if not next then return m.body end
+    local parts = { }
+    repeat
+      local first, last = next+1
+      last, next = string.find(m.body, bpat, first)
+      if last then
+        table.insert(parts, (string.gsub(string.sub(m.body, first, last-1), '^%s+', '')))
+      end
+    until not last
+    local msgs = { }
+    for _, p in ipairs(parts) do
+      msgs[#msgs+1] = of_string(p, true)
+    end
+  --  io.stderr:write(#parts, ' parts, of which ', #msgs, ' parse as messages\n')
+    local good 
+    if #msgs == 0 then return parts[1] or m.body end
+  --  for _, m in ipairs(msgs) do io.stderr:write(header_tagged(m, 'content-type') or '??', '\n') end
+    for _, m in ipairs(msgs) do
+      local ty = header_tagged(m, 'content-type')
+      if ty then
+        if string.find(ty, 'text/plain') then
+          good = m; break
+        elseif string.find(ty, '[%s=]text/') then
+          good = good or m
+        end
+      end
+    end
+    if good then return 'M: ' .. good.body else return m.body end
+  end
+        
+
+  function synopsis(m, w)
+    w = w or default_synopsis_width
+    local function despace(s)
+      s = string.gsub(s, '^%s+', '')
+      s = string.gsub(s, '%s+', ' ')
+      s = string.gsub(s, ' $', '')
+      return s
+    end
+    local s = despace(header_tagged(m, 'subject') or '')
+    s = s .. '>>'
+    if string.len(s) < w then
+      local body = despace(choose_body_part(m))
+      return s .. string.sub(body, 1, w-string.len(s))
+    else
+      return string.sub(s, 1, w)
+    end
+  end
+end
+

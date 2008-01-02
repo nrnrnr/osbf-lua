@@ -340,6 +340,7 @@ local function learner(command_name)
         util.writeln(comment)
         log.lua(command_name, log.dt
                     { class = classification, sfid = sfid,
+                      synopsis = msg.synopsis(m),
                       crc32 = crc32 or core.crc32(msg.to_org_string(m)),
                       classification = cfn_info })
         -- redelivers message if it was trained and config calls for a resend
@@ -482,6 +483,7 @@ function classify(...)
     end
     local crc32 = core.crc32(msg.to_orig_string(m))
     log.lua('classify', log.dt { probs = probs, conf = conf, train = train,
+                                 synopsis = msg.synopsis(m),
                                  class = class, sfid = sfid, crc32 = crc32 })
     util.write(what, ' is ', show(confidence, tag, class),
                train and ' [needs training]' or '', m.eol)
@@ -627,6 +629,7 @@ function filter(...)
         msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
       end
       log.lua('filter', log.dt { probs = probs, conf = conf, train = train,
+                                 synopsis = msg.synopsis(m),
                                  class = class, sfid = sfid, crc32 = crc32 })
       if not options.notag and cfg.tag_subject then
         msg.tag_subject(m, subj_tag)
