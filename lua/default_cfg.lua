@@ -33,8 +33,8 @@ return {
   -- training result subjects: used in string.format(string, class)
   -- can be specialized to each class as needed.
   trained_as_subject = { default = "Trained as %s" },
-  training_not_necessary = "Training not necessary: confidence %s is " ..
-                           "above the learning threshold %s",
+  training_not_necessary = "Training not necessary: confidence %4.2f is " ..
+                           "above the learning threshold %4.2f",
   
 
   -- prefix of each header added to the message; by changing prefix,

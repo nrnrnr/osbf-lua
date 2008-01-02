@@ -39,19 +39,11 @@ Table mapping class to format string for trained messages.
 There can be an entry for each class name; the string is made by
 calling string.format with the entry and the name of the class.
 If there is no entry, OSBF-Lua uses the entry 'default'.]],
+ -- XXX this isn't used anywhere!
 
-  training_not_necessary_single = [[
-Result format string for messages which don't need training and 
-which use a single classification (i.e., exactly two classes).
-It expects two arguments: string representations of the score and
-the reinforcement zone.
-]],
-
-  training_not_necessary_multi = [[
-Result format string for messages which don't need training and 
-which use a multiple classifications (more than two classes).
-It expects two arguments: string representations of the confidences and
-the reinforcement zones.
+  training_not_necessary = [[
+Result format string for messages which don't need training.
+Takes two numeric arguments: confidence and training threshold.
 ]],
 
   header_prefix = [[Prefix of every header inserted by OSBF-Lua.]],

@@ -281,7 +281,7 @@ function learn_msg(msg, class, count)
          fingerprint(lim.msg), fingerprint(lim.header), class)
   local orig, new = tone_msg_and_reinforce_header(lim, class, count)
   local comment = orig == new and
-    string.format('Training not needed; confidence %4.2f above threshold', orig) or
+    string.format(cfg.training_not_necessary, orig, cfg.classes[class].train_below) or
     string.format('Trained as %s: confidence %4.2f -> %4.2f', class, orig, new)
   return comment, orig, new
 end
