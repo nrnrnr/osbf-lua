@@ -356,3 +356,11 @@ and it provides these fields:
 
 The first group of fields is mutable.
 ]]
+
+__doc.close = [[function() returns nothing
+Closes all open classes.
+]]
+
+__doc.crc32 = [[function(string) returns number
+Returns the standard CRC-32 checksum of the given string.
+]]

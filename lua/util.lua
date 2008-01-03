@@ -322,6 +322,9 @@ function die(...)
   end
 end
 
+__doc.progname = [[String containing the name of the current program.
+Used in error messages from util.die.]]
+
 __doc.dief = [[function(...) return util.die(string.format(...)) end]]
       dief =   function(...) return      die(string.format(...)) end
 

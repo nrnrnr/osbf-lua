@@ -389,7 +389,7 @@ tgt_pR is the pR of tgt_class
 
 do
   local cflags
-  cfg.after_loading_do(function() flags = cfg.constants.classify_flags end)
+  cfg.after_loading_do(function() cflags = cfg.constants.classify_flags end)
 
   function multiclassify(text)
     local sum, problist, trainings = core.classify(text, dblist, cflags)

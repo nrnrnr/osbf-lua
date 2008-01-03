@@ -129,6 +129,13 @@ do
 
   local rid_pat
   loose_sfid_pat = nil -- used in msg_extract_sfid
+  __doc.loose_sfid_pat = [[
+A string that will match something starting with sfid- and ending in
+cfg.rightid, possibly followed by a learning tag.  Replaces
+previously hard-wired patterns in msg.extract_sfid, so that it will
+extract only a sfid with the proper rightid.
+]]
+
   local full_sfid_pat = nil
 
   local function set_pats()
