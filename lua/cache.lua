@@ -353,13 +353,11 @@ function remove(sfid)
   end
 end
  
-__doc.try_recover = [[function(sfid) returns string or nil, error
+__doc.recover = [[function(sfid) returns string or calls error
 If the message is still in the cache, return the contents as a string.
-Otherwise returns nil with an error message.  XXX should be calling
-error on missing message XXX (and then name changed to recover, msg.lua
-client changed to use pcall)]]
+Otherwise calls error().]]
 
-function try_recover(sfid)
+function recover(sfid)
   -- returns a string containing the message associated with sfid
   -- or nil, err, if sfid is not in cache
   local f, err = file_and_status(sfid)
@@ -369,9 +367,10 @@ function try_recover(sfid)
     return msg
   else
     if is_sfid(sfid) then
-      return nil, sfid .. ': not found in cache.'
+      error('SFID ' .. sfid .. ' not found in cache.')
+      -- XXX should look in the logs for history of this sfid
     else
-      return nil, 'Invalid sfid.'
+      error('Invalid SFID: ' .. sfid)
     end
   end
 end

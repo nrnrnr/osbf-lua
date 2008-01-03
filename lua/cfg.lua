@@ -320,7 +320,9 @@ After the user's config file is loaded, call f passing the cfg table.
 ]]
 local postloads, loaded = { }, false
 function after_loading_do(f)
-  table.insert(postloads, f)
+  if loaded then f(_M)
+  else table.insert(postloads, f)
+  end
 end
 
 __doc.classes = [[Classes of email to be identified.

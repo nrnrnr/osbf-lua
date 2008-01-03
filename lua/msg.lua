@@ -669,8 +669,8 @@ function attach_message(sfid, boundary)
       'error-boundary=_=_='
   end
     
-  local msg_content, err = cache.try_recover(sfid)
-  if msg_content then
+  local ok, msg_content = pcall (cache.recover, sfid)
+  if ok then
     local m = of_string(msg_content)
     -- protect and keep the original envelope-from line
     local xooef =
@@ -692,7 +692,7 @@ function attach_message(sfid, boundary)
        ' name="Error message"',
        'Content-Transfer-Encoding: 8bit',
        'Content-Disposition: inline;', '',
-       err,
+       msg_content,
        '--' .. boundary .. '--', ''}, '\r\n')
   end
 

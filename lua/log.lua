@@ -5,8 +5,8 @@ local io, os, table, pairs, string, require, type
 
 module(...)
 
-local util  = require(_PACKAGE .. 'util')
-local cfg   = require(_PACKAGE .. 'cfg')
+local cfg  = require(_PACKAGE .. 'cfg')
+local util = require(_PACKAGE .. 'util')
 
 ----------------------------------------------------------------
 
@@ -19,6 +19,7 @@ __doc.lua = [[function(name, value) logs call(name, value) as a command
                  
 local logfile
 cfg.after_loading_do(function() logfile = cfg.dirs.log .. 'osbf_log' end)
+
 
 function lua(f, v)
   fh = util.validate(io.open(logfile, 'a+'))

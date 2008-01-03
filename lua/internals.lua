@@ -52,6 +52,12 @@ local function internals(out, s)
       module, member = string.match(s, '^([^%.]+)%.([^%.]+)$')
     end
     if not module then
+      io.stderr:write('Looking for ', osbfname, '.', s, '\n')
+      local ok, r = pcall (require, osbfname .. '.' .. s)
+      if ok then module = s end
+    end
+
+    if not module then
       out:write("There is no internal module called ", s, '\n')
       return
     end

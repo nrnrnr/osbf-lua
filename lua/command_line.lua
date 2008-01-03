@@ -176,19 +176,13 @@ local function listfun(listname)
   return function(cmd, tag, arg)
            -- if arg is SFID, replace it with its tag contents
            if cache.is_sfid(arg) then
-              local message, err = cache.try_recover(arg)
-              if message then
-                local header_field = msg.header_tagged(message, tag)
-                if header_field then
-                  arg = header_field
-                else
-                  util.writeln('header ',
-                    util.capitalize(tostring(tag)), ' not found in SFID.')
-                  return
-                end
+              local message = cache.recover(arg)
+              local header_field = msg.header_tagged(message, tag)
+              if header_field then
+                arg = header_field
               else
-                util.writeln(err)
-                return
+                util.writeln('header ',
+                             util.capitalize(tostring(tag)), ' not found in SFID.')
               end
            end
 
@@ -398,25 +392,21 @@ original message received a subject tag.
 
 
 function resend(sfid)
-  local message, err = cache.try_recover(sfid)
-  if message then
-    local m = msg.of_string(message)
-    local train, confidence, sfid_tag, subj_tag, class = commands.classify(m)
-    sfid_tag = 'R' .. sfid_tag -- prefix tag to indicate a resent message
-    local boost = cfg.classes[class].conf_boost
-    local score_header =
-      string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', confidence - boost,
-                    -boost, sfid_tag, core._VERSION, cfg.version)
-    msg.add_osbf_header(m, cfg.score_header_suffix, score_header)
-    msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
-    util.unset_output_to_message()
-    io.stdout:write(msg.to_string(m))
-    log.lua('resend', log.dt { msg = msg.to_string(m) })
-      --- XXX do we have to log the whole message here, or can we just log the sfid?
-      --- (trying to keep a constant among of logging per event)
-  else
-    util.writeln(err)
-  end
+  local message = cache.recover(sfid)
+  local m = msg.of_string(message)
+  local train, confidence, sfid_tag, subj_tag, class = commands.classify(m)
+  sfid_tag = 'R' .. sfid_tag -- prefix tag to indicate a resent message
+  local boost = cfg.classes[class].conf_boost
+  local score_header =
+    string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', confidence - boost,
+                  -boost, sfid_tag, core._VERSION, cfg.version)
+  msg.add_osbf_header(m, cfg.score_header_suffix, score_header)
+  msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
+  util.unset_output_to_message()
+  io.stdout:write(msg.to_string(m))
+  log.lua('resend', log.dt { msg = msg.to_string(m) })
+    --- XXX do we have to log the whole message here, or can we just log the sfid?
+    --- (trying to keep a constant among of logging per event)
 end
 
 table.insert(usage_lines, 'resend <sfid>')
@@ -428,12 +418,7 @@ atachment to the command-result message.
 ]]
 
 function recover(sfid)
-  local msg, err = cache.try_recover(sfid)
-  if msg then
-    util.write_message(msg)
-  else
-    util.write(err)
-  end
+  util.write_message(cache.recover(sfid))
 end
 
 table.insert(usage_lines, 'recover <sfid>')
