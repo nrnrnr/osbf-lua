@@ -1,5 +1,7 @@
 -- used to run code at initialization time, when options are available,
--- and at finalization time
+-- and at finalization time.
+--
+-- See Copyright Notice in osbf.lua
 
 local insert = table.insert
 

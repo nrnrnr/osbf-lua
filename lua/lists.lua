@@ -1,3 +1,5 @@
+-- See Copyright Notice in osbf.lua
+
 local io, string, table, error, print, assert, pairs, ipairs, type, require, _G
     = io, string, table, error, print, assert, pairs, ipairs, type, require, _G
 

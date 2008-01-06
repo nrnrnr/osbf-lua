@@ -1,4 +1,10 @@
-/* format for database version 7 */
+/*
+ * Format for database version 7.
+ *
+ * See Copyright Notice in osbflua.h
+ */
+
+
 
 #include <stdlib.h>
 #include <string.h>

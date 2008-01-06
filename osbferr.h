@@ -1,3 +1,7 @@
+/*
+ * See Copyright Notice in osbflua.h
+ */
+
 #ifndef OSBF_ERR
 #define OSBF_ERR 1
 

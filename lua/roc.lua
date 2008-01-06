@@ -1,6 +1,9 @@
 -- various ROC calculations drawn from "ROC Graphs: Notes and
 -- Practical Considerations for Researchers", by Tom Fawcett:
 --   http://www.hpl.hp.com/techreports/2003/HPL-2003-4.pdf
+--
+-- See Copyright Notice in osbf.lua
+
 
 local io, string = io, string -- debugging
 

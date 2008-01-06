@@ -1,4 +1,7 @@
 -- Command for creating a training-form email
+--
+-- See Copyright Notice in osbf.lua
+
 
 local require, print, pairs, ipairs, type, assert, setmetatable =
       require, print, pairs, ipairs, type, assert, setmetatable

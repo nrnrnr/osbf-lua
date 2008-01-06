@@ -1,4 +1,7 @@
 -- registration of options and their parsing
+--
+-- See Copyright Notice in osbf.lua
+
 
 local table, string, require, assert, ipairs, tonumber, error =
       table, string, require, assert, ipairs, tonumber, error

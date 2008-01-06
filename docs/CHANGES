@@ -1,3 +1,23 @@
+[DD/MM/2008] Version 3.0
+
+  [*** preliminar notes - to be completed ***]
+
+  - New design based in Lua modules with complete refactoring;
+  - Code generalization for multi-classification;
+  - New database format;
+  - ...
+
+  -------------------------------------------------------------------------
+  Norman Ramsey joined the OSBF-Lua project in Feb/2007 and is responsible
+  for the big leap in the quality of the project since then. He promoted a
+  new design with complete refactoring of both Lua and C codes, numerous
+  optimizations and consolidated the latent multi-classification facility
+  into a consistent multi-classification filter which we hope v3.0 is now.
+
+  Thanks Norman!
+  -- Fidelis
+  -------------------------------------------------------------------------
+
 [14/Jan/2007 Version 2.0.4
 o Changes to osbf module
   - Removed unnecessary linking of liblua.a, which caused segfaults on

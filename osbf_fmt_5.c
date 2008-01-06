@@ -1,4 +1,9 @@
-/* format for database version 5 */
+/*
+ * Format for database version 5
+ *
+ * See Copyright Notice in osbflua.h
+ */
+
 
 #include <string.h>
 

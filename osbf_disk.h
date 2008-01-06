@@ -1,3 +1,7 @@
+/*
+ * See Copyright Notice in osbflua.h
+ */
+
 #ifndef OSBF_DISK_H
 #define OSBF_DISK_H 1
 

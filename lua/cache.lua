@@ -1,3 +1,5 @@
+-- See Copyright Notice in osbf.lua
+
 local require, print, ipairs, pairs, type, assert, tostring, error, pcall =
       require, print, ipairs, pairs, type, assert, tostring, error, pcall
 

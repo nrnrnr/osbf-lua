@@ -1,6 +1,9 @@
 -- the role of this file is to hold disused code
 -- based on the binary-tree approach to classification
 -- this file should never be loaded
+--
+-- See Copyright Notice in osbf.lua
+
 
 assert(false, 'Loaded obsolete, deprecated code')
 

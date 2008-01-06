@@ -6,11 +6,7 @@
  * from November 2007 onward will always be readable and convertible to the
  * preferred current format defined in osbflib.h.
  *
- * Copyright 2005, 2006, 2007 Fidelis Assis all rights reserved.
- * Copyright 2005, 2006, 2007 Williams Yerazunis, all rights reserved.
- * Copyright 2007 Norman Ramsey, all rights reserved.
- *
- * Read the HISTORY_AND_AGREEMENT for details.
+ * See Copyright Notice in osbflua.h
  */
 
 #ifndef OSBF_CVT_H

@@ -1,4 +1,7 @@
 -- Everything to do with logging
+--
+-- See Copyright Notice in osbf.lua
+
 
 local io, os, table, pairs, string, require, type
     = io, os, table, pairs, string, require, type 

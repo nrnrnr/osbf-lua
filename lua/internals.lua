@@ -1,3 +1,6 @@
+--
+-- See Copyright Notice in osbf.lua
+
 local modname = ...
 local osbfname = string.gsub(modname, '%..-$', '')
 local util = require(osbfname .. '.util')

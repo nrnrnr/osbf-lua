@@ -1,16 +1,7 @@
 /*
  *  osbf_stats.c 
  *  
- *  This software is licensed to the public under the Free Software
- *  Foundation's GNU GPL, version 2.  You may obtain a copy of the
- *  GPL by visiting the Free Software Foundations web site at
- *  www.fsf.org, and a copy is included in this distribution.  
- *
- * Copyright 2005, 2006, 2007 Fidelis Assis, all rights reserved.
- * Copyright 2007 Norman Ramsey, all rights reserved.
- * Copyright 2005, 2006, 2007 Williams Yerazunis, all rights reserved.
- *
- * Read the HISTORY_AND_AGREEMENT for details.
+ * See Copyright Notice in osbflua.h
  */
 
 #include <string.h>

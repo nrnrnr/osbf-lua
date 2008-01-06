@@ -1,3 +1,5 @@
+-- See Copyright Notice in osbf.lua
+
 local string, io, require, os, assert, ipairs, pairs, type, math =
       string, io, require, os, assert, ipairs, pairs, type, math
 

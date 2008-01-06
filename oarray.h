@@ -1,3 +1,7 @@
+/*
+ * See Copyright Notice in osbflua.h
+ */
+
 #ifndef OARRAY_H
 #define OARRAY_H
 

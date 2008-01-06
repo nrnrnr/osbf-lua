@@ -3,6 +3,9 @@
 -- will refer to databases by index, not by name.  In fact, the world outside
 -- this file should refer only to class names, never to databases.  We attempt
 -- to enforce this rule through the external shell script 'test-hiding'.
+--
+-- See Copyright Notice in osbf.lua
+
 local select = select
 
 

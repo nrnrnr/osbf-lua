@@ -1,3 +1,5 @@
+-- See Copyright Notice in osbf.lua
+
 local assert, ipairs, pairs, require, tostring, type, setmetatable, error
     = assert, ipairs, pairs, require, tostring, type, setmetatable, error
 

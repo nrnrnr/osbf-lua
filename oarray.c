@@ -1,3 +1,7 @@
+/*
+ * See Copyright Notice in osbflua.h
+ */
+
 #include <stdlib.h>
 #include <string.h>
 
