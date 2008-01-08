@@ -267,9 +267,9 @@ __doc.headers_tagged = [[function(msg, tag, ...) returns iterator
 Iterator successively yields the (untagged) value of each header
 tagged with any of the tags passed in.]]
 
-__doc.header_tagged = [[function(msg, tag, ...) returns string
+__doc.header_tagged = [[function(msg, tag, ...) returns string or nil
 Returns the value of the first header tagged with any of the
-tags passed in.]]
+tags passed in, if any such header exists.]]
 
 __doc.header_indices = [[function(msg, tag, ...) returns iterator
 Iterator successively yields *index* of each header tagged with any of
@@ -293,16 +293,14 @@ end
 
 
 --- pass in list of tags and return iterator that will pass through 
---- ever header with any of the tags
+--- every header with any of the tags
 function headers_tagged(msg, ...)
-  msg = of_any(msg)
   local hs = msg.headers
   local f = header_indices(msg, ...)
   return function()
            local hi = f()
            if hi then
-             local h = msg.headers[hi]
-             return string.gsub(h, '^.-:%s*', '')
+             return string.gsub(hs[hi], '^.-:%s*', '')
            end
          end
 end
@@ -464,9 +462,16 @@ Extracts the sfid from the headers of the specified message.]]
 
 local ref_pat, com_pat -- depend on cfg and cache; don't set until needed
 
+local sfid_header
+cfg.after_loading_do(
+  function() sfid_header = cfg.header_prefix .. '-' .. cfg.header_suffixes.sfid end)
+
 function extract_sfid(msg, spec)
   -- if the sfid was not given in the command, extract it
-  -- from the references or in-reply-to field
+  -- from the appropriate header or from the references or in-reply-to field
+
+  local sfid = header_tagged(msg, sfid_header)
+  if sfid then return sfid end
 
   ref_pat = ref_pat or '.*<(' .. cache.loose_sfid_pat .. ')>'
   com_pat = com_pat or '.*%((' .. cache.loose_sfid_pat .. ')%)'

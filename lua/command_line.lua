@@ -337,7 +337,7 @@ local function learner(command_name)
         log.lua(command_name, log.dt
                     { class = classification, sfid = sfid,
                       synopsis = msg.synopsis(m),
-                      crc32 = crc32 or core.crc32(msg.to_org_string(m)),
+                      crc32 = crc32 or core.crc32(msg.to_orig_string(m)),
                       classification = cfn_info })
         -- redelivers message if it was trained and config calls for a resend
         -- subject tag and it was a subject command 
@@ -631,6 +631,7 @@ function filter(...)
       msg.add_osbf_header(m, suffixes.class, class)
       msg.add_osbf_header(m, suffixes.confidence, confidence or '0.0')
       msg.add_osbf_header(m, suffixes.needs_training, train and 'yes' or 'no')
+      msg.add_osbf_header(m, suffixes.sfid, sfid)
       io.stdout:write(msg.to_string(m))
     end
   end

@@ -45,6 +45,7 @@ return {
     class = "Class",
     needs_training = "Train",
     confidence = "Confidence",
+    sfid = "SFID",
   },
 
   -- To disable sfids, make false.

@@ -373,7 +373,11 @@ function recover(sfid)
   if f then
     local msg = f:read('*a')
     f:close()
-    return msg
+    if msg == nil then
+      error('SFID ' .. sfid .. ' is an empty file in the cache')
+    else
+      return msg
+    end
   else
     if is_sfid(sfid) then
       error('SFID ' .. sfid .. ' not found in cache.')
