@@ -177,7 +177,9 @@ __doc.of_sfid = [[
 function(sfid) returns T, status
 Looks in the cache for the file designated by sfid, which is
 an original, unmodified message.  If found, returns the message
-and its cache status; if not found, returns nil, 'missing'.]]
+and its cache status; if not found, returns nil, 'missing'.
+XXX seems nearly redundant with cache.recover
+]]
 
 local function of_openfile(f)
   local ok, msg = pcall(of_string, util.validate(f:read '*a'))

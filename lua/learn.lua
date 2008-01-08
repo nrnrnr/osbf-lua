@@ -266,17 +266,33 @@ function learn(sfid, class)
   return comment, orig, new
 end  
 
-__doc.learn_msg = [[function(msg, classification[, count])
+__doc.learn_msg = [[function(msg, classification[, count, force])
 Returns comment, orig_pR, new_pR or calls error
 
 Updates databases to reflect human classification of an unlearned
 message.  Does not touch the cache.  'count' should be true
 if this message has never before been classified and we want to
 add the initial classification to the counts in the database.
+'force' should be true if we want to learn this message even though
+it appears to be the output of an OSBF-Lua filter
 ]]
 
-function learn_msg(msg, class, count)
-  local lim = msg.lim
+local multiheaders
+cfg.after_loading_do(
+  function()
+    multiheaders = { }
+    local pre = cfg.header_prefix
+    for _, post in pairs(cfg.header_suffixes) do
+      table.insert(multiheaders, pre .. '-' .. post)
+    end
+  end)
+
+function learn_msg(m, class, count, force)
+  if not force and msg.header_tagged(m, 'x-osbf-lua-score', unpack(multiheaders))
+  then
+    error('Tried to learn a message that is the *output* of an OSBF-Lua filter')
+  end
+  local lim = m.lim
   if type(class) ~= 'string' then error('Class passed to learn_msg is not a string')
   elseif not cfg.classes[class] then error('Unknown class: ' .. class)
   end
