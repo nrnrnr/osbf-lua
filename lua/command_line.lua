@@ -706,7 +706,10 @@ Initialize OSBF-Lua's state in the filesystem.
 email is the address for subject-line commands.
 Additional options include
   -lang         locale
-and four options for setting the size of databases.
+  -rightid      string
+rightid is the rigth part of the spam filter id (sfid). if not specified,
+the fully qualified host name is used.
+And four options for setting the size of databases.
   -dbsize       size
   -totalsize    size
   -buckets      number
@@ -723,7 +726,7 @@ do
 
   function init(...)
     local v = options.std.val
-    local opts = {lang = v, dbsize = v, totalsize = v, buckets = v, totalbuckets = v}
+    local opts = {lang = v, dbsize = v, totalsize = v, buckets = v, totalbuckets = v, rightid = v}
     local opts, args = options.parse({...}, opts)
     if #args ~= 1 then usage() end
     local email = args[1]
@@ -756,12 +759,19 @@ do
       util.die('You must create the user directory before initializing it:\n',
         '  mkdir ', cfg.dirs.user)
     end
-    nb = commands.init(email, buckets or bytes, translate[units] or units, opts.lang)
+
+    local rightid = opts.rightid or util.local_rightid()
+    if not cache.valid_rightid(rightid) then
+      util.die 'rightid must be a valid domain name'
+    end
+     
+    nb = commands.init(email, buckets or bytes, translate[units] or units,
+                       rightid, opts.lang)
     util.writeln('Created directories and databases using a total of ', 
       util.human_of_bytes(nb))
   end
 
-  table.insert(usage_lines, 'init [-dbsize <size> | -totalsize <size> | -buckets <number> | -totalbuckets <number>] [-lang=<locale>] <user-email>')
+  table.insert(usage_lines, 'init [-dbsize <size> | -totalsize <size> | -buckets <number> | -totalbuckets <number>] [-rightid=<domain-name>] [-lang=<locale>] <user-email>')
 end
 
 

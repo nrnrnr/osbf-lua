@@ -2,17 +2,19 @@
 
   [*** preliminar notes - to be completed ***]
 
-  - New design based in Lua modules with complete refactoring;
+  - New design based on Lua modules with complete refactoring;
+  - Full machine-readable documentation;
   - Code generalization for multi-classification;
   - New database format;
   - ...
 
   -------------------------------------------------------------------------
   Norman Ramsey joined the OSBF-Lua project in Feb/2007 and is responsible
-  for the big leap in the quality of the project since then. He promoted a
-  new design with complete refactoring of both Lua and C codes, numerous
-  optimizations and consolidated the latent multi-classification facility
-  into a consistent multi-classification filter which we hope v3.0 is now.
+  for the big leap in the quality of the project since then. He promoted
+  a new design with complete refactoring of both Lua and C codes, full
+  machine-readable documentation of the API, and many optimizations.
+  He also consolidated the latent multi-classification facility into
+  a consistent multi-classification filter which we hope v3.0 is now.
 
   Thanks Norman!
   -- Fidelis

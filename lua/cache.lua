@@ -87,16 +87,23 @@ Defaults are
 Parameter serial, if given, overrides table.serial.
 ]]
 
-local function validate_rightid(id)
-  -- returns id if valid or 'spamfilter.osbf.lua' otherwise
+__doc.valid_rightid = [[function(id) returns boolean.
+Returns true if id is a valid sfid rightid, false otherwise.
+]]
+
+function valid_rightid(id)
+  -- returns  if valid or 'spamfilter.osbf.lua' otherwise
   return type(id) == 'string'
 	   and
 	 -- must be a valid domain name: letters, digits, '.' and '-'
 	 string.find(id, '^[%w%-%.]+$')
-	   and
-	 id
 	   or
-	 'spamfilter.osbf.lua'
+	 false
+end
+
+local function validate_rightid(id)
+  -- returns id if valid or 'spamfilter.osbf.lua' otherwise
+  return valid_rightid(id) and id or 'spamfilter.osbf.lua'
 end
 
 local is_valid_tag = { B = true, W = true, E = true }

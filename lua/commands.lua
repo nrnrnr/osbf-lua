@@ -73,7 +73,7 @@ function create_single_db(db_path, buckets)
   return bytes_of_buckets(buckets)
 end
 
-__doc.init = [[function(email, size, units, lang)
+__doc.init = [[function(email, size, units, rightid, lang)
 The init command creates directories and databases and the default config.
 'size' is the a size, which is interpreted according to 'units', which must
 be one of these values:
@@ -82,6 +82,7 @@ be one of these values:
    bytes        -- number of bytes in one database
    totalbytes   -- number of bytes in all databases
 email is the address for subject-line commands.
+rightid is the right part of the SFID - Spam Filter ID
 lang (optional) is a string with the language for cache.report_locale in config.
 ]]
 
@@ -93,10 +94,10 @@ do
   local divide = { totalbuckets = true, totalbytes = true }
 
 
-  function init(email, size, units, lang)
+  function init(email, size, units, rightid, lang)
     local to_buckets = assert(to_buckets[units], 'bad units passed to commands.init')
     assert(type(size) == 'number', 'bad size (not a number) passed to commands.init')
-
+    assert(type(rightid) == 'string', 'bad rightid (not a string) passed to commands.init')
     -- io.stderr:write('Initalization with ', units, ' ', size, '\n')
 
     local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
@@ -127,6 +128,9 @@ do
       -- sets email address for commands 
       x = string.gsub(x, '(command_address%s*=%s*)[^\r\n]*',
         string.format('%%1%q,', email))
+      -- sets sfid's rightid
+      x = string.gsub(x, '(rightid%s*=%s*)[^\r\n]*',
+        string.format('%%1%q,', rightid))
       -- sets report_locale
       if lang then
         x = string.gsub(x, '(report_locale%s*=%s*)[^\r\n]*',

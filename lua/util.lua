@@ -661,6 +661,37 @@ function generate_pwd()
   return generate_hex_string(32)
 end
 
+__doc.whereis = [[function(cmd) returns string or nil.
+Looks command cmd up in the program search path and returns the command's
+full path or nil if not found.i
+]]
+
+local PATH = os.getenv 'PATH' or ''
+function whereis(cmd)
+  if type(cmd) ~= 'string' then return nil end
+  for p in string.gmatch(PATH, '[^:]+') do
+    if file_is_readable(p .. slash .. cmd) then
+      return p .. slash .. cmd
+    end
+  end
+  return nil
+end
+
+__doc.local_rightid = [[function() returns string.
+Returns the fully qualified host name. If the domain name is not found
+appends '.osbf.lua' to the host name. If neither the host name nor
+the domain name is found, returns 'spamfilter.osbf.lua'.
+]]
+
+function local_rightid()
+  local domain_cmd = whereis('dnsdomainname') or whereis('domainname')
+  local host_cmd  = whereis('hostname')
+  local hostname = 
+    host_cmd and io.popen(host_cmd):read('*l') or 'spamfilter'
+  local domainname =
+    domain_cmd and io.popen(domain_cmd):read('*l') or 'osbf.lua'
+  return hostname .. '.' ..  domainname
+end
 
 -- Support to output to message or normal stdout.
 __doc.set_output_to_message = [[function(boundary, header, eol) Changes
