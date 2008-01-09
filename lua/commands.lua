@@ -97,7 +97,9 @@ do
   function init(email, size, units, rightid, lang)
     local to_buckets = assert(to_buckets[units], 'bad units passed to commands.init')
     assert(type(size) == 'number', 'bad size (not a number) passed to commands.init')
-    assert(type(rightid) == 'string', 'bad rightid (not a string) passed to commands.init')
+
+    rightid = rightid or util.local_rightid()
+
     -- io.stderr:write('Initalization with ', units, ' ', size, '\n')
 
     local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
