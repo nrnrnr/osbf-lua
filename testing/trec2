@@ -102,15 +102,17 @@ for l in assert(io.lines(trecdir .. 'index')) do
   table.insert(classifications, cfn)
   local class = util.key_max(conf)
   local train = conf[class] < cfg.classes[class].train_below
+  local learned = false
   if train or class ~= labelled then
     local ok, errmsg = opcall(commands.learn_msg, m, labelled)
     if ok then
+      learned = true
       learnings = learnings + 1
     else
       io.stderr:write(errmsg, '\n')
     end
   end
-
+  cfn.learned = learned
   result:write(image(cfn, '  '), ',\n')
   if #classifications >= max_lines then break end
 end

@@ -73,7 +73,9 @@ function create_single_db(db_path, buckets)
   return bytes_of_buckets(buckets)
 end
 
-__doc.init = [[function(email, size, units, rightid, lang)
+local default_rightid = util.local_rightid()
+
+__doc.init = ([[function(email, size, units, [rightid, lang])
 The init command creates directories and databases and the default config.
 'size' is the a size, which is interpreted according to 'units', which must
 be one of these values:
@@ -82,9 +84,10 @@ be one of these values:
    bytes        -- number of bytes in one database
    totalbytes   -- number of bytes in all databases
 email is the address for subject-line commands.
-rightid is the right part of the SFID - Spam Filter ID
-lang (optional) is a string with the language for cache.report_locale in config.
-]]
+rightid (optional) is the right part of the Spam Filter ID;
+  it defaults to $rightid
+lang (optional) is a string with the language for cfg.cache.report_locale 
+]]) : gsub('%$rightid', default_rightid)
 
 do
   
@@ -97,9 +100,9 @@ do
   function init(email, size, units, rightid, lang)
     local to_buckets = assert(to_buckets[units], 'bad units passed to commands.init')
     assert(type(size) == 'number', 'bad size (not a number) passed to commands.init')
-
-    rightid = rightid or util.local_rightid()
-
+    rightid = rightid or default_rightid
+    assert(type(rightid) == 'string',
+           'bad rightid (not a string) passed to commands.init')
     -- io.stderr:write('Initalization with ', units, ' ', size, '\n')
 
     local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }

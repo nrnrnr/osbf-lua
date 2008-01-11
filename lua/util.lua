@@ -683,14 +683,21 @@ appends '.osbf.lua' to the host name. If neither the host name nor
 the domain name is found, returns 'spamfilter.osbf.lua'.
 ]]
 
-function local_rightid()
-  local domain_cmd = whereis('dnsdomainname') or whereis('domainname')
-  local host_cmd  = whereis('hostname')
-  local hostname = 
-    host_cmd and io.popen(host_cmd):read('*l') or 'spamfilter'
-  local domainname =
-    domain_cmd and io.popen(domain_cmd):read('*l') or 'osbf.lua'
-  return hostname .. '.' ..  domainname
+do
+  local cache -- fork all these processes at most once
+
+  function local_rightid()
+    if not cache then
+      local domain_cmd = whereis('dnsdomainname') or whereis('domainname')
+      local host_cmd  = whereis('hostname')
+      local hostname = 
+        host_cmd and io.popen(host_cmd):read('*l') or 'spamfilter'
+      local domainname =
+        domain_cmd and io.popen(domain_cmd):read('*l') or 'osbf3.lua'
+      cache = hostname .. '.' ..  domainname
+    end
+    return cache
+  end
 end
 
 -- Support to output to message or normal stdout.
