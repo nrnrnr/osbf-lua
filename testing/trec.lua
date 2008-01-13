@@ -105,8 +105,8 @@ for l in assert(io.lines(trecdir .. 'index')) do
     end
   end
 
-  result:write(string.format("%s judge=%s class=%s score=%.4f\n",
-                             file, labelled, class, -pR))
+  result:write(string.format("%s judge=%s class=%s train=%s score=%.4f\n",
+                             file, labelled, class, tostring(train), -pR))
   if nclass >= max_lines then break end
 end
 local end_time = os.time()
