@@ -321,7 +321,7 @@ combined with cache.store XXX]]
 function generate_sfid(sfid_tag, confidence)
   -- returns a new SFID
   -- if confidence is not a number, 0 is used instead.
-  assert(sfid_tag and is_valid_tag[sfid_tag], 'invalid sfid tag')
+  assert(sfid_tag and is_valid_tag[sfid_tag], 'invalid sfid tag: ' .. sfid_tag)
   local t = { confidence = confidence, tag = sfid_tag }
   for i = 1, 10000 do 
     local sfid = sfid_of_table(t, i)

@@ -603,35 +603,10 @@ function filter(...)
     if have_subject_cmd then
       exec_subject_line_command(cmd, m)
     else
-      local probs, conf = commands.multiclassify(m.lim.msg)
-      local train, confidence, sfid_tag, subj_tag, class =
-        commands.classify(m, probs, conf)
-      local crc32 = core.crc32(msg.to_orig_string(m))
-      local sfid
-      if not options.nosfid and cfg.use_sfid then
-        sfid = cache.generate_sfid(sfid_tag, confidence)
-        if not options.nocache and cfg.cache.use then
-          cache.store(sfid, msg.to_orig_string(m))
-        end
-        msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
+      local sfid = commands.filter(m, options)
+      if sfid and not options.nocache and cfg.cache.use then
+        cache.store(sfid, msg.to_orig_string(m))
       end
-      log.lua('filter', log.dt { probs = probs, conf = conf, train = train,
-                                 synopsis = msg.synopsis(m),
-                                 class = class, sfid = sfid, crc32 = crc32 })
-      if not options.notag and cfg.tag_subject then
-        msg.tag_subject(m, subj_tag)
-      end
-      local classes = cfg.classes
-      local summary_header =
-        string.format('%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
-                      confidence, classes[class].train_below,
-                      sfid_tag, core._VERSION, cfg.version)
-      local suffixes = cfg.header_suffixes
-      msg.add_osbf_header(m, suffixes.summary, summary_header)
-      msg.add_osbf_header(m, suffixes.class, class)
-      msg.add_osbf_header(m, suffixes.confidence, confidence or '0.0')
-      msg.add_osbf_header(m, suffixes.needs_training, train and 'yes' or 'no')
-      msg.add_osbf_header(m, suffixes.sfid, sfid)
       io.stdout:write(msg.to_string(m))
     end
   end
