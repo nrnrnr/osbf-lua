@@ -37,9 +37,7 @@ In the user documentation, the number returned by core.pR is
 called 'confidence'.
 ]]
 
-__doc.old_pR = [[old version of pR.  One or the other must go.]]
-
-__doc.classify = [=[function(text, dblist, flags, min_p_ratio, delimiters) 
+__doc.classify = [=[function(text, dbtable, flags, min_p_ratio, delimiters) 
      returns sum, probs, trainings
   or calls lua_error
 
@@ -49,8 +47,11 @@ Arguments are as follows:
 
   text: String with the text to be classified
 
-  dbset: list of pathnames, each of which is an on-disk database
-         Example: {"ham.cfc", "spam.cfc"}
+  dbtable: table in which each key is the name of a class and each value
+           is an open database representing that class.
+       Example: { spam = core.open_class 'spam.cfc', 
+                  ham  = core.open_class 'ham.cfc' }
+
 
   flags: Number with the classification control flags. Each bit is a flag.
      The available flags are:
@@ -75,9 +76,9 @@ Arguments are as follows:
 
 Results are as follows:
   returns probs, trainings, sum
-    * probs:     a Lua array with the probability of each single class
-    * trainings: a Lua array with the number of trainings for each
-                 class
+    * probs:     table indexed by class name with probability of each class
+    * trainings: table indexed by class name with number of trainings for 
+                 each class
     * sum:       the sum of all probabilities in probs
 In case of error, core.classify calls lua_error.
 ]=]
@@ -301,14 +302,15 @@ stuff.  Here are some example usages:
 
    --------------------- To classify a message read from stdin
    local core = require "osbf.core"
-   local dblist = { "ham.cfc", "spam.cfc" }
+   local dbtable = { ham = core.open_class "ham.cfc",
+                     spam = core.open_class "spam.cfc" }
    -- read entire message into var "text"
    local text = io.read("*all")
-   local probs, trainings, sum = osbf.classify(text, dblist)
-   if probs[1] > probs[2] then
-     io.write('ham with confidence ', core.pR(probs[1], probs[2]), '\n')
+   local probs, trainings, sum = osbf.classify(text, dbtable)
+   if probs.ham > probs.spam then
+     io.write('ham with confidence ', core.pR(probs.ham, probs.spam), '\n')
    else
-     io.write('spam with confidence ', core.pR(probs[2], probs[1]), '\n')
+     io.write('spam with confidence ', core.pR(probs.spam, probs.ham), '\n')
    end
 ]]
 

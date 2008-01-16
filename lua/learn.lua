@@ -29,9 +29,6 @@ local error, ipairs =
 local io, string, table, math =
       io, string, table, math
 
-local use_old_pR = os.getenv 'OSBF_OLD_PR' 
-  --- XXX todo: pick one or the other pR method; they're nearly indistinguishable
-
 local debug = os.getenv 'OSBF_DEBUG'
 local md5, debugf -- nontrivial only when debugging
 if debug then
@@ -54,10 +51,6 @@ local msg   = require(_PACKAGE .. 'msg')
 local core  = require(_PACKAGE .. 'core')
 local lists = require(_PACKAGE .. 'lists')
 local cache = require(_PACKAGE .. 'cache')
-
-if use_old_pR then
-  core.pR = assert(core.old_pR)
-end
 
 local function fingerprint(s)
   local function hex(s) return string.format('%02x', string.byte(s)) end
@@ -110,14 +103,13 @@ if debug then
                  return learn(text, db, ...)
                end
   core.classify = function(text, ...)
-                    local sum, probs, trainings = classify(text, ...)
-                    -- XXX drop sum from the outputs of core.classify
+                    local probs, trainings = classify(text, ...)
                     local out = { }
-                    for i = 1, #probs do
-                      table.insert(out, string.format("%s=%.2f", index2class[i], probs[i]))
+                    for _, class in ipairs(cfg.classlist()) do
+                      table.insert(out, string.format("%s=%.2f", class, probs[class]))
                     end
                     debugf("** classifying %s P(%s)\n", fingerprint(text), table.concat(out, ", "))
-                    return sum, probs, trainings
+                    return probs, trainings
                   end
 end
 
@@ -409,28 +401,37 @@ tgt_pR is the pR of tgt_class
 do
   local cflags
   cfg.after_loading_do(function() cflags = cfg.constants.classify_flags end)
+  local dbtable, num_classes
+  do
+    local cache = { }
+    function dbtable() -- must re-open every trip through...
+      num_classes = 0
+      for class, t in pairs(cfg.classes) do
+        cache[class] = core.open_class(t.db)
+        num_classes = num_classes + 1
+      end
+      return cache
+    end
+  end
 
   function multiclassify(text)
-    local sum, problist, trainings = core.classify(text, dblist, cflags)
-    local function prob_not(i) --- probability that it's not dblist[i]
-      local saved = problist[i]
-      problist[i] = 0
-      local answer = util.sum(util.table_sorted_values(problist))
-      problist[i] = saved
+    local probs, trainings = core.classify(text, dbtable(), cflags)
+    local function prob_not(class) --- probability that it's not class
+      local saved = probs[class]
+      probs[class] = 0
+      local answer = util.sum(util.table_sorted_values(probs))
+      probs[class] = saved
       return answer
     end
 
-    assert(#problist == #dblist)
-    local k = #problist - 1
+    local k = num_classes - 1
     assert(k > 0, 'Must decide most likely among two or more things')
 
-    local probs, conf = { }, { }
-    for class in pairs(cfg.classes) do
-      local i = class2index[class]
-      probs[class] = problist[i]
-      local Pnot = prob_not(i)
-      conf[class] = core.pR(problist[i], Pnot / k) + class_boost[class]
-      debugf('%-20s = %8.3g; P(others) = %8.3g; pR(%s) = %.2f\n',
+    local conf = { }
+    for class, prob in pairs(probs) do
+      local Pnot = prob_not(class)
+      conf[class] = core.pR(prob, Pnot / k) + class_boost[class]
+      debugf('%-20s = %9.3g; P(others) = %9.3g; pR(%s) = %.2f\n',
              'P(' .. class .. ')', probs[class], Pnot, class, conf[class])
     end
     return probs, conf

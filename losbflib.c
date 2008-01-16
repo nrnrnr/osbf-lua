@@ -194,6 +194,35 @@ static unsigned class_list_to_array(lua_State *L,
     return n;
 }
   
+/* takes a Lua state and the index of a table of classes.
+   Writes the keys into the names array and the classes into
+   the classes array, both of which have size elements.
+   Returns the number of elements. */
+
+static unsigned class_table_members(lua_State *L,
+                                    int idx,
+                                    const char *names[],
+                                    CLASS_STRUCT *classes[],
+                                    unsigned size)
+{
+  unsigned n = 0;
+  
+  /* table is in the stack at index 't' */
+  lua_pushnil(L);  /* first key */
+  while (n < size && lua_next(L, idx) != 0) {
+    if (!lua_isstring(L, -2))
+      luaL_error(L, "key in class table is not a string");
+    names[n] = lua_tostring(L, -2);
+    classes[n] = check_class(L, -1);
+    n++;
+    lua_pop(L, 1);  /* removes 'value'; keeps 'key' for next iteration */
+  }
+  if (n == size)
+    return luaL_error(L, "Table of databases has more than %d elements", size-1);
+  else
+    return n;
+}
+  
 
 /* this function asserts that probabilities add up to 1.0, within rounding error */
 static void check_sum_is_one(double *p_classes, unsigned num_classes);
@@ -467,63 +496,55 @@ lua_osbf_class_gc(lua_State *L) {
 
 static int
 lua_osbf_classify (lua_State * L)
-     /* classify(text, dbnames, flags, min_p_ratio, delimiters)
-        returns sum, probs, trainings */
+     /* classify(text, dbtable, flags, min_p_ratio, delimiters)
+        returns probs, trainings */
 {
   const unsigned char *text;
   size_t text_len;
   const char *delimiters;	/* extra token delimiters */
   size_t delimiters_len;
-  const char *classnames[OSBF_MAX_CLASSES + 1];	/* set of classes */
   uint32_t flags = 0;		/* default value */
   double min_p_ratio;		/* min pmax/p,in ratio */
   /* class probabilities are returned in p_classes */
   CLASS_STRUCT *classes[OSBF_MAX_CLASSES];
+  const char *classnames[OSBF_MAX_CLASSES];
   double p_classes[OSBF_MAX_CLASSES];
   uint32_t p_trainings[OSBF_MAX_CLASSES];
   unsigned i, num_classes;
-  double sum = 0.0;
 
   /* get the arguments */
   text        = (const unsigned char *) luaL_checklstring (L, 1, &text_len);
   luaL_checktype (L, 2, LUA_TTABLE);
-  num_classes = class_list_to_array(L, 2, classnames, NELEMS(classnames));
+  (void)class_list_to_array;
+  num_classes = class_table_members(L, 2, classnames, classes, NELEMS(classnames));
   flags       = (uint32_t) luaL_optnumber (L, 3, 0);
   min_p_ratio = (double) luaL_optnumber (L, 4, OSBF_MIN_PMAX_PMIN_RATIO);
   delimiters  = luaL_optlstring (L, 5, "", &delimiters_len);
 
-  if (!lua_checkstack(L, num_classes + 10))
-    luaL_error(L, "Could not allocate enough stack space for %d classes",
-               num_classes);
-
-  for (i = 0; i < num_classes; i++) {
-    push_open_class_using_cache(L, classnames[i], OSBF_READ_ONLY);
-    classes[i] = lua_touserdata(L, -1);
-  }
+  for (i = 0; i < num_classes; i++)
+    if (classes[i]->state == OSBF_CLOSED)
+      luaL_error(L, "Tried to classify using closed class %s", classnames[i]);
+    else if (DEBUG)
+      fprintf(stderr, "Class %s is %s\n", classnames[i],
+              classes[i]->state == OSBF_COPIED ? "open (copied)" : "mapped");
 
   /* call osbf_classify */
   osbf_bayes_classify (text, text_len, delimiters, classes, num_classes,
                        flags, min_p_ratio,
                        p_classes, p_trainings, L);
 
-  lua_pop(L, num_classes); /* no longer need pinning */
-
-  /* push list of probabilities onto the stack */
+  /* push table of probabilities onto the stack */
   lua_newtable (L);
   /* push table with number of trainings per class */
   lua_newtable (L);
-  for (i = 0; i < num_classes; i++)
-    {
-      sum += p_classes[i];
-      lua_pushnumber (L, (lua_Number) p_classes[i]);
-      lua_rawseti (L, -3, i + 1);
-      lua_pushnumber (L, (lua_Number) p_trainings[i]);
-      lua_rawseti (L, -2, i + 1);
-    }
+  for (i = 0; i < num_classes; i++) {
+    lua_pushnumber (L, (lua_Number) p_classes[i]);
+    lua_setfield (L, -3, classnames[i]);
+    lua_pushnumber (L, (lua_Number) p_trainings[i]);
+    lua_setfield (L, -2, classnames[i]);
+  }
   check_sum_is_one(p_classes, num_classes);
-  lua_pushnumber(L, sum);
-  lua_insert(L, -3);
-  return 3;
+  return 2;
 }
 
 static int
@@ -542,25 +563,6 @@ lua_osbf_pR (lua_State * L)
     if (ratio <= 0.0)
       ratio = OSBF_SMALLP;
     lua_pushnumber (L, (lua_Number) pR_SCF * log10 (ratio));
-    return 1;
-  }
-}
-
-
-static int
-lua_osbf_old_pR (lua_State * L)
-     /* core.pR(p1, p2) returns log(p1/p2) */
-{
-  double p1 = luaL_checknumber(L, 1);
-  double p2 = luaL_checknumber(L, 2);
-  p1 += OSBF_SMALLP;
-  p2 += OSBF_SMALLP;
-  if (lua_type(L, 3) != LUA_TNONE)
-    return luaL_error(L, "Too many arguments to core.pR");
-  else if (p2 <= 0.0 || p1 <= 0.0)
-    return luaL_error(L, "in core.pR, a probability is not positive");
-  else {
-    lua_pushnumber (L, (lua_Number) pR_SCF * log10 (p1 / p2));
     return 1;
   }
 }
@@ -1024,7 +1026,6 @@ static const struct luaL_reg osbf[] = {
   {"open_class", lua_osbf_open_class},
   {"close_class", lua_osbf_class_gc},
   {"pR", lua_osbf_pR},
-  {"old_pR", lua_osbf_old_pR},
   {"dump", lua_osbf_dump},
   {"restore", lua_osbf_restore},
   {"import", lua_osbf_import},

@@ -371,13 +371,21 @@ default value of 20 to something like 10, to reduce the burden of training.
 
 For internal clients, osbf.init adds the following fields:
 
-  db         -- filename holding data for the class
+  open       -- function(class, mode) calling core.open_class(classname, mode).
+
+Usage is, e.g., classes.ham:open 'rwh'.
 ]]
 
 class_of_tag = { }
 
 __doc.class_of_tag = [[table mapping single-letter sfid tag to its class.
 Maps both uppercase and lowercase versions of the tag.]]
+
+local classnames = { } -- table mapping class to name
+local class_meta = {
+  open = function(t, mode) return core.open_class(classnames[t], mode) end
+}
+class_meta.__index = class_meta
 
 local function set_class_defaults()
   local c = classes
@@ -410,6 +418,8 @@ local function set_class_defaults()
     t.resend      = t.resend == nil and true or t.resend
     class_of_tag[t.sfid]               = class
     class_of_tag[string.upper(t.sfid)] = class
+    classnames[t] = class
+    setmetatable(t, class_meta)
   end
 end
 
