@@ -38,7 +38,7 @@ called 'confidence'.
 ]]
 
 __doc.classify = [=[function(text, dbtable, flags, min_p_ratio, delimiters) 
-     returns sum, probs, trainings
+     returns probs, trainings
   or calls lua_error
 
 Classifies the string text using the databases in dblist
@@ -75,16 +75,15 @@ Arguments are as follows:
     like space, tab, new line, etc.
 
 Results are as follows:
-  returns probs, trainings, sum
+  returns probs, trainings
     * probs:     table indexed by class name with probability of each class
     * trainings: table indexed by class name with number of trainings for 
                  each class
-    * sum:       the sum of all probabilities in probs
 In case of error, core.classify calls lua_error.
 ]=]
 
 __doc.learn = [=[
-function(text, dbname, [flags, [delimiters]]) 
+function(text, db, [flags, [delimiters]]) 
   returns nothing or calls lua_error
 
 Learns the string text as belonging to named class.a
@@ -93,7 +92,8 @@ Arguments are as follows:
 
   text: string with the text to be learned
 
-  dbname: name of the database to be trained with text
+  db: a class database open for read and write
+            Example: core.open_class('ham.cfc', 'rw')
 
   flags: Number with the flags to control the learning operation.
      Each bit is a flag. The available flags are:
@@ -112,14 +112,14 @@ Arguments are as follows:
 ]=]
 
 __doc.unlearn = [=[
-function(text, dbname, [flags, [delimiters]]) 
+function(text, db, [flags, [delimiters]]) 
   returns nothing or calls lua_error
 
 Undoes the effect of core.learn.  Arguments are as for core.learn.
 ]=]
 
 __doc.train = [=[
-function(sense, text, dbname, [flags, [delimiters]])
+function(sense, text, db, [flags, [delimiters]])
   calls lua_error or returns nothing
 
 If sense = 1 it's equivalent to core.learn, differing on how args
@@ -127,7 +127,7 @@ are passed.
 
   text, flags, and index are as for core.learn
 
-  dbname: class to be trained with text
+  db: class to be trained with text
 
   delimiters: string with additional token delimiters. Each char
               in string is an additional delimiter
@@ -293,20 +293,22 @@ The core module provides access to the C code that does all the good
 stuff.  Here are some example usages:
 
    --------------------------- To create databases
-   local core = require "osbf.core"
+   local core = require "osbf3.core"
    local dblist = { "ham.cfc", "spam.cfc" }
    local num_buckets = 94321
    -- remove previous databases with the same name
-   for _, p in ipairs(dblist) do os.remove(p) end
-   core.create_db(dblist, num_buckets) -- create new, empty databases
+   for _, p in ipairs(dblist) do
+     os.remove(p)
+     core.create_db(p, num_buckets) -- create new, empty databases
+   end
 
    --------------------- To classify a message read from stdin
-   local core = require "osbf.core"
+   local core = require "osbf3.core"
    local dbtable = { ham = core.open_class "ham.cfc",
                      spam = core.open_class "spam.cfc" }
    -- read entire message into var "text"
    local text = io.read("*all")
-   local probs, trainings, sum = osbf.classify(text, dbtable)
+   local probs, trainings, sum = core.classify(text, dbtable)
    if probs.ham > probs.spam then
      io.write('ham with confidence ', core.pR(probs.ham, probs.spam), '\n')
    else

@@ -97,8 +97,8 @@ end
 if debug then
   local learn, classify = core.learn, core.classify
   core.learn = function(text, db, ...)
-                 local class = string.gsub(db, '%.cfc$', '')
-                 class = string.gsub(class, '.*/', '')
+                 local filename = db.filename or 'unknown'
+                 local class = filename:gsub('%.cfc$', ''):gsub('.*/', '')
                  debugf("** learning %s class %s\n", fingerprint(text), class)
                  return learn(text, db, ...)
                end
@@ -141,9 +141,9 @@ local function tone_inner(text, target_class, count_as_classif)
 
   local old_pR, class, _, target_pR =
     most_likely_pR_and_class(text, count_as_classif, target_class)
-  local target_index = class2index[target_class]
 
   if class ~= target_class then
+    local db = cfg.classes[target_class]:open 'rw'
     -- old_pR must be old pR of target_class
     old_pR = target_pR
     -- core.FALSE_NEGATIVE indicates that the false negative counter in
@@ -151,9 +151,9 @@ local function tone_inner(text, target_class, count_as_classif)
     -- because there can be cases where there was no false negative in the
     -- first classification, but, because of other trainings in between,
     -- the present classification is wrong. And vice-versa.
-    core.learn(text, dblist[target_index], core.FALSE_NEGATIVE)
+    core.learn(text, db, core.FALSE_NEGATIVE)
     do
-      local c = core.open_class(dblist[class2index[class]], 'rwh')
+      local c = cfg.classes[class]:open 'rwh'
       c.fp = c.fp + 1
       -- don't close; OK for c to be garbage collected
     end
@@ -164,7 +164,7 @@ local function tone_inner(text, target_class, count_as_classif)
            new_class, new_pR, target_class)
     for i = 1, mistake_limit do
       if new_class == target_class then break end
-      core.learn(text, dblist[target_index]) -- no FALSE_NEGATIVE flag here
+      core.learn(text, db) -- no FALSE_NEGATIVE flag here
       new_pR, new_class = most_likely_pR_and_class(text)
       debugf(" Tone %d - forcing right class: classified %s (pR %.2f); target class %s\n",
            i, new_class, new_pR, target_class)
@@ -178,7 +178,8 @@ local function tone_inner(text, target_class, count_as_classif)
     -- the user has decided training is needed.  Thus we use only the
     -- overtraining-protection threshold in order to protect the integrity
     -- of the database.
-    core.learn(text, dblist[target_index])
+    local db = cfg.classes[target_class]:open 'rw'
+    core.learn(text, db)
     local new_pR, new_class = most_likely_pR_and_class(text)
     debugf("Tone - near error, after training: classified %s (pR %.2f -> %.2f); target class %s\n",
            new_class, old_pR, new_pR, target_class)
@@ -215,22 +216,25 @@ local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif
     -- calculated threshold or pR changes by another threshold or we
     -- run out of iterations.  Thresholds and iteration counts were
     -- determined empirically.
+    local db    = cfg.classes[target_class]:open 'rw'
     local trd   = threshold_reinforcement_degree * offset_max_threshold
     local rd    = reinforcement_degree * header_learn_threshold
     local flags = cfg.constants.learn_flags + core.EXTRA_LEARNING
     local pR
-    local index = class2index[target_class]
     local lim_orig_header = lim.header
     for i = 1, reinforcement_limit do
       -- (may exit early if the change in new_pR is big enough)
       pR = new_pR
-      core.learn(lim_orig_header, dblist[index], flags)
+      core.learn(lim_orig_header, db, flags)
       debugf('Reinforced %d class %s with pR = %.2f\n', i, target_class, pR)
       new_pR = most_likely_pR_and_class(lim_orig_msg)
       if new_pR > trd or math.abs (pR - new_pR) >= rd then
         break
       end
     end
+    local new_class
+    new_pR, new_class = most_likely_pR_and_class(lim_orig_msg)
+    assert(new_class == target_class)
   end
   return orig_pR, new_pR
 end
@@ -305,27 +309,27 @@ Undoes the effect of the learn command.  The class is optional
 but if present must be equal to the class originally learned.
 ]]
 
-function unlearn(sfid, class)
+function unlearn(sfid, old_class)
   local msg, status = msg.of_sfid(sfid)
   if not msg then error('Message ' .. sfid .. ' is missing from the cache') end
-  class = class or status -- unlearn parm now optional
+  old_class = old_class or status -- unlearn parm now optional
   if status == 'unlearned' then
     error('This message was already unlearned or was never learned to begin with.')
   end
-  if status ~= class then
+  if status ~= old_class then
     error(string.format([[
 You asked to unlearn a message that you thought had been learned as %s,
 but the message was previously learned as %s.]], 
-          class, status))
+          old_class, status))
   end
 
   local lim = msg.lim
   local k = cfg.constants
   local old_pR = most_likely_pR_and_class(lim.msg)
-  local db = class2db[status]
+  local db = cfg.classes[status]:open 'rw'
   core.unlearn(lim.msg, db, k.learn_flags+core.FALSE_NEGATIVE)
   local pR, class = most_likely_pR_and_class(lim.msg)
-  for i = 1, parms.reinforcement_limit do
+  for i = 1, reinforcement_limit do
     if class == status and pR > threshold_offset then
       core.unlearn(lim.header, db, k.learn_flags)
       pR, class = most_likely_pR_and_class(lim.msg)
@@ -333,10 +337,12 @@ but the message was previously learned as %s.]],
       break
     end
   end
-  cache.change_file_status(sfid, class, 'unlearned')
+  cache.change_file_status(sfid, old_class, 'unlearned')
 
+  pR, class = most_likely_pR_and_class(lim.msg)
+     -- report msg numbers not header numbers
   return string.format('Message unlearned (was %s [%4.2f], is now %s [%4.2f])',
-                       status, old_pR, class, pR)
+                       old_class, old_pR, class, pR)
 end
 
 
@@ -407,7 +413,7 @@ do
     function dbtable() -- must re-open every trip through...
       num_classes = 0
       for class, t in pairs(cfg.classes) do
-        cache[class] = core.open_class(t.db)
+        cache[class] = t:open 'r'
         num_classes = num_classes + 1
       end
       return cache

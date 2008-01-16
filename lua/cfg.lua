@@ -381,9 +381,8 @@ class_of_tag = { }
 __doc.class_of_tag = [[table mapping single-letter sfid tag to its class.
 Maps both uppercase and lowercase versions of the tag.]]
 
-local classnames = { } -- table mapping class to name
 local class_meta = {
-  open = function(t, mode) return core.open_class(classnames[t], mode) end
+  open = function(t, mode) return core.open_class(t.db, mode) end
 }
 class_meta.__index = class_meta
 
@@ -418,7 +417,6 @@ local function set_class_defaults()
     t.resend      = t.resend == nil and true or t.resend
     class_of_tag[t.sfid]               = class
     class_of_tag[string.upper(t.sfid)] = class
-    classnames[t] = class
     setmetatable(t, class_meta)
   end
 end

@@ -571,12 +571,12 @@ lua_osbf_pR (lua_State * L)
 
 static int
 lua_osbf_train (lua_State * L)
-     /* train(sense, text, dbname, [flags, [delimiters]]) returns true or nil, error */
+     /* train(sense, text, db, [flags, [delimiters]]) returns true or nil, error */
 {
   int sense;
   const unsigned char *text;
   size_t text_len;
-  const char *dbname;
+  CLASS_STRUCT *db;
   uint32_t flags = 0;		/* default value */
   const char *delimiters = "";	/* extra token delimiters */
   size_t delimiters_len = 0;
@@ -584,13 +584,17 @@ lua_osbf_train (lua_State * L)
   /* get args */
   sense  = luaL_checkint(L, 1);
   text   = (unsigned char *) luaL_checklstring (L, 2, &text_len);
-  dbname = luaL_checkstring(L, 3);
+  db     = check_class(L, 3);
   flags  = (uint32_t) luaL_optint(L, 4, 0);
   delimiters = luaL_optlstring(L, 5, "", &delimiters_len);
   luaL_checktype (L, 6, LUA_TNONE);
 
-  push_open_class_using_cache(L, dbname, OSBF_WRITE_ALL);
-  osbf_bayes_train(text, text_len, delimiters, lua_touserdata(L, -1), sense, flags, L);
+  if (db->state == OSBF_CLOSED)
+    return luaL_error(L, "Tried to learn a closed class");
+  else if (db->usage != OSBF_WRITE_ALL)
+    return luaL_error(L, "Class %s is not open in mode 'rw'", db->classname);
+  else
+    osbf_bayes_train(text, text_len, delimiters, db, sense, flags, L);
   return 0;
 }
 
