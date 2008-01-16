@@ -41,6 +41,9 @@ extern int OPENFUN (lua_State * L);  /* exported to the outside world */
 
 #define check_class(L, i) (CLASS_STRUCT *) luaL_checkudata(L, i, CLASS_METANAME)
 
+static CLASS_STRUCT *check_open_class(lua_State *L, int i, osbf_class_usage usage);
+
+
 
 /* configurable constants */
 extern uint32_t microgroom_displacement_trigger;
@@ -159,71 +162,6 @@ lua_osbf_createdb (lua_State * L)
   return 0;
 }
 
-/* takes a Lua state and the index of the list of classes.
-   Writes the names of the database files into the array, which
-   has size elements, then writes NULL as the last element 
-   and returns the number of nonnull elements */
-
-static unsigned class_list_to_array(lua_State *L,
-                                    int idx,
-                                    const char *classes[],
-                                    unsigned size)
-{
-  unsigned n;
-
-  for (n = 0; ; n++) {
-    lua_rawgeti(L, idx, n+1); /* Lua is 1-indexed; C is 0-indexed */
-    if (lua_isnil(L, -1)) break;
-    else if (!lua_isstring(L, -1))
-      return luaL_error(L, "Element %d of the list of databases is not a string",
-                        n + 1);
-    else if (n == size - 1)
-      return luaL_error(L, "Can't handle more than %d classes", size);
-    else {
-      classes[n] = lua_tostring(L, -1);
-      lua_pop(L, 1);
-      if (classes[n] == NULL)
-        luaL_error(L, "This can't happen: Lua said something was a string and then"
-                   "changed its mind");
-    }
-  }
-  classes[n] = NULL;
-  if (n < 1)
-    return luaL_error (L, "List of OSBF-Lua databases is empty");
-  else
-    return n;
-}
-  
-/* takes a Lua state and the index of a table of classes.
-   Writes the keys into the names array and the classes into
-   the classes array, both of which have size elements.
-   Returns the number of elements. */
-
-static unsigned class_table_members(lua_State *L,
-                                    int idx,
-                                    const char *names[],
-                                    CLASS_STRUCT *classes[],
-                                    unsigned size)
-{
-  unsigned n = 0;
-  
-  /* table is in the stack at index 't' */
-  lua_pushnil(L);  /* first key */
-  while (n < size && lua_next(L, idx) != 0) {
-    if (!lua_isstring(L, -2))
-      luaL_error(L, "key in class table is not a string");
-    names[n] = lua_tostring(L, -2);
-    classes[n] = check_class(L, -1);
-    n++;
-    lua_pop(L, 1);  /* removes 'value'; keeps 'key' for next iteration */
-  }
-  if (n == size)
-    return luaL_error(L, "Table of databases has more than %d elements", size-1);
-  else
-    return n;
-}
-  
-
 /* this function asserts that probabilities add up to 1.0, within rounding error */
 static void check_sum_is_one(double *p_classes, unsigned num_classes);
 
@@ -294,6 +232,16 @@ static osbf_class_usage usage_from_mode(const char *mode) {
   return (osbf_class_usage) -1;
 }
 
+static CLASS_STRUCT *check_open_class(lua_State *L, int i, osbf_class_usage usage) {
+  CLASS_STRUCT *class = check_class(L, i);
+  if (class->state == OSBF_CLOSED)
+    luaL_error(L, "Got a closed class database where an open one was needed");
+  if (class->usage < usage)
+    luaL_error(L, "Class %s needs to be open mode '%s' but is only open mode '%s'",
+               class->classname, usage_array[usage].mode,
+               usage_array[class->usage].mode);
+  return class;
+}
 
 static int lua_osbf_class_tostring(lua_State *L) {
   CLASS_STRUCT *c = check_class(L, 1);
@@ -330,6 +278,42 @@ static int lua_osbf_class_mode(lua_State *L) {
   }
 }
 
+/* takes a Lua state and the index of a table of classes.
+   Writes the keys into the names array and the classes into
+   the classes array, both of which have size elements.
+   Each class must be open and have usage at least usage.
+   Returns the number of elements. */
+
+static unsigned class_table_members(lua_State *L,
+                                    int idx,
+                                    const char *names[],
+                                    CLASS_STRUCT *classes[],
+                                    osbf_class_usage usage,
+                                    unsigned size)
+{
+  unsigned n = 0;
+  
+  /* table is in the stack at index 't' */
+  lua_pushnil(L);  /* first key */
+  while (n < size && lua_next(L, idx) != 0) {
+    if (!lua_isstring(L, -2))
+      luaL_error(L, "key in class table is not a string");
+    names[n] = lua_tostring(L, -2);
+    classes[n] = check_open_class(L, -1, usage);
+    if (DEBUG)
+      fprintf(stderr, "Class %s is %s for mode '%s'\n", names[n],
+              classes[n]->state == OSBF_COPIED ? "open (copied)" : "mapped",
+              usage_array[classes[n]->usage].mode);
+
+    n++;
+    lua_pop(L, 1);  /* removes 'value'; keeps 'key' for next iteration */
+  }
+  if (n == size)
+    return luaL_error(L, "Table of databases has more than %d elements", size-1);
+  else
+    return n;
+}
+  
 #define DEFINE_FIELD_FUN(fname, push)                                \
   static int lua_osbf_class_ ## fname(lua_State *L) {                \
     CLASS_STRUCT *c = check_class(L, 1);                             \
@@ -515,18 +499,11 @@ lua_osbf_classify (lua_State * L)
   /* get the arguments */
   text        = (const unsigned char *) luaL_checklstring (L, 1, &text_len);
   luaL_checktype (L, 2, LUA_TTABLE);
-  (void)class_list_to_array;
-  num_classes = class_table_members(L, 2, classnames, classes, NELEMS(classnames));
+  num_classes = class_table_members(L, 2, classnames, classes, OSBF_READ_ONLY,
+                                    NELEMS(classnames));
   flags       = (uint32_t) luaL_optnumber (L, 3, 0);
   min_p_ratio = (double) luaL_optnumber (L, 4, OSBF_MIN_PMAX_PMIN_RATIO);
   delimiters  = luaL_optlstring (L, 5, "", &delimiters_len);
-
-  for (i = 0; i < num_classes; i++)
-    if (classes[i]->state == OSBF_CLOSED)
-      luaL_error(L, "Tried to classify using closed class %s", classnames[i]);
-    else if (DEBUG)
-      fprintf(stderr, "Class %s is %s\n", classnames[i],
-              classes[i]->state == OSBF_COPIED ? "open (copied)" : "mapped");
 
   /* call osbf_classify */
   osbf_bayes_classify (text, text_len, delimiters, classes, num_classes,
@@ -584,17 +561,12 @@ lua_osbf_train (lua_State * L)
   /* get args */
   sense  = luaL_checkint(L, 1);
   text   = (unsigned char *) luaL_checklstring (L, 2, &text_len);
-  db     = check_class(L, 3);
+  db     = check_open_class(L, 3, OSBF_WRITE_ALL);
   flags  = (uint32_t) luaL_optint(L, 4, 0);
   delimiters = luaL_optlstring(L, 5, "", &delimiters_len);
   luaL_checktype (L, 6, LUA_TNONE);
 
-  if (db->state == OSBF_CLOSED)
-    return luaL_error(L, "Tried to learn a closed class");
-  else if (db->usage != OSBF_WRITE_ALL)
-    return luaL_error(L, "Class %s is not open in mode 'rw'", db->classname);
-  else
-    osbf_bayes_train(text, text_len, delimiters, db, sense, flags, L);
+  osbf_bayes_train(text, text_len, delimiters, db, sense, flags, L);
   return 0;
 }
 
@@ -655,18 +627,12 @@ static int
 lua_osbf_stats (lua_State * L)
 {
 
-  const char *cfcfile;
   STATS_STRUCT stats;
   int full = 1;
-
-  cfcfile = luaL_checkstring (L, 1);
   if (lua_isboolean (L, 2))
-    {
-      full = lua_toboolean (L, 2);
-    }
+    full = lua_toboolean (L, 2);
 
-  push_open_class_using_cache(L, cfcfile, OSBF_READ_ONLY);
-  osbf_stats (check_class(L, -1), &stats, L, full);
+  osbf_stats (check_open_class(L, 1, OSBF_READ_ONLY), &stats, L, full);
   lua_newtable (L);
 
   lua_pushnumber (L, (lua_Number) stats.db_version);

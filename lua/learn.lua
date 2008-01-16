@@ -77,23 +77,6 @@ In a normal installation, OSBF-Lua keeps a copy of each message, but
 only for a few days. The message you are trying to train with has
 probably been deleted.]]
 
-local db2class, class2db, dblist, class2index, index2class, class_boost
-do
-  local function init()
-    db2class, class2db, dblist, class2index, index2class, class_boost =
-      { }, { }, { }, { }, { }, { }
-    for class, tbl in pairs(cfg.classes) do
-      class2db[class] = assert(tbl.db)
-      db2class[tbl.db] = class
-      table.insert(dblist, tbl.db)
-      class2index[class] = #dblist
-      index2class[#dblist] = class
-      class_boost[class] = tbl.conf_boost
-    end
-  end
-  cfg.after_loading_do(init)
-end
-
 if debug then
   local learn, classify = core.learn, core.classify
   core.learn = function(text, db, ...)
@@ -436,7 +419,7 @@ do
     local conf = { }
     for class, prob in pairs(probs) do
       local Pnot = prob_not(class)
-      conf[class] = core.pR(prob, Pnot / k) + class_boost[class]
+      conf[class] = core.pR(prob, Pnot / k) + cfg.classes[class].conf_boost
       debugf('%-20s = %9.3g; P(others) = %9.3g; pR(%s) = %.2f\n',
              'P(' .. class .. ')', probs[class], Pnot, class, conf[class])
     end
@@ -456,7 +439,7 @@ do
     local pR = conf[class]
 
     if count then
-      local c = core.open_class(class2db[class], 'rwh')
+      local c = cfg.classes[class]:open 'rwh'
       c.classifications = c.classifications + 1
       -- no close needed; let it be garbage-collected
     end
@@ -525,8 +508,8 @@ of the databases' usage is also calculated and included in the stats table.
 
 function stats(full)
   local stats = { }
-  for class in pairs(cfg.classes) do
-    stats[class] = core.stats(class2db[class], full)
+  for class, t in pairs(cfg.classes) do
+    stats[class] = core.stats(t:open 'r', full)
   end
   local classifications, false_negatives, rates, error_rates,
         global_error_rate = 0, 0, { }, { }, 0

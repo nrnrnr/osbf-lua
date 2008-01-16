@@ -767,7 +767,7 @@ function resize(class, newsize, ...)
              '".\nValid classes are: ', table.concat(cfg.classlist(), ', '))
   else
     local dbname = cfg.classes[class].db
-    local stats = core.stats(dbname)
+    local stats = core.stats(core.open_class(dbname))
     local tmpname = util.validate(os.tmpname())
     -- XXX non atomic...
     os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force?)

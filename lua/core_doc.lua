@@ -162,12 +162,11 @@ Return the number of options set.
 ]]
 
 
-__doc.stats = [[function(dbfile [, full]) returns stats_table
+__doc.stats = [[function(db [, full]) returns stats_table
 Returns a table with information and statistics of the specified
-database. The keys of the table are:
-   * db_id - identification of the database
+database, which must be open at least for read. 
+The keys of the result table are:
    * db_version - version of the database
-   * db_flags - database flags
    * buckets - total number of buckets in the database
    * bucket_size - size of the bucket, in bytes
    * header_size - size of the header, in buckets
@@ -189,7 +188,7 @@ database. The keys of the table are:
 
 Arguments are as follows:
 
-  dbfile: string with the database filename
+  db: open database, e.g., core.open_class('ham.cfc')
 
   full: optional boolean argument. If present and equal to false, only
     the values already in the header of the database are returned,

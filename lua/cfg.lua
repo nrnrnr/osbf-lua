@@ -371,7 +371,8 @@ default value of 20 to something like 10, to reduce the burden of training.
 
 For internal clients, osbf.init adds the following fields:
 
-  open       -- function(class, mode) calling core.open_class(classname, mode).
+  db         -- full pathname of the class database file
+  open       -- function(self, mode) returns core.open_class(self.db, mode)
 
 Usage is, e.g., classes.ham:open 'rwh'.
 ]]
