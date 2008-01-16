@@ -44,13 +44,14 @@ function tablerep(v, n)
   return data
 end
 ----------------------------------------------------------------
-__doc.tablemap = [[function(f, l, ...) returns array
-Takes the array l and applies f to every element.
-More exactly, the new element i is f(l[i], ...).]]
+__doc.tablemap = [[function(f, t, ...) returns table
+Takes the table t and applies f to every value.
+More exactly, returns a fresh table t2 in which 
+every key k is associated with f(t[k], ...).]]
 
-function tablemap(f, l, ...)
+function tablemap(f, t, ...)
   local data = { }
-  for i = 1, #l do data[i] = f(l[i], ...) end
+  for k, v in pairs(t) do data[k] = f(v, ...) end
   return data
 end
 ----------------------------------------------------------------

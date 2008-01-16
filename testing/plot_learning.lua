@@ -8,7 +8,7 @@ options.register { long = 'window', type = options.std.number,
 
 local opts, args  = options.parse(arg)
 
-local window = opts.window and tonumber(opts.window) or 1000
+local window = tonumber(opts.window) or 1000
 local step = math.floor(window/10)
 
 local result_file = arg[1]
@@ -63,6 +63,23 @@ local function is_train(line)
   return line and string.find(line, 'train=true')
 end
 
+-- alternative (not tested)
+local is
+do
+  local patterns = { 
+    positive = 'judge=spam',
+    negative = 'judge=ham',
+    fp       = 'judge=ham class=spam',
+    fn       = 'judge=spam class=ham',
+    rf       = 'judge=(.+) class=%1 train=true', -- reinforcement
+    train    = 'train=true',
+  }
+  is = util.tablemap(function(pat)
+                       return function(line) return line and string.find(line, pat) end
+                     end, patterns)
+end
+
+-- now is.positive, ...  
 
 local pipe = {
   _in = {
