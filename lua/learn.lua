@@ -506,8 +506,12 @@ where
   stats       = table of core statistics indexed by class
   error_rates = table of error rates indexed by class
   rates       = table of rates of classification indexed by class
-  global_error_rate = overall error rate of classifier
-
+  global_error_rate = fraction of total messages classified incorrectly
+where
+  rate of classification of class C == fraction of messages that have class C
+  error rate for class C = (FP + FN) / (Classifications + FN)
+    (this is the fraction of messages that *were* or *should* *have* *been*
+     assigned to class C that were assigned to the incorrect class)
 full is an optional boolean. If it's not false nor nil, detailed statistics 
 of the databases' usage is also calculated and included in the stats table.
 ]]
@@ -530,14 +534,18 @@ function stats(full)
   if classifications > 0 then
     for class in pairs(cfg.classes) do
       local s = stats[class]
-      local positives = s.classifications + s.false_negatives - s.false_positives
-      --local true_positives = s.classifications - s.false_positives
-      if positives > 0 then
-        error_rates[class] = s.false_negatives / positives
+      local total = s.classifications + s.false_negatives - s.false_positives
+      rates[class] = total / classifications
+      local total_with_errors = s.classifications + s.false_negatives
+      if total_with_errors > 0 then
+        error_rates[class] =
+          (s.false_negatives + s.false_positives)  / total_with_errors
+          -- divide by 2 here to avoid double-counting
       end
-      rates[class] = positives / classifications
     end
     global_error_rate = false_negatives / classifications
+    -- suffices to count the false negatives since every false negative is
+    -- an error in another class
   end
   return stats, error_rates, rates, global_error_rate
 end

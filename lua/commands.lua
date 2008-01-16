@@ -153,7 +153,7 @@ do
 end
 
 ----------------------------------------------------------------
-__doc.filter = [[function(msg, options, sfid) returns sfid or calls error
+__doc.filter = [[function(msg, options, [sfid]) returns sfid or calls error
 Classify message and insert appropriate tags, headers, and sfid.
 Call error() if anything goes wrong.  Does not insert message into
 the cache, as this function may be used on the results of cache.recover
@@ -161,9 +161,9 @@ to re-deliver a mistakenly classified message.
 
 'sfid' is the sfid assigned to the message, if any; it may be nil,
 in which case a fresh sfid may be generated (depending on options).
-Options is an optional table in which keys 'notag',
+Options is a required table in which keys 'notag',
 and 'nosfid' can be set to disable subject tagging and sfid insertion.
-headers are always inserted; otherwise, why call this function?
+Headers are always inserted; otherwise, why call this function?
 
 This function returns the original sfid or the generated sfid, if any.
 ]]
