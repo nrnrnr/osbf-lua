@@ -392,12 +392,15 @@ do
   cfg.after_loading_do(function() cflags = cfg.constants.classify_flags end)
   local dbtable, num_classes
   do
-    local cache = { }
+    local cache
     function dbtable() -- must re-open every trip through...
-      num_classes = 0
-      for class, t in pairs(cfg.classes) do
-        cache[class] = t:open 'r'
-        num_classes = num_classes + 1
+      if not cache then
+        cache = { }
+        num_classes = 0
+        for class, t in pairs(cfg.classes) do
+          cache[class] = t:open 'r'
+          num_classes = num_classes + 1
+        end
       end
       return cache
     end
