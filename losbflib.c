@@ -415,9 +415,6 @@ push_open_class_using_cache(lua_State *L, const char *filename, osbf_class_usage
       if (c->state != OSBF_CLOSED)
         osbf_close_class(c, L);
       osbf_open_class(filename, usage, c, L);
-    } else {
-      /* 'opening' a cached file clears its bflags */
-      memset(c->bflags, 0, c->header->num_buckets * sizeof(unsigned char));
     }
     if (strcmp(filename, c->classname))
       luaL_error(L, "Tried to load %s from the cache but found %s instead",

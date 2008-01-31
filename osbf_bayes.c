@@ -232,13 +232,15 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
   ts.hash = 0;
   ts.delims = delims;
 
-  microgroom = (flags & NO_MICROGROOM) == 0;
   if (class->state == OSBF_CLOSED)
     osbf_raise(h, "Trying to train a closed class\n");
   if (class->usage != OSBF_WRITE_ALL)
     osbf_raise(h, "Trying to train class %s without opening for write",
                class->classname);
 
+  microgroom = (flags & NO_MICROGROOM) == 0;
+  memset(class->bflags, 0, class->header->num_buckets * sizeof(unsigned char));
+    
   /*   init the hashpipe with 0xDEADBEEF  */
   for (i = 0; i < OSB_BAYES_WINDOW_LEN; i++)
     hashpipe[i] = 0xDEADBEEF;
@@ -467,6 +469,7 @@ osbf_bayes_classify (const unsigned char *p_text,       /* pointer to text */
     osbf_raise_unless(class->state != OSBF_CLOSED, h,
                       "class number %d is closed", pclass - classes);
 
+    memset(class->bflags, 0, class->header->num_buckets * sizeof(unsigned char));
     ptt[pclass-classes] = class->learnings = class->header->learnings;
       /*  avoid division by 0 */
     if (class->learnings == 0)

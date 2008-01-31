@@ -158,7 +158,7 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
   if (class->header == NULL)
     osbf_raise(h, "File %s is not in a format that OSBF understands\n", classname);
 
-  class->bflags = calloc (class->header->num_buckets, sizeof (unsigned char));
+  class->bflags = malloc (class->header->num_buckets * sizeof (unsigned char));
   if (class->bflags == NULL) {
     if (!native) { free(class->header); free(class->buckets); }
     free(class->classname);

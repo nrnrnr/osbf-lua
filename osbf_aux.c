@@ -21,6 +21,16 @@
 #define DEBUG_packchain 0
 #endif
 
+static void
+osbf_packchain (CLASS_STRUCT * dbclass, uint32_t packstart, uint32_t packlen);
+
+static uint32_t osbf_microgroom (CLASS_STRUCT * dbclass, uint32_t bindex);
+
+static uint32_t osbf_last_in_chain  (CLASS_STRUCT * dbclass, uint32_t bindex);
+
+
+
+
 
 #define BUCKET_BUFFER_SIZE 5000
 
@@ -34,7 +44,7 @@ uint32_t microgroom_stop_after = OSBF_MICROGROOM_STOP_AFTER;
  * right positions whenever possible, using the buckets marked as free.
  * At the end, all buckets still marked as free are zeroed.
  */
-void
+static void
 osbf_packchain(CLASS_STRUCT * class, uint32_t packstart, uint32_t packlen)
 {
   uint32_t packend, ifrom, ito, free_start;
@@ -137,7 +147,7 @@ osbf_packchain(CLASS_STRUCT * class, uint32_t packstart, uint32_t packlen)
  * Prune and pack a chain in a class database
  * Returns the number of freed (zeroed) buckets
  */
-uint32_t osbf_microgroom(CLASS_STRUCT * class, uint32_t bindex)
+static uint32_t osbf_microgroom(CLASS_STRUCT * class, uint32_t bindex)
 {
   uint32_t i_aux, j_aux, right_position;
   static uint32_t microgroom_count = 0;
@@ -312,20 +322,8 @@ uint32_t osbf_microgroom(CLASS_STRUCT * class, uint32_t bindex)
 
 /*****************************************************************/
 
-/* get next bucket index */
-uint32_t
-osbf_next_bindex (CLASS_STRUCT * class, uint32_t bindex)
-{
-  bindex++;
-  if (bindex >= NUM_BUCKETS (class))
-    bindex = 0;
-  return bindex;
-}
-
-/*****************************************************************/
-
 /* get the index of the last bucket in a chain */
-uint32_t
+static uint32_t
 osbf_last_in_chain (CLASS_STRUCT * class, uint32_t bindex)
 {
   uint32_t wraparound;
@@ -354,55 +352,6 @@ osbf_last_in_chain (CLASS_STRUCT * class, uint32_t bindex)
     bindex = NUM_BUCKETS (class) - 1;
   else
     bindex--;
-
-  return bindex;
-}
-
-/*****************************************************************/
-
-/* get previous bucket index */
-uint32_t
-osbf_prev_bindex (CLASS_STRUCT * class, uint32_t bindex)
-{
-  if (bindex == 0)
-    bindex = NUM_BUCKETS (class) - 1;
-  else
-    bindex--;
-  return bindex;
-}
-
-/*****************************************************************/
-
-/* get the index of the first bucket in a chain */
-uint32_t
-osbf_first_in_chain (CLASS_STRUCT * class, uint32_t bindex)
-{
-  uint32_t wraparound;
-
-  /* if the bucket is not in a chain, return an index */
-  /* out of the buckets space, equal to the number of */
-  /* buckets in the file to indicate an empty chain */
-  if (!BUCKET_IN_CHAIN (class, bindex))
-    return NUM_BUCKETS (class);
-
-  wraparound = bindex;
-  while (BUCKET_IN_CHAIN (class, bindex))
-    {
-      if (bindex == 0)
-	bindex = NUM_BUCKETS (class) - 1;
-      else
-	bindex--;
-
-      /* if .cfc file is full return an index out of */
-      /* the buckets space, equal to number of buckets */
-      /* in the file, plus one */
-      if (bindex == wraparound)
-	return NUM_BUCKETS (class) + 1;
-    }
-
-  bindex++;
-  if (bindex >= NUM_BUCKETS (class))
-    bindex = 0;
 
   return bindex;
 }
@@ -694,6 +643,9 @@ osbf_import (CLASS_STRUCT *class_to, const CLASS_STRUCT *class_from, OSBF_HANDLE
   class_to->header->classifications += class_from->header->classifications;
   class_to->header->false_negatives += class_from->header->false_negatives;
   class_to->header->false_positives += class_from->header->false_positives;
+
+  memset(class_to->bflags, 0, class_to->header->num_buckets * sizeof(unsigned char));
+          /* make sure that the microgroomer is not confused by leftover bflags info */
 
   for (i = 0; i < class_from->header->num_buckets; i++)
     {

@@ -139,7 +139,7 @@ typedef struct
   OSBF_HEADER_STRUCT *header;
   OSBF_BUCKET_STRUCT *buckets;
   osbf_class_state state;
-  unsigned char *bflags;	/* bucket flags */
+  unsigned char *bflags;	/* bucket flags [Note Flags] */
   int fd;                       /* file descriptor of on-disk image */
   off_t fsize;                  /* size of on-disk image */
   osbf_class_usage usage;
@@ -149,6 +149,19 @@ typedef struct
   uint32_t uniquefeatures;
   uint32_t missedfeatures;
 } CLASS_STRUCT;
+
+/* [Note Flags]
+   ~~~~~~~~~~~~
+   The 'bucket flags' are used to track which buckets have been seen
+   during a classification.  They are also used by the microgroomer,
+   and so could be consulted during an import operation.  Otherwise 
+   the flags are not meaningful.   Therefore the data-structure invariant 
+   is as follows:
+     - If the class is open, class->bflags points to private memory
+       containing class->header->num_buckets bytes.
+     - If the classifier or importer is not running, the contents 
+       of those flags are meaningless.
+*/
 
 /* database statistics structure */
 typedef struct
@@ -280,20 +293,6 @@ enum classify_flags {
 };
 
 /****************************************************************/
-
-extern void
-osbf_packchain (CLASS_STRUCT * dbclass, uint32_t packstart, uint32_t packlen);
-
-extern uint32_t osbf_microgroom (CLASS_STRUCT * dbclass, uint32_t bindex);
-
-
-extern uint32_t osbf_next_bindex    (CLASS_STRUCT * dbclass, uint32_t bindex);
-
-extern uint32_t osbf_prev_bindex    (CLASS_STRUCT * dbclass, uint32_t bindex);
-
-extern uint32_t osbf_first_in_chain (CLASS_STRUCT * dbclass, uint32_t bindex);
-
-extern uint32_t osbf_last_in_chain  (CLASS_STRUCT * dbclass, uint32_t bindex);
 
 extern uint32_t
 osbf_find_bucket   (CLASS_STRUCT * dbclass, uint32_t hash, uint32_t key);
