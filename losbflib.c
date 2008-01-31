@@ -393,7 +393,6 @@ push_open_class_using_cache(lua_State *L, const char *filename, osbf_class_usage
 
   lua_getfield(L, LUA_ENVIRONINDEX, "cache");  /* s: cache */
   lua_getfield(L, -1, filename);               /* s: cache class */
- cached_on_top:
   if (lua_isnil(L, -1)) {
     CLASS_STRUCT *c = lua_newuserdata(L, sizeof(*c));  /* s: cache nil class */
     luaL_getmetatable(L, CLASS_METANAME);
@@ -415,14 +414,7 @@ push_open_class_using_cache(lua_State *L, const char *filename, osbf_class_usage
                 c->state == OSBF_CLOSED ? "closed" : "usage too low");
       if (c->state != OSBF_CLOSED)
         osbf_close_class(c, L);
-#define OLD_WAY_BETTER 1
-      if (OLD_WAY_BETTER) {
-        lua_pop(L, 1); /* goodbye class */
-        lua_pushnil(L); /* pretend nothing was in the cache */
-        goto cached_on_top;
-      } else {
-        osbf_open_class(filename, usage, c, L);
-      }
+      osbf_open_class(filename, usage, c, L);
     } else {
       /* 'opening' a cached file clears its bflags */
       memset(c->bflags, 0, c->header->num_buckets * sizeof(unsigned char));
