@@ -394,7 +394,7 @@ do
   do
     local cache
     function dbtable() -- must re-open every trip through...
-      if true or not cache then
+      if not cache then
         cache = { }
         num_classes = 0
         for class, t in pairs(cfg.classes) do
