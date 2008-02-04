@@ -18,7 +18,7 @@ SRCS= losbflib.c osbferrl.c oarray.c \
 OBJS= losbflib.o osbferrl.o oarray.o \
       osbf_bayes.o osbf_aux.o osbf_disk.o osbf_csv.o osbf_stats.o \
       osbf_fmt_5.o osbf_fmt_6.o osbf_fmt_7.o
-XOBJS= obsferrs.o
+XOBJS= osbferrs.o
 
 CFLAGS += -DOPENFUN=luaopen_$(MODNAME)_core
 CFLAGS += -DLUA_USE_LINUX
