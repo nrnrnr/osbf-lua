@@ -89,11 +89,12 @@ for l in assert(io.lines(trecdir .. 'index')) do
   if debug then io.stderr:write("\nMsg ", file) end 
   table.insert(files, file)
   local m = msg.of_file(trecdir .. file)
-  local train, pR, tag, _, class = commands.classify(m)
+  -- find best class
+  local bc = commands.classify(m)
   nclass = nclass + 1
-  pR = class == 'ham' and pR or (pR > 0 and -pR or pR)
-  if train or class ~= labelled then
-    local sfid = cache.generate_sfid(tag, pR)
+  local ham_pR = bc.class == 'ham' and bc.pR or (bc.pR > 0 and -bc.pR or bc.pR)
+  if bc.train or bc.class ~= labelled then
+    local sfid = cache.generate_sfid(bc.sfid_tag, ham_pR)
     cache.store(sfid, msg.to_orig_string(m))
     local ok, errmsg = opcall(commands.learn, sfid, labelled)
 
@@ -106,7 +107,7 @@ for l in assert(io.lines(trecdir .. 'index')) do
   end
 
   result:write(string.format("%s judge=%s class=%s train=%s score=%.4f\n",
-                             file, labelled, class, tostring(train), -pR))
+                             file, labelled, bc.class, tostring(bc.train), -ham_pR))
   if nclass >= max_lines then break end
 end
 local end_time = os.time()

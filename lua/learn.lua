@@ -10,9 +10,7 @@ local select = select
 
 
 -- experimental constants
-local threshold_offset			= 2
 local overtraining_protection_threshold = 20 -- overtraining protection
-local offset_max_threshold = threshold_offset + overtraining_protection_threshold
 local header_learn_threshold            = 14 -- header overtraining protection
 local reinforcement_degree              = 0.6
 local reinforcement_limit               = 4
@@ -100,7 +98,7 @@ end
                 
 local msgmod = msg
 
-__doc.tone = [[function(text, class[, count]) returns old_pR, new_pR or errors
+__doc.tone = [[function(text, class[, count]) returns tables old_bc, new_bc or errors
 Conditionally train 'text' as belonging to 'class'.  Training is done
 'on or near error' (TONE): if the classifier produces the wrong
 classification (different from 'original'), we train with the
@@ -113,22 +111,22 @@ Should be set when a script is training on messages that have never before been
 classified.
 
 class is the target class.
-old_pR and new pR are the before-training and after-training pRs of the 
-target class. If training was not necessary (correct and not near error), 
-return identical probability ratios.
+old_bc and new_bc are the before-training and after-training best-class tables,
+containing 'class', 'pR', 'train' and 'target_pR' keys.
+If training is not necessary (correct and not near error), return identical
+tables.
 ]]
-
 
 
 local function tone_inner(text, target_class, count_as_classif)
 
-  local old_pR, class, _, target_pR =
-    most_likely_pR_and_class(text, count_as_classif, target_class)
+  -- find best class and target pR
+  local bc = most_likely_pR_and_class(text, count_as_classif, target_class)
 
-  if class ~= target_class then
+  if bc.class ~= target_class then
     local db = cfg.classes[target_class]:open 'rw'
     -- old_pR must be old pR of target_class
-    old_pR = target_pR
+    --old_pR = target_pR
     -- core.FALSE_NEGATIVE indicates that the false negative counter in
     -- the database must be incremented. This is an approximate counting
     -- because there can be cases where there was no false negative in the
@@ -136,50 +134,56 @@ local function tone_inner(text, target_class, count_as_classif)
     -- the present classification is wrong. And vice-versa.
     core.learn(text, db, core.FALSE_NEGATIVE)
     do
-      local c = cfg.classes[class]:open 'rwh'
+      local c = cfg.classes[bc.class]:open 'rwh'
       c.fp = c.fp + 1
       -- don't close; OK for c to be garbage collected
     end
 
-    -- guarantee that starting class for tone-hr is the target class
-    local new_pR, new_class = most_likely_pR_and_class(text)
+    local new_bc = most_likely_pR_and_class(text, false, target_class )
     debugf("Tone after 1 FALSE_NEGATIVE training: classified %s (pR %.2f); target class %s\n",
-           new_class, new_pR, target_class)
+           new_bc.class, new_bc.pR, target_class)
+    -- XXX temporarily commented out to restore old behavior
+    --[[
+    -- guarantee that starting class for tone-hr is the target class
     for i = 1, mistake_limit do
-      if new_class == target_class then break end
+      if new_bc.class == target_class then break end
       core.learn(text, db) -- no FALSE_NEGATIVE flag here
-      new_pR, new_class = most_likely_pR_and_class(text)
-      debugf(" Tone %d - forcing right class: classified %s (pR %.2f); target class %s\n",
-           i, new_class, new_pR, target_class)
+      new_bc = most_likely_pR_and_class(text)
+      debugf(" Tone %d - forcing right class: classified %s (pR %.2f); target class %s\n", i, new_bc.class, new_bc.pR, target_class)
     end
-    util.insistf(new_class == target_class, 
+    util.insistf(new_bc.class == target_class, 
                  "%d trainings insufficient to reclassify %s as %s",
-                 mistake_limit, class, target_class)
-    return old_pR, new_pR, class, new_class
-  elseif math.abs(old_pR) < overtraining_protection_threshold then
+                 mistake_limit, new_bc.class, target_class)
+    --]]
+    return bc, new_bc
+  elseif bc.target_pR < overtraining_protection_threshold then
     -- N.B. We don't test 'train' here because if we reach this point,
     -- the user has decided training is needed.  Thus we use only the
     -- overtraining-protection threshold in order to protect the integrity
     -- of the database.
     local db = cfg.classes[target_class]:open 'rw'
     core.learn(text, db)
-    local new_pR, new_class = most_likely_pR_and_class(text)
-    debugf("Tone - near error, after training: classified %s (pR %.2f -> %.2f); target class %s\n",
-           new_class, old_pR, new_pR, target_class)
-    return old_pR, new_pR, class, new_class
+    local new_bc = most_likely_pR_and_class(text, false, target_class)
+    debugf("Tone - near error, after training: classified %s (pR %.2f); target class %s\n", new_bc.class, new_bc.pR, target_class)
+    return  bc, new_bc
   else
-    return old_pR, old_pR, class, class
+    -- no need to train
+    return  bc, bc
   end
 end
 
 -- XXX we should be sure always to compute pR of a single class
 local function tone(text, target_class, count_as_classif)
-  local orig_pR, new_pR, orig_class, new_class =
+  local bc, new_bc =
     tone_inner(text, target_class, count_as_classif)
-  debugf('Tone result: originally %s (pR %.2f), now %s (pR %.2f); target %s\n',
-         orig_class, orig_pR, new_class, new_pR, target_class)
-  assert(target_class == new_class)
-  return orig_pR, new_pR
+  debugf('Tone result: originally %s (pR %.2f), now %s (pR %.2f); target %s (pR %.2f)\n', bc.class, bc.pR, new_bc.class, new_bc.pR, target_class,
+          new_bc.target_pR)
+  -- XXX temporarily commented out
+  --assert(new_bc.class == target_class)
+  if new_bc.class ~= target_class then
+    debugf('Tone unable to make class equal to target class\n')
+  end
+  return bc, new_bc
 end
 
 
@@ -189,37 +193,42 @@ end
 local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif)
   -- train on the whole message if on or near error
   local lim_orig_msg = lim.msg
-  local orig_pR, new_pR = tone(lim_orig_msg, target_class, count_as_classif)
+  local old_bc, new_bc = tone(lim_orig_msg, target_class, count_as_classif)
+  local old_pR, new_pR =  old_bc.target_pR, new_bc.target_pR
   if cfg.classes[target_class].hr 
-    and new_pR < cfg.classes[target_class].train_below + threshold_offset
-    and math.abs(new_pR - orig_pR) < header_learn_threshold
+    and new_pR < cfg.classes[target_class].train_below + cfg.classes[target_class].hr_offset
+    and (new_pR - old_pR) < header_learn_threshold
   then 
     -- Iterative training on the header only (header reinforcement)
-    -- as described in the paper.  Continues until pR it exceeds a
+    -- as described in the paper.  Continues until pR exceeds a
     -- calculated threshold or pR changes by another threshold or we
     -- run out of iterations.  Thresholds and iteration counts were
     -- determined empirically.
     local db    = cfg.classes[target_class]:open 'rw'
-    local trd   = threshold_reinforcement_degree * offset_max_threshold
+    local trd   = threshold_reinforcement_degree *
+                   (cfg.classes[target_class].train_below + cfg.classes[target_class].hr_offset)
     local rd    = reinforcement_degree * header_learn_threshold
     local flags = cfg.constants.learn_flags + core.EXTRA_LEARNING
-    local pR
     local lim_orig_header = lim.header
     for i = 1, reinforcement_limit do
       -- (may exit early if the change in new_pR is big enough)
-      pR = new_pR
+      local pR = new_pR
       core.learn(lim_orig_header, db, flags)
-      debugf('Reinforced %d class %s with pR = %.2f\n', i, target_class, pR)
-      new_pR = most_likely_pR_and_class(lim_orig_msg)
-      if new_pR > trd or math.abs (pR - new_pR) >= rd then
+      new_bc = most_likely_pR_and_class(lim_orig_msg, false, target_class)
+      new_pR = new_bc.target_pR
+      debugf('Reinforced %d class %s: %.2f -> %.2f\n', i, target_class,
+              pR, new_pR)
+      if new_pR > trd or (new_pR - pR) >= rd then
         break
       end
     end
-    local new_class
-    new_pR, new_class = most_likely_pR_and_class(lim_orig_msg)
-    assert(new_class == target_class)
+    -- XXX temporarily commented out
+    --assert(new_bc.class == target_class)
+    if new_bc.class ~= target_class then
+      debugf('HR unable to make class equal to target class\n')
+    end
   end
-  return orig_pR, new_pR
+  return old_bc, new_bc
 end
 
 
@@ -277,11 +286,12 @@ function learn_msg(m, class, count, force)
   end
   debugf('\n Learning <%s> with header <%s> as %s...\n', 
          fingerprint(lim.msg), fingerprint(lim.header), class)
-  local orig, new = tone_msg_and_reinforce_header(lim, class, count)
-  local comment = orig == new and
-    string.format(cfg.training_not_necessary, orig, cfg.classes[class].train_below) or
-    string.format('Trained as %s: confidence %4.2f -> %4.2f', class, orig, new)
-  return comment, orig, new
+  local old_bc, new_bc = tone_msg_and_reinforce_header(lim, class, count)
+  local comment = old_bc == new_bc and
+    string.format(cfg.training_not_necessary, old_bc.target_pR, cfg.classes[class].train_below) or
+    string.format('Trained as %s: confidence %4.2f -> %4.2f', class,
+                   old_bc.target_pR, new_bc.target_pR)
+  return comment, old_bc.target_pR, new_bc.target_pR
 end
 
 
@@ -308,24 +318,25 @@ but the message was previously learned as %s.]],
 
   local lim = msg.lim
   local k = cfg.constants
-  local old_pR = most_likely_pR_and_class(lim.msg)
+  -- find old best class
+  local old_bc = most_likely_pR_and_class(lim.msg)
   local db = cfg.classes[status]:open 'rw'
   core.unlearn(lim.msg, db, k.learn_flags+core.FALSE_NEGATIVE)
-  local pR, class = most_likely_pR_and_class(lim.msg)
+  -- find new best class
+  local new_bc = most_likely_pR_and_class(lim.msg)
   for i = 1, reinforcement_limit do
-    if class == status and pR > threshold_offset then
+    if new_bc.class == status and new_bc.pR > 0 then
       core.unlearn(lim.header, db, k.learn_flags)
-      pR, class = most_likely_pR_and_class(lim.msg)
+      new_bc = most_likely_pR_and_class(lim.msg)
     else
       break
     end
   end
-  cache.change_file_status(sfid, old_class, 'unlearned')
+  cache.change_file_status(sfid, old_bc.class, 'unlearned')
 
-  pR, class = most_likely_pR_and_class(lim.msg)
-     -- report msg numbers not header numbers
+  -- report msg numbers not header numbers
   return string.format('Message unlearned (was %s [%4.2f], is now %s [%4.2f])',
-                       old_class, old_pR, class, pR)
+                       old_bc.class, old_bc.pR, new_bc.class, new_bc.pR)
 end
 
 
@@ -370,20 +381,24 @@ local function wrap_subj_tag(s)
 end
 
 __doc.most_likely_pR_and_class = 
-[[function(text, count, tgt_class, probs, conf) returns pR, class, train, tgt_pR
+[[function(text, count, tgt_class, probs, conf) returns best-class table
 text is the text to be classified.
 flags are the flags for classification.
 count is optional; if given it is a boolean indicating whether to increment
 the number of classifications in the database of the most likely class.
-tgt_class is optional. If given, its pR will be returned as the last argument.
+tgt_class is optional. If given, a table with the target class classification
+will be returned as the second argument.
 
 probs and conf are also optional; if given, they must be the result of calling 
 multiclassify() on the same text
 
 pR the log of ratio of the probability for the chosen class;
-classification is the most likely class
-train is a boolean or nil; 
-tgt_pR is the pR of tgt_class
+
+best-class table contains the keys 'class', 'pR' and 'train', representing
+the most likely class, its confidence and a boolean value indicating wether
+confidence is less than the class' train_below value. If tgt_class is given,
+best-table will also contain the key 'target_pR', with the target class
+confidence.
 ]]
 
 
@@ -450,7 +465,12 @@ do
     debugf('Classified %s as class %s with confidence %.2f%s\n',
            table.concat(cfg.classlist(), '/'), class, pR,
            train and ' (train)' or '')
-    return pR, class, train, target_class and conf[target_class]
+    --return classifications of best class and target class
+    -- best classification
+    local bc = { pR = pR, class = class, train = train }
+    -- add target_pR if target_class is given
+    bc.target_pR = target_class and conf[target_class] or nil
+    return bc
   end
 end
 
@@ -479,16 +499,19 @@ function classify (msg, probs, conf)
   -- continue with classification even if whitelisted or blacklisted
 
   debugf('\nClassifying msg %s...\n', fingerprint(msg.lim.msg))
-  local pR, class, train =
-    most_likely_pR_and_class(msg.lim.msg, cfg.count_classifications, nil, probs, conf)
-  local t = assert(cfg.classes[class], 'missing configuration for class')
+  local bc =
+    most_likely_pR_and_class(msg.lim.msg, nil, cfg.count_classifications, probs, conf)
+  local t = assert(cfg.classes[bc.class], 'missing configuration for class')
   
   if not sfid_tag then
-    local tag = util.insistf(t.sfid, 'missing sfid tag for %s', class)
-    sfid_tag = train and tag or string.upper(tag)
+    local tag = util.insistf(t.sfid, 'missing sfid tag for %s', bc.class)
+    sfid_tag = bc.train and tag or string.upper(tag)
   end
-  subj_tag = wrap_subj_tag(subj_tag or t[train and 'unsure' or 'sure'])
-  return train, pR, sfid_tag, subj_tag, class
+  subj_tag = wrap_subj_tag(subj_tag or t[bc.train and 'unsure' or 'sure'])
+  -- add 'sfid_tag' and 'subj_tag' keys to bc
+  bc.sfid_tag = sfid_tag
+  bc.subj_tag = subj_tag
+  return bc
 end
 
 -----------------------------------------------------------------------------

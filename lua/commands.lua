@@ -170,28 +170,30 @@ This function returns the original sfid or the generated sfid, if any.
 
 function filter(m, options, sfid)
   local probs, conf = multiclassify(m.lim.msg)
-  local train, confidence, sfid_tag, subj_tag, class = classify(m, probs, conf)
+  --local train, confidence, sfid_tag, subj_tag, class = classify(m, probs, conf)
+  -- find best class
+  local bc = classify(m, probs, conf)
   local crc32 = core.crc32(msg.to_orig_string(m))
   if not options.nosfid and cfg.use_sfid then
-    sfid = sfid or cache.generate_sfid(sfid_tag, confidence)
+    sfid = sfid or cache.generate_sfid(bc.sfid_tag, bc.pR)
     msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
   end
-  log.lua('filter', log.dt { probs = probs, conf = conf, train = train,
+  log.lua('filter', log.dt { probs = probs, conf = conf, train = bc.train,
                              synopsis = msg.synopsis(m),
-                             class = class, sfid = sfid, crc32 = crc32 })
+                             class = bc.class, sfid = sfid, crc32 = crc32 })
   if not options.notag and cfg.tag_subject then
     msg.tag_subject(m, subj_tag)
   end
   local classes = cfg.classes
   local summary_header =
     string.format('%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
-                  confidence, classes[class].train_below,
-                  sfid_tag, core._VERSION, cfg.version)
+                  bc.pR, classes[bc.class].train_below,
+                  bc.sfid_tag, core._VERSION, cfg.version)
   local suffixes = cfg.header_suffixes
   msg.add_osbf_header(m, suffixes.summary, summary_header)
-  msg.add_osbf_header(m, suffixes.class, class)
-  msg.add_osbf_header(m, suffixes.confidence, confidence or '0.0')
-  msg.add_osbf_header(m, suffixes.needs_training, train and 'yes' or 'no')
+  msg.add_osbf_header(m, suffixes.class, bc.class)
+  msg.add_osbf_header(m, suffixes.confidence, bc.pR or '0.0')
+  msg.add_osbf_header(m, suffixes.needs_training, bc.train and 'yes' or 'no')
   msg.add_osbf_header(m, suffixes.sfid, sfid)
   return sfid
 end

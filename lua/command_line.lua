@@ -322,13 +322,14 @@ local function learner(command_name)
                 ' the configuration file is set\n  '..
                 (cfg.use_sfid and 'not to save messages' or 'not to use sfids'))
         else
-          local probs, conf = commands.multiclassify(m.lim.msg)
-          local train, conf, sfid_tag, subj_tag, class =
-            commands.classify(m, probs, conf)
+          local probs, conftab = commands.multiclassify(m.lim.msg)
+          --local train, conf, sfid_tag, subj_tag, class =
+          local bc = commands.classify(m, probs, conftab)
           local orig = msg.to_orig_string(m)
           crc32 = core.crc32(orig)
-          cfn_info = { probs = probs, conf = conftab, train = train, class = class }
-          sfid = cache.generate_sfid(sfid_tag, conf)
+          cfn_info = { probs = probs, conf = conftab, train = bc.train,
+                       class = bc.class }
+          sfid = cache.generate_sfid(bc.sfid_tag, bc.pR)
           cache.store(sfid, orig)
         end
 
@@ -396,11 +397,11 @@ original message received a subject tag.
 function resend(sfid)
   local message = cache.recover(sfid)
   local m = msg.of_string(message)
-  local train, confidence, sfid_tag, subj_tag, class = commands.classify(m)
-  sfid_tag = 'R' .. sfid_tag -- prefix tag to indicate a resent message
-  local boost = cfg.classes[class].conf_boost
+  local bc = commands.classify(m)
+  local sfid_tag = 'R' .. bc.sfid_tag -- prefix tag to indicate a resent message
+  local boost = cfg.classes[bc.class].conf_boost
   local score_header =
-    string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', confidence - boost,
+    string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', bc.pR - boost,
                   -boost, sfid_tag, core._VERSION, cfg.version)
   msg.add_osbf_header(m, cfg.score_header_suffix, score_header)
   msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
@@ -462,18 +463,18 @@ function classify(...)
   
   for m, what in msgs(unpack(argv)) do
     local probs, conf = commands.multiclassify(m.lim.msg)
-    local train, confidence, tag, _, class = commands.classify(m, probs, conf)
+    local bc = commands.classify(m, probs, conf)
     local sfid
     if options.cache then
       sfid = cache.generate_sfid(tag, confidence)
       cache.store(sfid, msg.to_orig_string(m))
     end
     local crc32 = core.crc32(msg.to_orig_string(m))
-    log.lua('classify', log.dt { probs = probs, conf = conf, train = train,
+    log.lua('classify', log.dt { probs = probs, conf = conf, train = bc.train,
                                  synopsis = msg.synopsis(m),
-                                 class = class, sfid = sfid, crc32 = crc32 })
-    util.write(what, ' is ', show(confidence, tag, class),
-               train and ' [needs training]' or '', m.eol)
+                                 class = bc.class, sfid = sfid, crc32 = crc32 })
+    util.write(what, ' is ', show(bc.pR, bc.sfid_tag, bc.class),
+               bc.train and ' [needs training]' or '', m.eol)
   end
 end
 
