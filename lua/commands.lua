@@ -182,17 +182,18 @@ function filter(m, options, sfid)
                              synopsis = msg.synopsis(m),
                              class = bc.class, sfid = sfid, crc32 = crc32 })
   if not options.notag and cfg.tag_subject then
-    msg.tag_subject(m, subj_tag)
+    msg.tag_subject(m, bc.subj_tag)
   end
   local classes = cfg.classes
   local summary_header =
     string.format('%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
-                  bc.pR, classes[bc.class].train_below,
+                  bc.pR, classes[bc.class].conf_boost,
                   bc.sfid_tag, core._VERSION, cfg.version)
   local suffixes = cfg.header_suffixes
   msg.add_osbf_header(m, suffixes.summary, summary_header)
   msg.add_osbf_header(m, suffixes.class, bc.class)
-  msg.add_osbf_header(m, suffixes.confidence, bc.pR or '0.0')
+  msg.add_osbf_header(m, suffixes.confidence,
+                      bc.pR and string.format('%.2f', bc.pR) or '0.0')
   msg.add_osbf_header(m, suffixes.needs_training, bc.train and 'yes' or 'no')
   msg.add_osbf_header(m, suffixes.sfid, sfid)
   return sfid

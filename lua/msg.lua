@@ -16,6 +16,7 @@ module(...)
 local cfg   = require(_PACKAGE .. 'cfg')
 local util  = require(_PACKAGE .. 'util')
 local cache = require(_PACKAGE .. 'cache')
+local log   = require(_PACKAGE .. 'log')
 
 __doc = { }
 

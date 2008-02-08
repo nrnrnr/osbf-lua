@@ -313,15 +313,15 @@ local function learner(command_name)
       usage('learn command requires one of these classes: ' ..
             table.concat(cfg.classlist(), ', '))
     else
-      for m in has_class and msgs(...) or msgs(classification, ... ) do
-        local sfid, cfn_info, crc32
+      for m, sfid in has_class and msgs(...) or msgs(classification, ... ) do
+        local cfn_info, crc32
         if msg.has_sfid(m) then
           sfid = msg.sfid(m)
         elseif not (cfg.use_sfid and cfg.cache.use) then
           error('Cannot ' .. command_name .. ' messages because ' ..
                 ' the configuration file is set\n  '..
                 (cfg.use_sfid and 'not to save messages' or 'not to use sfids'))
-        else
+        elseif not cache.is_sfid(sfid) then
           local probs, conftab = commands.multiclassify(m.lim.msg)
           --local train, conf, sfid_tag, subj_tag, class =
           local bc = commands.classify(m, probs, conftab)
@@ -401,9 +401,9 @@ function resend(sfid)
   local sfid_tag = 'R' .. bc.sfid_tag -- prefix tag to indicate a resent message
   local boost = cfg.classes[bc.class].conf_boost
   local score_header =
-    string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', bc.pR - boost,
-                  -boost, sfid_tag, core._VERSION, cfg.version)
-  msg.add_osbf_header(m, cfg.score_header_suffix, score_header)
+    string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', bc.pR,
+                  boost, sfid_tag, core._VERSION, cfg.version)
+  msg.add_osbf_header(m, cfg.header_suffixes.summary, score_header)
   msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
   util.unset_output_to_message()
   io.stdout:write(msg.to_string(m))
@@ -506,9 +506,8 @@ do
 
   cfg.after_loading_do(make_classes_commands)
 end
- 
+
 local function run_batch_cmd(sfid, cmd, m)
-  local args = {}
   if type(valid_batch_cmds[cmd]) == 'table' then
     local args = {unpack(valid_batch_cmds[cmd])} -- copies table
     table.insert(args, sfid)
@@ -541,7 +540,7 @@ and executes them.  The commands must be in the format:
 
 Valid commands are: 
 ham               => train <sfid> as ham;
-spam              => traim <sfid> as spam;
+spam              => train <sfid> as spam;
 undo              => undo previous training on sfid;
 whitelist_from    => add From: line of <sfid> to whitelist;
 whitelist_subject => add Subject: line of <sfid> to whitelist;

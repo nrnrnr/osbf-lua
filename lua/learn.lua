@@ -500,7 +500,7 @@ function classify (msg, probs, conf)
 
   debugf('\nClassifying msg %s...\n', fingerprint(msg.lim.msg))
   local bc =
-    most_likely_pR_and_class(msg.lim.msg, nil, cfg.count_classifications, probs, conf)
+    most_likely_pR_and_class(msg.lim.msg, cfg.count_classifications, nil, probs, conf)
   local t = assert(cfg.classes[bc.class], 'missing configuration for class')
   
   if not sfid_tag then

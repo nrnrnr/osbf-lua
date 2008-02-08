@@ -131,7 +131,7 @@ local Brazilian_Portuguese = {
     
   train_nomsgs  = "N&atilde;o h&aacute; mensagens para treinamento",
   table = { date  = "Data", from = "De", subject = "Assunto",
-            action = "A&ccedil;&atilde;o", confidence = "Portuguese for 'confidence'" },
+            action = "A&ccedil;&atilde;o", confidence = "Pontua&ccedil;&atilde;o" },
 
   stats = {
     stats     = "Estat&iacute;sticas",
@@ -466,7 +466,7 @@ function html_stat_table() -- declared local above
   end
 
   local classlines = { }
-  local totals = { language.stats.total, 0, 0, 0, pct(1-gerr) }
+  local totals = { language.stats.total, 0, 0, 0, 0, pct(1-gerr) }
   do
     local function classline(class) -- information reported for a class
       return { language.class_names[class] or class,
@@ -481,7 +481,8 @@ function html_stat_table() -- declared local above
       classlines[class] = classline(class)
       totals[2] = totals[2] + s.classifications
       totals[3] = totals[3] + s.false_negatives
-      totals[4] = totals[4] + s.learnings
+      totals[4] = totals[4] + s.false_positives
+      totals[5] = totals[5] + s.learnings
     end
   end
 
@@ -577,7 +578,7 @@ function generate_training_message(email, temail, opt_locale)
       end
     end
   end
-  -- If still less than max_sfids, ompletes with sfids outside
+  -- If still less than max_sfids, completes with sfids outside
   -- of user reinforcement zone.
   for _, s in ipairs(outside_minimum) do
     if #sfids < max_sfids then
