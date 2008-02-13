@@ -315,22 +315,24 @@ local function learner(command_name)
     else
       for m, sfid in has_class and msgs(...) or msgs(classification, ... ) do
         local cfn_info, crc32
-        if msg.has_sfid(m) then
-          sfid = msg.sfid(m)
-        elseif not (cfg.use_sfid and cfg.cache.use) then
-          error('Cannot ' .. command_name .. ' messages because ' ..
-                ' the configuration file is set\n  '..
-                (cfg.use_sfid and 'not to save messages' or 'not to use sfids'))
-        elseif not cache.is_sfid(sfid) then
-          local probs, conftab = commands.multiclassify(m.lim.msg)
-          --local train, conf, sfid_tag, subj_tag, class =
-          local bc = commands.classify(m, probs, conftab)
-          local orig = msg.to_orig_string(m)
-          crc32 = core.crc32(orig)
-          cfn_info = { probs = probs, conf = conftab, train = bc.train,
-                       class = bc.class }
-          sfid = cache.generate_sfid(bc.sfid_tag, bc.pR)
-          cache.store(sfid, orig)
+        if not cache.is_sfid(sfid) then
+          if msg.has_sfid(m) then
+            sfid = msg.sfid(m)
+          elseif not (cfg.use_sfid and cfg.cache.use) then
+            error('Cannot ' .. command_name .. ' messages because ' ..
+                  ' the configuration file is set\n  '..
+                  (cfg.use_sfid and 'not to save messages' or 'not to use sfids'))
+          else
+            local probs, conftab = commands.multiclassify(m.lim.msg)
+            --local train, conf, sfid_tag, subj_tag, class =
+            local bc = commands.classify(m, probs, conftab)
+            local orig = msg.to_orig_string(m)
+            crc32 = core.crc32(orig)
+            cfn_info = { probs = probs, conf = conftab, train = bc.train,
+                         class = bc.class }
+            sfid = cache.generate_sfid(bc.sfid_tag, bc.pR)
+            cache.store(sfid, orig)
+          end
         end
 
         local comment = cmd(sfid, has_class and classification or nil)

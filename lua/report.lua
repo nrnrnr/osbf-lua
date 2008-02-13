@@ -6,8 +6,8 @@
 local require, print, pairs, ipairs, type, assert, setmetatable =
       require, print, pairs, ipairs, type, assert, setmetatable
 
-local os, string, table, math =
-      os, string, table, math
+local os, string, table, math, tostring =
+      os, string, table, math, tostring
 
 local modname = ...
 local modname = string.gsub(modname, '[^%.]+$', 'commands')
@@ -91,8 +91,7 @@ local English = {
   class_names = { }, -- no mapping for class names
   train_nomsgs  = "No messages for training",
   table = 
-    { date  = "Date", from = "From", subject = "Subject", action = "Action",
-      confidence = "Confidence" },
+    { date  = "Date", from = "From", subject = "Subject", confidence = "Class [confidence]", action = 'Action' },
 
   stats = {
     stats = "Statistics",
@@ -131,7 +130,7 @@ local Brazilian_Portuguese = {
     
   train_nomsgs  = "N&atilde;o h&aacute; mensagens para treinamento",
   table = { date  = "Data", from = "De", subject = "Assunto",
-            action = "A&ccedil;&atilde;o", confidence = "Pontua&ccedil;&atilde;o" },
+            confidence = "Classe [pontua&ccedil;&atilde;o]", action = "A&ccedil;&atilde;o" },
 
   stats = {
     stats     = "Estat&iacute;sticas",
@@ -315,7 +314,7 @@ tr.stats_footer {
 ----------------------------------------------------------
 ---- rows of the cache report (one per message)
 
-local max_widths = { date = 18, from = 23, subject = 45, action = 14, confidence = 10 }
+local max_widths = { date = 18, from = 23, subject = 45, confidence = 10 }
 
 -- template for row of the sfid table (one per message)
 local sfid_row = [[
@@ -324,10 +323,10 @@ local sfid_row = [[
  <td style="width: 24%; max-width: $mwf%; color: $fgcolor;"><small>$from</small></td>
  <td style="width: 43%; max-width: $mws%; color: $fgcolor;">
                                                          <small>$subject</small></td>
- <td style="width: 13%; max-width: $mwa%; vertical-align: middle; color: $fgcolor;">
-                                                        <p><small>$select</small></td>
  <td style="width:  7%; max-width: $mwc%; vertical-align: middle; color: $fgcolor;">
                                                         <p><small>$confidence</small></td>
+ <td style="width: 13%; max-width: $mwa%; vertical-align: middle; color: $fgcolor;">
+                                                        <p><small>$select</small></td>
  </tr>
 ]]
 do
@@ -349,7 +348,7 @@ do
 
   function html_first_row()
     local cols = { }
-    for _, what in ipairs { 'date', 'from', 'subject', 'action', 'confidence' } do
+    for _, what in ipairs { 'date', 'from', 'subject', 'confidence', 'action' } do
       local data = { mw = max_widths[what], contents = language.table[what] }
       table.insert(cols, replace_dollar(col, data))
     end
@@ -407,7 +406,8 @@ function html_sfid_rows(sfids, ready) -- declared local above
     local data = {
       datecolor = datecolor, fgcolor = fgcolor,
       from = from, subject = subject, date = date,
-      confidence = sfid_table.confidence,
+      confidence = table.concat { sfid_table.class, ' [',
+                   tostring(sfid_table.confidence), ']' },
       select = sfid_menu(sfid, tag, ready)
     }
 
