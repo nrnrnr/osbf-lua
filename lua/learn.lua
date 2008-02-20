@@ -10,7 +10,6 @@ local select = select
 
 
 -- experimental constants
-local overtraining_protection_threshold = 20 -- overtraining protection
 local header_learn_threshold            = 14 -- header overtraining protection
 local reinforcement_degree              = 0.6
 local reinforcement_limit               = 4
@@ -119,14 +118,12 @@ tables.
 
 
 local function tone_inner(text, target_class, count_as_classif)
-
   -- find best class and target pR
   local bc = most_likely_pR_and_class(text, count_as_classif, target_class)
 
   if bc.class ~= target_class then
+    -- wrong classification => train on error
     local db = cfg.classes[target_class]:open 'rw'
-    -- old_pR must be old pR of target_class
-    --old_pR = target_pR
     -- core.FALSE_NEGATIVE indicates that the false negative counter in
     -- the database must be incremented. This is an approximate counting
     -- because there can be cases where there was no false negative in the
@@ -142,32 +139,26 @@ local function tone_inner(text, target_class, count_as_classif)
     local new_bc = most_likely_pR_and_class(text, false, target_class )
     debugf("Tone after 1 FALSE_NEGATIVE training: classified %s (pR %.2f); target class %s\n",
            new_bc.class, new_bc.pR, target_class)
-    -- XXX temporarily commented out to restore old behavior
-    --[[
-    -- guarantee that starting class for tone-hr is the target class
+    -- try hard to make the starting class for tone-hr equal to the target class
     for i = 1, mistake_limit do
       if new_bc.class == target_class then break end
       core.learn(text, db) -- no FALSE_NEGATIVE flag here
-      new_bc = most_likely_pR_and_class(text)
+      new_bc = most_likely_pR_and_class(text, false, target_class)
       debugf(" Tone %d - forcing right class: classified %s (pR %.2f); target class %s\n", i, new_bc.class, new_bc.pR, target_class)
     end
     util.insistf(new_bc.class == target_class, 
                  "%d trainings insufficient to reclassify %s as %s",
                  mistake_limit, new_bc.class, target_class)
-    --]]
     return bc, new_bc
-  elseif bc.target_pR < overtraining_protection_threshold then
-    -- N.B. We don't test 'train' here because if we reach this point,
-    -- the user has decided training is needed.  Thus we use only the
-    -- overtraining-protection threshold in order to protect the integrity
-    -- of the database.
+  elseif bc.target_pR < cfg.classes[target_class].train_below then
+    -- right classification but pR < training threshold => train near error
     local db = cfg.classes[target_class]:open 'rw'
     core.learn(text, db)
     local new_bc = most_likely_pR_and_class(text, false, target_class)
     debugf("Tone - near error, after training: classified %s (pR %.2f); target class %s\n", new_bc.class, new_bc.pR, target_class)
     return  bc, new_bc
   else
-    -- no need to train
+    -- no need to train - return same object
     return  bc, bc
   end
 end
@@ -178,8 +169,9 @@ local function tone(text, target_class, count_as_classif)
     tone_inner(text, target_class, count_as_classif)
   debugf('Tone result: originally %s (pR %.2f), now %s (pR %.2f); target %s (pR %.2f)\n', bc.class, bc.pR, new_bc.class, new_bc.pR, target_class,
           new_bc.target_pR)
-  -- XXX temporarily commented out
-  --assert(new_bc.class == target_class)
+  -- no need to guarantee same class because new code always compares
+  -- old and new pR of the target class
+  -- assert(new_bc.class == target_class)
   if new_bc.class ~= target_class then
     debugf('Tone unable to make class equal to target class\n')
   end
@@ -196,7 +188,7 @@ local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif
   local old_bc, new_bc = tone(lim_orig_msg, target_class, count_as_classif)
   local old_pR, new_pR =  old_bc.target_pR, new_bc.target_pR
   if cfg.classes[target_class].hr 
-    and new_pR < cfg.classes[target_class].train_below + cfg.classes[target_class].hr_offset
+    and new_pR < cfg.classes[target_class].train_below
     and (new_pR - old_pR) < header_learn_threshold
   then 
     -- Iterative training on the header only (header reinforcement)
@@ -205,8 +197,8 @@ local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif
     -- run out of iterations.  Thresholds and iteration counts were
     -- determined empirically.
     local db    = cfg.classes[target_class]:open 'rw'
-    local trd   = threshold_reinforcement_degree *
-                   (cfg.classes[target_class].train_below + cfg.classes[target_class].hr_offset)
+    local trd   = threshold_reinforcement_degree * 
+                    cfg.classes[target_class].train_below
     local rd    = reinforcement_degree * header_learn_threshold
     local flags = cfg.constants.learn_flags + core.EXTRA_LEARNING
     local lim_orig_header = lim.header
@@ -222,8 +214,7 @@ local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif
         break
       end
     end
-    -- XXX temporarily commented out
-    --assert(new_bc.class == target_class)
+    assert(new_bc.class == target_class)
     if new_bc.class ~= target_class then
       debugf('HR unable to make class equal to target class\n')
     end

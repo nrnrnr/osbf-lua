@@ -10,12 +10,11 @@ return {
   --        sure        -- Subject: tag when mail definitely classified (default empty)
   --        unsure      -- Subject: tag when mail in reinforcement zone (default '?')
   --        train_below -- confidence below which training is recommended (default 20)
-  --        hr_offset   -- offset to train_below for header reinforcement limits
   --        conf_boost  -- a number added to confidence for this class (default 0)
   --        resend      -- if this message is trained, resend it with new headers
   classes = {
-    ham  = { sfid = 'h', sure = '',   unsure = '+', train_below = 20, hr_offset = 2 },
-    spam = { sfid = 's', sure = '--', unsure = '-', train_below = 20, hr_offset = -2, resend = false },
+    ham  = { sfid = 'h', sure = '',   unsure = '+', train_below = 20 },
+    spam = { sfid = 's', sure = '--', unsure = '-', train_below = 20, resend = false },
   },
 
   -- -- alternative classification

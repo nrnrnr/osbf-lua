@@ -1,5 +1,4 @@
 #! /usr/bin/env lua5.1
---#! ../osbf-lua
 
 local osbf         = require 'osbf3'
 local command_line = require 'osbf3.command_line'
