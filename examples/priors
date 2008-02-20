@@ -1,0 +1,69 @@
+#!/usr/bin/env lua5.1
+
+-- This code shows three different estimates of the prior probability
+-- of a message landing in a particular class:
+--   'Classifications' = fraction of messages initially assigned to the class
+--   'Instances'       = fraction of messages assigned to the class after training
+--   'Learnings'       = fraction of total messages trained in the class
+-- Assuming every message is trained that should be, the best estimate
+-- of the actual distribution must be taken to be 'Instances'.
+
+local basename = 'osbf3'
+
+local osbf = require (basename)
+local function submod(s) return require (basename .. '.' .. s) end
+osbf.init {}
+local cfg = submod 'cfg'
+local util = submod 'util'
+local core = submod 'core'
+
+local classes = cfg.classlist()
+local width = 15 + 7 * #classes
+
+-------------- utility functions and values for writing reports
+
+local function printf(...) return io.stdout:write(string.format(...)) end
+
+local hline = string.rep('-', width)
+local sfmt  = '%-15.15s' .. string.rep('%7.7s', #classes) .. '\n' -- string report
+local dfmt  = '%-15.15s' .. string.rep('%7d', #classes) .. '\n' -- integer report
+local ffmt  = '%-15.15s' .. string.rep('%7d', #classes) .. '\n' -- floating report(!)
+local pfmt  = '%-15.15s' .. string.rep('%6.1f%%', #classes) .. '\n' -- percentage rpt
+local p2fmt = '%-15.15s' .. string.rep('%6.2f%%', #classes) .. '\n' -- 2-digit % rpt
+
+local hline = function() return util.write(hline, '\n') end -- tricky binding
+
+local class, totals = { }, { }
+for _, c in ipairs(classes) do
+  class[c] = core.open_class(cfg.classes[c].db)
+  for _, key in ipairs { 'classifications', 'learnings', 'fp', 'fn' } do
+    totals[key] = (totals[key] or 0) + class[c][key]
+  end
+end
+
+if totals.fp ~= totals.fn then
+  io.stderr:write(string.format('Warning: %d false positives but %d false negatives\n',
+                                totals.fp, totals.fn))
+end
+  
+function pct(c, key)
+  return 100 * class[c][key] / totals[key]
+end
+
+function instance_pct(c)
+  local c = class[c]
+  return 100 * (c.classifications + c.fn - c.fp) / totals.classifications
+end
+
+local function classmap(f) return unpack(util.tablemap(f, classes)) end
+
+hline()
+printf(sfmt, 'Prior probability', unpack(classes))
+hline()
+printf(p2fmt, 'Classifications', classmap(function(c) return pct(c, 'classifications') end))
+printf(p2fmt, 'Instances', classmap(instance_pct))
+printf(p2fmt, 'Learnings', classmap(function(c) return pct(c, 'learnings') end))
+hline()
+printf(dfmt, '#Trained', classmap(function(c) return class[c].learnings end))
+hline()
+
