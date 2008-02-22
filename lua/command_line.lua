@@ -621,6 +621,12 @@ function filter(...)
     if ok then
       if not ok2 then
         msg.add_osbf_header(m, 'Error', err or 'unknown error')
+        local maybe_class = err:match [[^Couldn't lock the file /.*/(.-)%.cfc%.$]]
+        if maybe_class then -- salvage locking error on classification update
+          msg.add_osbf_header(m, suffixes.class, maybe_class)
+          msg.add_osbf_header(m, suffixes.confidence, '0.0')
+          msg.add_osbf_header(m, suffixes.needs_training, 'yes')
+        end
         io.stdout:write(msg.to_string(m))
       end
     else

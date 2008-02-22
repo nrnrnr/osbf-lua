@@ -49,6 +49,7 @@ end
 
 -- try to avoid collisions on multiple tests
 local test_dir = os.capture 'tempfile -p osbf-' or '/tmp/osbf-lua'
+if test_dir:len() == 0 then test_dir = '/tmp/osbf-lua' end
 os.execute('/bin/rm -rf ' .. test_dir)
 os.execute('/bin/mkdir ' .. test_dir)
 
