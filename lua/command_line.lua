@@ -623,6 +623,7 @@ function filter(...)
         msg.add_osbf_header(m, 'Error', err or 'unknown error')
         local maybe_class = err:match [[^Couldn't lock the file /.*/(.-)%.cfc%.$]]
         if maybe_class then -- salvage locking error on classification update
+          local suffixes = cfg.header_suffixes
           msg.add_osbf_header(m, suffixes.class, maybe_class)
           msg.add_osbf_header(m, suffixes.confidence, '0.0')
           msg.add_osbf_header(m, suffixes.needs_training, 'yes')
