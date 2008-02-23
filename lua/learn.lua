@@ -328,7 +328,7 @@ but the message was previously learned as %s.]],
   end
 
   -- original_class is the class of the original classification
-  local original_class = table_of_sfid['class']
+  local original_class = table_of_sfid.class
   -- decrement false positives of the original class if the
   -- original classification was wrong
   if original_class ~= old_class then
