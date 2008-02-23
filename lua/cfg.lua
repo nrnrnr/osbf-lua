@@ -260,9 +260,9 @@ function set_dirs(options, no_dirs_ok)
   options = options or { }
   dirs.user = options.udir or (no_dirs_ok or core.isdir(default_dir)) and default_dir
 
-  if not dirs.user then
-    util.die('No --udir option given and ', default_dir, ' is not a directory.\n',
-             'To create it, run\n  ', prog, ' init\n')
+  -- option.udir, if given, has already been checked
+  if not options.udir and not core.isdir(default_dir) then
+    util.die(default_dir, ' is not a directory.')
   end
 
   dirs.database = options.dbdir    or dirs.user
