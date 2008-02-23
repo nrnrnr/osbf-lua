@@ -132,7 +132,9 @@ local function tone_inner(text, target_class, count_as_classif)
     core.learn(text, db, core.FALSE_NEGATIVE)
     do
       local c = cfg.classes[bc.class]:open 'rwh'
-      c.fp = c.fp + 1
+      -- increment if less than max uint32_t
+      -- should limits be hidden in lua_set_classfields?
+      if c.fp < 2^32-1 then c.fp = c.fp + 1 end
       -- don't close; OK for c to be garbage collected
     end
 
@@ -307,6 +309,7 @@ but the message was previously learned as %s.]],
           old_class, status))
   end
 
+  local table_of_sfid = cache.table_of_sfid(sfid)
   local lim = msg.lim
   local k = cfg.constants
   -- find old best class
@@ -323,6 +326,17 @@ but the message was previously learned as %s.]],
       break
     end
   end
+
+  -- original_class is the class of the original classification
+  local original_class = table_of_sfid[class]
+  -- decrement false positives of the original class if the
+  -- original classification was wrong
+  if original_class ~= old_class then
+    local c = cfg.classes[original_class]:open 'rwh'
+    -- should limits be hidden in lua_set_classfields?
+    if c.fp > 0 then c.fp = c.fp - 1 end
+  end
+
   cache.change_file_status(sfid, old_bc.class, 'unlearned')
 
   -- report msg numbers not header numbers
@@ -449,7 +463,10 @@ do
 
     if count then
       local c = cfg.classes[class]:open 'rwh'
-      c.classifications = c.classifications + 1
+      -- should limits be hidden in lua_set_classfields?
+      if c.classifications < 2^64-1 then
+        c.classifications = c.classifications + 1
+      end
       -- no close needed; let it be garbage-collected
     end
     local train = pR < cfg.classes[class].train_below

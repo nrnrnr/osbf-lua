@@ -10,6 +10,7 @@ local msg          = require 'osbf3.msg'
 local cfg          = require 'osbf3.cfg'
 local cache        = require 'osbf3.cache'
 local roc          = require 'osbf3.roc'
+local core         = require 'osbf3.core'
 
 
 local md5sum = false -- compute md5 sums of databases
@@ -83,6 +84,10 @@ local outfilename = opts.o or 'result.lua'
 local result = outfilename == '-' and io.stdout or assert(io.open(outfilename, 'w'))
 
 local using_cache = false
+
+-- valid a_priori strings: LEARNINGS, INSTANCES, CLASSIFICATIONS and  MISTAKES
+-- default is LEARNINGS'
+core.config{a_priori = os.getenv 'PRIOR' or 'LEARNINGS'}
 
 local max_lines = opts.max or 5000
 local learnings = 0

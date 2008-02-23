@@ -62,7 +62,7 @@ Where the meanings of the various fields are as follows:
 __doc.table_of_sfid = [[function(sfid) returns table
 Takes a spam filter id and returns a table with these fields:
   tag        -- lower or upper case letter designating initial classification
-  class      -- the dclass corresponding to the tag
+  class      -- the class corresponding to the tag
   confidence -- confidence we have in the classification (10-20 and above are high)
   time       -- time of initial classification as returned by os.time()
   serial     -- a serial number that makes the sfid unique

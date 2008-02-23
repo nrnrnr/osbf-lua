@@ -8,6 +8,7 @@ local commands     = require 'osbf3.commands'
 local msg          = require 'osbf3.msg'
 local cfg          = require 'osbf3.cfg'
 local cache        = require 'osbf3.cache'
+local core         = require 'osbf3.core'
 
 local md5sum = false -- compute md5 sums of databases
 local md5run = md5sum and os.execute or function() end
@@ -75,6 +76,7 @@ local outfilename = opts.o or 'result'
 
 local result = outfilename == '-' and io.stdout or assert(io.open(outfilename, 'w'))
 
+
 local using_cache = false
 
 local max_lines = opts.max or 5000
@@ -83,6 +85,11 @@ local start_time = os.time()
 local files = { }
 local nclass = 0  -- number of classifications
 if md5sum then os.remove(test_dir .. '/md5sums') end
+
+-- valid a_priori strings: LEARNINGS, INSTANCES, CLASSIFICATIONS and  MISTAKES
+-- default is LEARNINGS'
+core.config{a_priori = os.getenv 'PRIOR' or 'LEARNINGS'}
+
 for l in assert(io.lines(trecdir .. 'index')) do
   md5run('md5sum ' .. test_dir .. '/*.cfc >> ' .. test_dir .. '/md5sums')
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')

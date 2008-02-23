@@ -39,6 +39,7 @@ extern uint32_t microgroom_displacement_trigger;
 uint32_t max_token_size = OSBF_MAX_TOKEN_SIZE;
 uint32_t max_long_tokens = OSBF_MAX_LONG_TOKENS;
 uint32_t limit_token_size = 0;
+int a_priori = LEARNINGS;
 
 /*
  *   the hash coefficient tables should be full of relatively prime numbers,
@@ -51,6 +52,15 @@ static uint32_t hctable2[] =
 
 /* constants used in the CF formula */
 double K1 = 0.25, K2 = 12, K3 = 8;
+
+/* maps strings to a_priori_options enum */
+const char *a_priori_strings[] = {
+  "LEARNINGS",
+  "INSTANCES",
+  "CLASSIFICATIONS",
+  "MISTAKES",
+  NULL
+};
 
 /*****************************************************************/
 /* experimental code */
@@ -295,7 +305,7 @@ void osbf_bayes_train (const unsigned char *p_text,	/* pointer to text */
 #endif
 	    hindex = h1 % class->header->num_buckets;
 
-#if (DEBUG > 0)
+#if (DEBUG > 2)
 	    fprintf (stderr,
 		     "Polynomial %" PRIu32 " has h1:%" PRIu32 "  h2: %"
 		     PRIu32 "\n", window_idx, h1, h2);
@@ -441,6 +451,8 @@ osbf_bayes_classify (const unsigned char *p_text,       /* pointer to text */
   double confidence_factor;
   int asymmetric = 0;           /* break local p loop early if asymmetric on */
   int voodoo = 1;               /* turn on the "voodoo" CF formula - default */
+  double a_priori_counter[OSBF_MAX_CLASSES];
+  double total_a_priori;
 
   struct token_search ts;
 
@@ -464,6 +476,7 @@ osbf_bayes_classify (const unsigned char *p_text,       /* pointer to text */
   if (flags & NO_EDDC)
     voodoo = 0;
 
+  total_a_priori = 0;
   for (pclass = classes; pclass < class_lim; pclass++) {
     CLASS_STRUCT *class = *pclass;
     osbf_raise_unless(class->state != OSBF_CLOSED, h,
@@ -477,6 +490,39 @@ osbf_bayes_classify (const unsigned char *p_text,       /* pointer to text */
 
     /* update total learnings */
     total_learnings += class->learnings;
+
+    /* select type of estimate for a-priori */
+#if (DEBUG > 0)
+        fprintf (stderr, "Using %s for a-priori estimate\n", a_priori_strings[a_priori]);
+#endif
+    switch (a_priori) {
+      case LEARNINGS: 
+        a_priori_counter[pclass-classes] = class->header->learnings;
+        break;
+      case INSTANCES: 
+        if (class->header->db_version >= OSBF_DB_FP_FN_VERSION)
+          a_priori_counter[pclass-classes] =
+            class->header->classifications + class->header->false_negatives -
+            class->header->false_positives;
+        else
+          osbf_raise(h, "Database version %s doesn't support 'INSTANCES' for a priori estimation. Try 'CLASSIFICATIONS' instead.", class->header->db_version);
+        break;
+      case CLASSIFICATIONS: 
+        a_priori_counter[pclass-classes] = class->header->classifications;
+        break;
+      case MISTAKES: 
+        a_priori_counter[pclass-classes] = class->header->false_negatives;
+        break;
+      default:
+        osbf_raise(h, "Given a-priori option (%d) is out of range [%d, %d]",
+                   a_priori, 0, A_PRIORI_UPPER_LIMIT-1);
+        break;
+    }
+
+     /* avoid division by zero */
+     if (a_priori_counter[pclass-classes] < 1) 
+       a_priori_counter[pclass-classes] = 1;
+     total_a_priori += a_priori_counter[pclass-classes]; 
   }
 
 
@@ -498,8 +544,9 @@ osbf_bayes_classify (const unsigned char *p_text,       /* pointer to text */
     class->totalhits = 0;       /* absolute hit counts */
     class->uniquefeatures = 0;  /* features counted per class */
     class->missedfeatures = 0;  /* missed features per class */
-    ptc[pclass-classes] = (double) class->learnings / total_learnings;
-                                  /* a priori probability after some knowledge */
+    /* estimate class a-priori probability */
+    ptc[pclass-classes] = a_priori_counter[pclass-classes] / total_a_priori;
+
 #if 0
     { 
       unsigned n = 40;

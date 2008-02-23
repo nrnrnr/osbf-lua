@@ -51,6 +51,7 @@ extern uint32_t microgroom_stop_after;
 extern double K1, K2, K3;
 extern uint32_t max_token_size, max_long_tokens;
 extern uint32_t limit_token_size;
+extern int a_priori;
 
 /* macro to `unsign' a character */
 #ifndef uchar
@@ -78,75 +79,73 @@ lua_osbf_config (lua_State * L)
   luaL_checktype (L, 1, LUA_TTABLE);
 
   lua_getfield (L, 1, "max_chain");
-  if (lua_isnumber (L, -1))
-    {
-      microgroom_displacement_trigger = luaL_checknumber (L, -1);
-      options_set++;
-    }
+  if (!lua_isnil(L, -1)) {
+    microgroom_displacement_trigger = luaL_checknumber (L, -1);
+    options_set++;
+  }
   lua_pop (L, 1);
 
   lua_getfield (L, 1, "stop_after");
-  if (lua_isnumber (L, -1))
-    {
-      microgroom_stop_after = luaL_checknumber (L, -1);
-      options_set++;
-    }
+  if (!lua_isnil (L, -1)) {
+    microgroom_stop_after = luaL_checknumber (L, -1);
+    options_set++;
+  }
   lua_pop (L, 1);
 
   lua_getfield (L, 1, "K1");
-  if (lua_isnumber (L, -1))
-    {
-      K1 = luaL_checknumber (L, -1);
-      options_set++;
-    }
+  if (!lua_isnil (L, -1)) {
+    K1 = luaL_checknumber (L, -1);
+    options_set++;
+  }
   lua_pop (L, 1);
 
   lua_getfield (L, 1, "K2");
-  if (lua_isnumber (L, -1))
-    {
-      K2 = luaL_checknumber (L, -1);
-      options_set++;
-    }
+  if (!lua_isnil (L, -1)) {
+    K2 = luaL_checknumber (L, -1);
+    options_set++;
+  }
   lua_pop (L, 1);
 
   lua_getfield (L, 1, "K3");
-  if (lua_isnumber (L, -1))
-    {
-      K3 = luaL_checknumber (L, -1);
-      options_set++;
-    }
+  if (!lua_isnil (L, -1)) {
+    K3 = luaL_checknumber (L, -1);
+    options_set++;
+  }
   lua_pop (L, 1);
 
   lua_getfield (L, 1, "limit_token_size");
-  if (lua_isnumber (L, -1))
-    {
-      limit_token_size = luaL_checknumber (L, -1);
-      options_set++;
-    }
+  if (!lua_isnil (L, -1)) {
+    limit_token_size = luaL_checknumber (L, -1);
+    options_set++;
+  }
   lua_pop (L, 1);
 
   lua_getfield(L, 1, "max_token_size");
-  if (lua_isnumber (L, -1))
-    {
-      max_token_size = luaL_checknumber (L, -1);
-      options_set++;
-    }
+  if (!lua_isnil (L, -1)) {
+    max_token_size = luaL_checknumber (L, -1);
+    options_set++;
+  }
   lua_pop (L, 1);
 
   lua_getfield(L, 1, "max_long_tokens");
-  if (lua_isnumber (L, -1))
-    {
-      max_long_tokens = luaL_checknumber (L, -1);
-      options_set++;
-    }
+  if (!lua_isnil (L, -1)) {
+    max_long_tokens = luaL_checknumber (L, -1);
+    options_set++;
+  }
   lua_pop (L, 1);
 
   lua_getfield(L, 1, "pR_SCF");
-  if (lua_isnumber (L, -1))
-    {
-      pR_SCF = luaL_checknumber (L, -1);
-      options_set++;
-    }
+  if (!lua_isnil (L, -1)) {
+    pR_SCF = luaL_checknumber (L, -1);
+    options_set++;
+  }
+  lua_pop (L, 1);
+
+  lua_getfield(L, 1, "a_priori");
+  if (!lua_isnil (L, -1)) {
+    a_priori = luaL_checkoption (L, -1, NULL, a_priori_strings);
+    options_set++;
+  }
   lua_pop (L, 1);
 
   lua_pushnumber (L, (lua_Number) options_set);

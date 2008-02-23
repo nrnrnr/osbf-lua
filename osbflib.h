@@ -292,6 +292,20 @@ enum classify_flags {
   COUNT_CLASSIFICATIONS		= 2
 };
 
+/* possible counters for a-priori probability estimation */
+enum a_priori_options {
+  LEARNINGS = 0,
+  INSTANCES,
+  CLASSIFICATIONS,
+  MISTAKES,                    /* FALSE_NEGATIVES */
+ /* end of valid values */
+  A_PRIORI_UPPER_LIMIT         /* upper limit */
+};
+
+
+/* mapping for a_priori_options enum */
+extern const char *a_priori_strings[];
+ 
 /****************************************************************/
 
 extern uint32_t
