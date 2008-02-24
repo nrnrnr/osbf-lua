@@ -351,7 +351,8 @@ end
 local msgmod = msg
 
 __doc.classify = 
-[[function(msg, [probs, conf]) returns train, pR, sfid tag, subject tag, class
+[[function(msg, [probs, conf]) returns table with keys train, pR,
+sfid tag, subject tag, class.
 train is a boolean or nil; 
 pR is the log of ratio of the probability for the chosen class;
 it represents the confidence in the classification, where 0 is no
