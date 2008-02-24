@@ -387,13 +387,12 @@ local function wrap_subj_tag(s)
 end
 
 __doc.most_likely_pR_and_class = 
-[[function(text, count, tgt_class, probs, conf) returns best-class table
+[[function(text, count, target_class, probs, conf) returns best-class table
 text is the text to be classified.
-flags are the flags for classification.
 count is optional; if given it is a boolean indicating whether to increment
 the number of classifications in the database of the most likely class.
-tgt_class is optional. If given, a table with the target class classification
-will be returned as the second argument.
+target_class is optional; if given it a class whose confidence we also want
+to know.
 
 probs and conf are also optional; if given, they must be the result of calling 
 multiclassify() on the same text
@@ -402,9 +401,9 @@ pR the log of ratio of the probability for the chosen class;
 
 best-class table contains the keys 'class', 'pR' and 'train', representing
 the most likely class, its confidence and a boolean value indicating wether
-confidence is less than the class' train_below value. If tgt_class is given,
-best-table will also contain the key 'target_pR', with the target class
-confidence.
+confidence is less than the class' train_below value. If target_class is
+given, best-table will also contain the key 'target_pR', with the target
+class confidence.
 ]]
 
 
