@@ -302,6 +302,8 @@ enum a_priori_options {
   A_PRIORI_UPPER_LIMIT         /* upper limit */
 };
 
+extern enum a_priori_options a_priori; 
+     /* which method to use for prior probabilities */
 
 /* mapping for a_priori_options enum */
 extern const char *a_priori_strings[];

@@ -39,7 +39,7 @@ extern uint32_t microgroom_displacement_trigger;
 uint32_t max_token_size = OSBF_MAX_TOKEN_SIZE;
 uint32_t max_long_tokens = OSBF_MAX_LONG_TOKENS;
 uint32_t limit_token_size = 0;
-int a_priori = LEARNINGS;
+enum a_priori_options a_priori = LEARNINGS;
 
 /*
  *   the hash coefficient tables should be full of relatively prime numbers,

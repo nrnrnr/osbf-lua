@@ -51,7 +51,6 @@ extern uint32_t microgroom_stop_after;
 extern double K1, K2, K3;
 extern uint32_t max_token_size, max_long_tokens;
 extern uint32_t limit_token_size;
-extern int a_priori;
 
 /* macro to `unsign' a character */
 #ifndef uchar
@@ -696,7 +695,9 @@ lua_osbf_stats (lua_State * L)
 static void
 set_info (lua_State * L, int idx)
 {
-  lua_pushliteral (L, "Copyright (C) 2005-2007 Fidelis Assis and Norman Ramsey");
+  int i;
+
+  lua_pushliteral (L, "Copyright (C) 2005-2008 Fidelis Assis and Norman Ramsey");
   lua_setfield (L, idx, "_COPYRIGHT");
   lua_pushliteral (L, "OSBF-Lua is a Lua library for text classification.");
   lua_setfield (L, idx, "_DESCRIPTION");
@@ -708,6 +709,13 @@ set_info (lua_State * L, int idx)
   lua_setfield (L, idx, "header_size");
   lua_pushnumber (L, (lua_Number) sizeof(OSBF_BUCKET_STRUCT));
   lua_setfield (L, idx, "bucket_size");
+
+  lua_newtable(L);
+  for (i=0; a_priori_strings[i] != NULL; i++) {
+    lua_pushstring(L, a_priori_strings[i]);
+    lua_rawseti(L, -2, i+1);
+  }
+  lua_setfield(L, idx, "a_priori_strings");
 
 #define add_const(C) lua_pushnumber(L, (lua_Number) C); lua_setfield(L, idx, #C)
 

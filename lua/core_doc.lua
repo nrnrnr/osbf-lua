@@ -135,12 +135,19 @@ are passed.
 If sense = -1 it's equivalent to core.unlearn.
 ]=]
 
-__doc.config = [[function(option_table)
+do
+  local ap_options = a_priori_strings
+  a_priori_strings = nil  -- private, not to be docuemented
+
+__doc.config = ([[function(option_table)
 Configures internal parameters. This function is intended for
 testing.  option_table is a table whose keys are the options to be set
 to their respective values.
 
 The available options are:
+   * a_priori: the method used to compute the prior probability of
+     each class.  Must be one of these strings:
+       %s
    * max_chain: the max number of buckets allowed in a database
      chain. From that size on, the chain is pruned before
      inserting a new bucket.
@@ -159,7 +166,8 @@ The available options are:
 Return the number of options set.
 
    Ex: core.config {max_chain = 50, stop_after = 100}
-]]
+]]):format(table.concat(ap_options, ', '))
+end
 
 
 __doc.stats = [[function(db [, full]) returns stats_table
@@ -369,3 +377,4 @@ Closes all open classes.
 __doc.crc32 = [[function(string) returns number
 Returns the standard CRC-32 checksum of the given string.
 ]]
+
