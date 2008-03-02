@@ -44,7 +44,7 @@ function run(cmd, ...)
     local ok, msg = pcall (_M[cmd], ...)
     if not ok then
       msg = string.gsub(msg, '^.-%:%s+', '')
-      util.die((string.gsub(msg or 'unknown error calling command ' .. cmd, '\n*$', '')))
+      util.writeln_error(string.gsub(msg or 'unknown error calling command ' .. cmd, '\n*$', ''))
     end
   else
     eprintf('Unknown command %s\n', cmd)
