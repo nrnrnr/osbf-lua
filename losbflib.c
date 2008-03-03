@@ -347,7 +347,9 @@ DEFINE_FIELD_FUN(, lua_pushnil(L))
     CLASS_STRUCT *c = check_class(L, 1);                             \
     int value = luaL_checkint(L, 2);                                 \
                                                                      \
-    if (c->state == OSBF_CLOSED) {                                   \
+    if ((lua_Number) value != lua_tonumber(L, 2)) {                  \
+      return luaL_error(L, "Overflow converting %f to C int", lua_tonumber(L, 2)); \
+    } else if (c->state == OSBF_CLOSED) {                            \
       return luaL_error(L, "Asked for " #fname " of closed class");  \
     } else if (c->usage == OSBF_READ_ONLY) {                         \
       return luaL_error(L, "Cannot mutate a read-only class");       \

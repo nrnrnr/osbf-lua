@@ -136,7 +136,7 @@ local function tone_inner(text, target_class, count_as_classif)
       local c = cfg.classes[bc.class]:open 'rwh'
       -- increment if less than max uint32_t
       -- should limits be hidden in lua_set_classfields?
-      if c.fp < 2^32-1 then c.fp = c.fp + 1 end
+      c.fp = c.fp + 1
       -- don't close; OK for c to be garbage collected
     end
 
