@@ -38,4 +38,5 @@ if not ok then
 end
 
 osbf.command_line.run(unpack(args))
-osbf.util.close_mime_multipart()
+osbf.util.exit(0)
+

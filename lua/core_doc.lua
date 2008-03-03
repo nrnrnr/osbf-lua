@@ -346,13 +346,14 @@ If c is a class then it provides methods
 
 and it provides these fields:
 
-  classifications   number of messages placed in this class?
-  learnings         number of messages explicitly trained in this class?
-  extra_learnings   ??
+  classifications   number of messages placed in this class
+  learnings         number of messages explicitly trained in this class
+  extra_learnings   number of aditional learnings with the same message
+                    after the first learning
   fn                the number of messages trained in this class
                     that were initially assigned to some other class
                     (false negatives)
-  fp                the number of message incorrectly assigned to this class
+  fp                the number of messages incorrectly assigned to this class
                     (false positives)
   
   filename          name of the disk file backing up this class

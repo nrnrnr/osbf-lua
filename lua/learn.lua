@@ -101,13 +101,15 @@ __doc.tone = [[function(text, class[, count]) returns tables old_bc, new_bc or e
 Conditionally train 'text' as belonging to 'class'.  Training is done
 'on or near error' (TONE): if the classifier produces the wrong
 classification (different from 'original'), we train with the
-FALSE_NEGATIVE flag.  Otherwise, if pR (confidence) is below the training
-threshold ('near error' or 'within the reinforcement zone'), we train
-without the FALSE_NEGATIVE flag.
+FALSE_NEGATIVE flag once and with EXTRA_LEARNINGS if additional
+full learnings are necessary up to the limit mistake_limit. If the
+classifier produces the right classification but pR (confidence) is
+below the training threshold ('near error' or 'within the reinforcement
+zone'), we train without the FALSE_NEGATIVE flag.
 
-if 'count' is true, this training should also count as an initial classification.
-Should be set when a script is training on messages that have never before been
-classified.
+if 'count' is true, this training should also count as an initial
+classification. Should be set when a script is training on messages that
+have never before been classified.
 
 class is the target class.
 old_bc and new_bc are the before-training and after-training best-class tables,
@@ -129,7 +131,7 @@ local function tone_inner(text, target_class, count_as_classif)
     -- because there can be cases where there was no false negative in the
     -- first classification, but, because of other trainings in between,
     -- the present classification is wrong. And vice-versa.
-    core.learn(text, db, core.FALSE_NEGATIVE)
+    core.learn(text, db, cfg.constants.learn_flags + core.FALSE_NEGATIVE)
     do
       local c = cfg.classes[bc.class]:open 'rwh'
       -- increment if less than max uint32_t
@@ -144,7 +146,8 @@ local function tone_inner(text, target_class, count_as_classif)
     -- try hard to make the starting class for tone-hr equal to the target class
     for i = 1, mistake_limit do
       if new_bc.class == target_class then break end
-      core.learn(text, db) -- no FALSE_NEGATIVE flag here
+      -- no FALSE_NEGATIVE flag here
+      core.learn(text, db, cfg.constants.learn_flags + core.EXTRA_LEARNING)
       new_bc = most_likely_pR_and_class(text, false, target_class)
       debugf(" Tone %d - forcing right class: classified %s (pR %.2f); target class %s\n", i, new_bc.class, new_bc.pR, target_class)
     end
@@ -155,7 +158,7 @@ local function tone_inner(text, target_class, count_as_classif)
   elseif bc.target_pR < cfg.classes[target_class].train_below then
     -- right classification but pR < training threshold => train near error
     local db = cfg.classes[target_class]:open 'rw'
-    core.learn(text, db)
+    core.learn(text, db, cfg.constants.learn_flags)
     local new_bc = most_likely_pR_and_class(text, false, target_class)
     debugf("Tone - near error, after training: classified %s (pR %.2f); target class %s\n", new_bc.class, new_bc.pR, target_class)
     return  bc, new_bc
@@ -202,12 +205,12 @@ local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif
     local trd   = threshold_reinforcement_degree * 
                     cfg.classes[target_class].train_below
     local rd    = reinforcement_degree * header_learn_threshold
-    local flags = cfg.constants.learn_flags + core.EXTRA_LEARNING
     local lim_orig_header = lim.header
     for i = 1, reinforcement_limit do
       -- (may exit early if the change in new_pR is big enough)
       local pR = new_pR
-      core.learn(lim_orig_header, db, flags)
+      core.learn(lim_orig_header, db,
+                 cfg.constants.learn_flags + core.EXTRA_LEARNING)
       new_bc = most_likely_pR_and_class(lim_orig_msg, false, target_class)
       new_pR = new_bc.target_pR
       debugf('Reinforced %d class %s: %.2f -> %.2f\n', i, target_class,
@@ -320,7 +323,7 @@ but the message was previously learned as %s.]],
   local new_bc = most_likely_pR_and_class(lim.msg)
   for i = 1, reinforcement_limit do
     if new_bc.class == status and new_bc.pR > 0 then
-      core.unlearn(lim.header, db, k.learn_flags)
+      core.unlearn(lim.header, db, k.learn_flags+core.EXTRA_LEARNING)
       new_bc = most_likely_pR_and_class(lim.msg)
     else
       break
@@ -620,8 +623,8 @@ function write_stats(verbose)
   writef(sfmt, 'Size of database', classmap(hbytes))
   writef(pfmt, 'Buckets used', classmap(function(c) return stats[c].use * 100 end))
   if verbose then
-    writef(sfmt, 'Database flags',
-      classmap(function(c) return string.format('0x%04x', stats[c].db_flags) end))
+    --writef(sfmt, 'Database flags',
+     -- classmap(function(c) return string.format('0x%04x', stats[c].db_flags) end))
     report('Bucket size (bytes)', 'bucket_size')
     report('Header size (bytes)', 'header_size')
     report('Number of chains', 'chains')
@@ -642,7 +645,7 @@ function write_stats(verbose)
   report('Trainings', 'learnings')
 
   if verbose then
-    report('Header reinforcements', 'extra_learnings')
+    report('Extra learnings', 'extra_learnings')
   end
 
   writef(p2fmt, 'Accuracy', classmap(function(c) return (1-error_rates[c])*100 end))

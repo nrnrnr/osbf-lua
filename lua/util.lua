@@ -760,6 +760,29 @@ do
   local in_part = false
   local msg_eol = '\n'
 
+  local function write_header()
+    if header then
+      io.stdout:write(header)
+      header = nil
+    end
+  end
+
+  local function close_mime_part()
+    if in_part then
+      io.stdout:write(msg_eol, mime_boundary, msg_eol)
+      in_part = false
+    end
+  end
+
+  local function close_mime_multipart()
+    if mime_boundary then
+      write_header()
+      io.stdout:write(msg_eol, mime_boundary, '--', msg_eol)
+      in_part = false
+      mime_boundary = nil
+    end
+  end
+
   function set_output_to_message(boundary, h, eol)
     header = h
     mime_boundary = '--' .. boundary
@@ -776,13 +799,6 @@ do
 
   function is_output_set_to_message()
     return mime_boundary
-  end
-
-  function write_header()
-    if header then
-      io.stdout:write(header)
-      header = nil
-    end
   end
 
   function write(...)
@@ -845,22 +861,6 @@ do
     else
       io.stderr:write(...)
       io.stderr:write('\n')
-    end
-  end
-
-  function close_mime_part()
-    if in_part then
-      io.stdout:write(msg_eol, mime_boundary, msg_eol)
-      in_part = false
-    end
-  end
-
-  function close_mime_multipart()
-    if mime_boundary then
-      write_header()
-      io.stdout:write(msg_eol, mime_boundary, '--', msg_eol)
-      in_part = false
-      mime_boundary = nil
     end
   end
 
