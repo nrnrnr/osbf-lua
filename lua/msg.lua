@@ -17,6 +17,7 @@ local cfg   = require(_PACKAGE .. 'cfg')
 local util  = require(_PACKAGE .. 'util')
 local cache = require(_PACKAGE .. 'cache')
 local log   = require(_PACKAGE .. 'log')
+local core  = require(_PACKAGE .. 'core')
 
 __doc = { }
 
@@ -101,7 +102,18 @@ local msg_meta = {
                 t[k] = v
                 return v
               end
-            end
+            end,
+  __tostring = function(msg)
+                 local s = to_orig_string(msg)
+                 local subject = header_tagged(msg, 'subject')
+                 local crc = core.b64encode(core.unsigned2string(core.crc32(s)))
+                 crc = crc:match('^(.-)=*$') -- strip trailing = signs
+                 local date = header_tagged(msg, 'date')
+                 date = date and rfc2822_to_localtime_or_nil(date) or os.time()
+                 date = os.date('(%b%y):', date)
+                 local str = table.concat({ _PACKAGE .. 'msg.T', crc, date, subject }, ' ')
+                 return str:sub(1, 72)
+               end,
 }
 
 ---------------------------------------------------------------------
@@ -548,7 +560,7 @@ function parse_subject_command(msg)
 end
 
 __doc.rfc2822_to_localtime_or_nil = [[function(date) returns string or nil
-Converts RFC2822 date to local time in the format "YYYY/MM/DD HH:MM".
+Converts RFC2822 date to local time in the same format used by os.time.
 ]]
 
 local tmonth = {jan=1, feb=2, mar=3, apr=4, may=5, jun=6,
@@ -596,30 +608,24 @@ function rfc2822_to_localtime_or_nil(date)
   end
 
 
+  local zonetable = { GMT = 0, UT = 0,
+                      EDT = -4,
+                      EST = -5, CDT = -5,
+                      CST = -6, MDT = -6,
+                      MST = -7, PDT = -7,
+                      PST = -8,
+                    } -- todo: military zones
+                      
+
   local tz = nil
   local s, zzh, zzm = string.match(zz, "([-+])(%d%d)(%d%d)")
   if s and zzh and zzm then
     tz = zzh * 3600 + zzm * 60
     if s == "-" then tz = -tz end
+  elseif zonetable[zz] then
+    tz = zonetable[zz] * 3600
   else
-    if zz == "GMT" or zz == "UT" then
-      tz = 0;
-    elseif zz == "EST" or zz == "CDT" then
-      tz = -5 * 3600
-    elseif zz == "CST" or zz == "MDT" then
-      tz = -6 * 3600
-    elseif zz == "MST" or zz == "PDT" then
-      tz = -7 * 3600
-    elseif zz == "PST" then
-      tz = -8 * 3600
-    elseif zz == "EDT" then
-      tz = -4 * 3600
-    -- todo: military zones
-    end
-  end
-
-  if not tz then
-    return nil
+    return nil --- OBS: RFC 2822 says in this case tz = 0
   end
 
   local ts = os.time{year=year, month=month_number,
@@ -629,7 +635,7 @@ function rfc2822_to_localtime_or_nil(date)
     util.errorf('Failed to convert [[%s]] to local time', date)
   end
 
-  -- find out the local offset to UTC
+  -- find out the local offset to UTC -- todo: should be done once in util
   local uy, um, ud, uhh, umm, uss =
        string.match(os.date("!%Y%m%d %H:%M:%S", ts),
                        "(%d%d%d%d)(%d%d)(%d%d) (%d%d):(%d%d):(%d%d)")

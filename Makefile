@@ -65,7 +65,7 @@ test: install
 	$(LUABIN) -l$(MODNAME) ./print-contents $(MODNAME)
 	$(LUABIN) -l$(MODNAME) -l$(MODNAME).roc < /dev/null
 	$(LUABIN) ./test-headers $(MODNAME) $(MAILFILE)
-	$(LUABIN) -l$(MODNAME) -e "m = $(MODNAME).msg.of_file '$(MAILFILE)'" -i
+	$(LUABIN) -l$(MODNAME) -e "m = $(MODNAME).msg.of_file '$(MAILFILE)'; print(m)" -i
 
 clean:
 	rm -f $(LIBNAME) $(OBJS) *.so *~

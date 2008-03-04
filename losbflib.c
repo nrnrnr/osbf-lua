@@ -877,6 +877,115 @@ static int lua_crc32(lua_State *L) {
   return 1;
 }
 
+
+/**********************************************************/
+/*
+* lbase64.c
+* base64 encoding and decoding for Lua 5.1
+* Luiz Henrique de Figueiredo <lhf@tecgraf.puc-rio.br>
+* 27 Jun 2007 19:04:40
+* Code in the public domain.
+*/
+
+static const char b64code[]=
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static void b64encode(luaL_Buffer *b, uint c1, uint c2, uint c3, int n)
+{
+ uint32_t tuple=c3+256UL*(c2+256UL*c1);
+ int i;
+ char s[4];
+ for (i=0; i<4; i++) {
+  s[3-i] = b64code[tuple % 64];
+  tuple /= 64;
+ }
+ for (i=n+1; i<4; i++) s[i]='=';
+ luaL_addlstring(b,s,4);
+}
+
+static int lua_b64encode(lua_State *L)		/** encode(s) */
+{
+ size_t l;
+ const unsigned char *s=(const unsigned char*)luaL_checklstring(L,1,&l);
+ luaL_Buffer b;
+ int n;
+ luaL_buffinit(L,&b);
+ for (n=l/3; n--; s+=3) b64encode(&b,s[0],s[1],s[2],3);
+ switch (l%3)
+ {
+  case 1: b64encode(&b,s[0],0,0,1);		break;
+  case 2: b64encode(&b,s[0],s[1],0,2);		break;
+ }
+ luaL_pushresult(&b);
+ return 1;
+}
+
+static void b64decode(luaL_Buffer *b, int c1, int c2, int c3, int c4, int n)
+{
+ uint32_t tuple=c4+64L*(c3+64L*(c2+64L*c1));
+ char s[3];
+ switch (--n)
+ {
+  case 3: s[2]=tuple;
+  case 2: s[1]=tuple >> 8;
+  case 1: s[0]=tuple >> 16;
+ }
+ luaL_addlstring(b,s,n);
+}
+
+static int lua_b64decode(lua_State *L)		/** b64decode(s) */
+{
+ size_t l;
+ const char *s=luaL_checklstring(L,1,&l);
+ luaL_Buffer b;
+ int n=0;
+ char t[4];
+ luaL_buffinit(L,&b);
+ for (;;)
+ {
+  int c=*s++;
+  switch (c)
+  {
+   const char *p;
+   default:
+    p=strchr(b64code,c);
+    if (p==NULL)
+      luaL_error(L, "Invalid character '%c' in base64-encoded string", c);
+    t[n++]= p-b64code;
+    if (n==4)
+    {
+     b64decode(&b,t[0],t[1],t[2],t[3],4);
+     n=0;
+    }
+    break;
+   case '=':
+    switch (n)
+    {
+     case 1: b64decode(&b,t[0],0,0,0,1);		break;
+     case 2: b64decode(&b,t[0],t[1],0,0,2);	break;
+     case 3: b64decode(&b,t[0],t[1],t[2],0,3);	break;
+    }
+   case 0:
+    luaL_pushresult(&b);
+    return 1;
+   case '\n': case '\r': case '\t': case ' ': case '\f': case '\b':
+    break;
+  }
+ }
+ return luaL_error(L, "This statement can't be reached");
+}
+
+/**********************************************************/
+
+static int lua_unsigned2string(lua_State *L) {
+  uint32_t n = luaL_checkint(L, 1);
+  unsigned char buf[4];
+  int i;
+  for (i = 0; i < 4; i++) buf[i] = (n >> 8*i) & 0xff;
+  lua_pushlstring(L, (const char *) buf, 4);
+  return 1;
+}
+
 /**********************************************************/
 
 static const struct luaL_reg classmeta[] = {
@@ -1008,6 +1117,9 @@ static const struct luaL_reg osbf[] = {
   {"dir", l_dir},
   {"isdir", l_is_dir},
   {"crc32", lua_crc32},
+  {"b64encode", lua_b64encode},
+  {"b64decode", lua_b64decode},
+  {"unsigned2string", lua_unsigned2string},
   {NULL, NULL}
 };
 

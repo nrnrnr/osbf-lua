@@ -17,6 +17,7 @@ __doc.__order = {
   'create_db', 'header_size', 'bucket_size',
   'classify', 'learn', 'unlearn', 'train', 'pR', 'stats', 'config', 'dump',
   'restore', 'import', 'chdir', 'getdir', 'dir', 'isdir',
+  'crc32', 'b64encode', 'b64decode', 'unsigned2string',
 }
 
 
@@ -378,4 +379,20 @@ Closes all open classes.
 __doc.crc32 = [[function(string) returns number
 Returns the standard CRC-32 checksum of the given string.
 ]]
+
+__doc.b64encode = [[function(string) returns string
+Returns the MIME base64 encoding of the argument.
+]]
+
+__doc.b64decode = [[function(string) returns string or calls error
+The inverse of b64encode; converts a MIME base64-encoded string
+back to the original string.  Calls error if an invalid character 
+appears.
+]]
+
+__doc.unsigned2string = [[function(unsigned integer) returns string 
+Returns a string of length 4 containing the bytes of the argument
+in little-endian order.
+]]
+
 
