@@ -34,6 +34,13 @@ extern int OPENFUN (lua_State * L);  /* exported to the outside world */
 
 /****************************************************************/
 
+/* utility for us */
+
+static uint32_t lua_checkuint32(lua_State *L, int index);
+
+
+/****************************************************************/
+
 /* support for OSBF class as userdata */
 
 #define CLASS_METANAME "osbf3.class"
@@ -345,16 +352,14 @@ DEFINE_FIELD_FUN(, lua_pushnil(L))
 #define DEFINE_MUTATE_FUN(fname, lvalue)                             \
   static int lua_osbf_class_set_ ## fname(lua_State *L) {            \
     CLASS_STRUCT *c = check_class(L, 1);                             \
-    int value = luaL_checkint(L, 2);                                 \
+    uint32_t value = lua_checkuint32(L, 2);                          \
                                                                      \
-    if ((lua_Number) value != lua_tonumber(L, 2)) {                  \
-      return luaL_error(L, "Overflow converting %f to C int", lua_tonumber(L, 2)); \
-    } else if (c->state == OSBF_CLOSED) {                            \
+    if (c->state == OSBF_CLOSED) {                                   \
       return luaL_error(L, "Asked for " #fname " of closed class");  \
     } else if (c->usage == OSBF_READ_ONLY) {                         \
       return luaL_error(L, "Cannot mutate a read-only class");       \
     } else {                                                         \
-      lvalue = (value);                                              \
+      lvalue = value;                                                \
       return 0;                                                      \
     }                                                                \
   }
@@ -1175,4 +1180,16 @@ OPENFUN (lua_State * L)
   luaL_register (L, libname, osbf);
   set_info (L, lua_gettop(L));
   return 1;
+}
+
+
+static uint32_t lua_checkuint32(lua_State *L, int idx) {
+  uint32_t n;
+  lua_Number x = luaL_checknumber(L, idx);
+  n = (uint32_t) x;
+  if ((lua_Number) n != x)
+    return luaL_error(L, "at index %d, %f is not representable "
+                      "as a 32-bit unsigned integer", idx, x);
+  else
+    return 1;
 }
