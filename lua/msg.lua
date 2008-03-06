@@ -635,15 +635,7 @@ function rfc2822_to_localtime_or_nil(date)
     util.errorf('Failed to convert [[%s]] to local time', date)
   end
 
-  -- find out the local offset to UTC -- todo: should be done once in util
-  local uy, um, ud, uhh, umm, uss =
-       string.match(os.date("!%Y%m%d %H:%M:%S", ts),
-                       "(%d%d%d%d)(%d%d)(%d%d) (%d%d):(%d%d):(%d%d)")
-  lts = os.time{year=uy, month=um,
-                      day=ud, hour=uhh, min=umm, sec=uss}
-  local off_utc = ts - lts
-
-  return ts - (tz - off_utc)
+  return ts - (tz - util.localtime_minus_UTC) 
 end
 
 __doc.valid_boundary = [[function(boundary) Returns boundary if boundary

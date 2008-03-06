@@ -626,6 +626,16 @@ Understands these units and their plurals:
   end
 end
 
+-----------------------------
+__doc.localtime_minus_UTC = 
+      [[number of seconds difference between local time and UTC]]
+
+do
+  local now = os.time()
+  localtime_minus_UTC = os.difftime(os.time(os.date("*t", now)),
+                                    os.time(os.date("!*t", now)))
+end
+
 ----------------------------------------------------------------
 
 __doc.generate_hex_string = [[function(len) returns a string of random hex

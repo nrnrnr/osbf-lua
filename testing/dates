@@ -1,0 +1,15 @@
+#!/usr/bin/env lua5.1
+
+local osbf = require 'osbf3'
+
+print('Local time is offset by ' .. osbf.util.localtime_minus_UTC / 3600 .. ' hours')
+
+osbf.init { }
+for _, id in ipairs(arg) do
+  local msg = osbf.msg.of_any(id)
+  local date = osbf.msg.header_tagged(msg, 'date')
+  if date then
+    io.stderr:write(string.format('MSG:   %s\nLOCAL: %s\n', date,
+                                  os.date("%a, %d %b %Y %H:%M:%S", osbf.msg.rfc2822_to_localtime_or_nil(date))))
+  end
+end
