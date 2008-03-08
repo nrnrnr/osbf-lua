@@ -631,18 +631,23 @@ function rfc2822_to_localtime_or_nil(date)
   end
 
   -- get the Unix time of the date of the message
-  --XXX to do: how to calculate at the exact time of the message
-  --           considering its zone?
+  -- sec might be out of range after subtracting tz but mktime,
+  -- called by os.time, normalizes the values if needed.
   local ts = os.time{year=year, month=month_number,
-                      day=day, hour=hh, min=mm, sec=ss}
+                      day=day, hour=hh, min=mm, sec=ss-tz}
 
   if not ts then
     util.errorf('Failed to convert [[%s]] to local time', date)
   end
 
+  -- os.time considers the broken-down time as local time, but
+  -- RFC2822 date becomes UTC after the zone is subtracted, so
+  -- an adjustment is necessary to the ts calculated above.
+  local lts = ts + util.localtime_minus_UTC(ts)
+  
   -- we need the difference of localtime and UTC at the date of the
   -- message, which may not be the same as the current timezone.
-  return ts - (tz - util.localtime_minus_UTC(ts)) 
+  return ts + util.localtime_minus_UTC(lts)
 end
 
 __doc.valid_boundary = [[function(boundary) Returns boundary if boundary
