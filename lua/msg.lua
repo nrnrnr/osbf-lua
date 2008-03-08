@@ -559,8 +559,8 @@ function parse_subject_command(msg)
   error('No commands found on the first Subject: line')
 end
 
-__doc.rfc2822_to_localtime_or_nil = [[function(date) returns string or nil
-Converts RFC2822 date to local time in the same format used by os.time.
+__doc.rfc2822_to_localtime_or_nil = [[function(date) returns number or nil
+Converts RFC2822 date to local time (Unix time).
 ]]
 
 local tmonth = {jan=1, feb=2, mar=3, apr=4, may=5, jun=6,
@@ -625,9 +625,14 @@ function rfc2822_to_localtime_or_nil(date)
   elseif zonetable[zz] then
     tz = zonetable[zz] * 3600
   else
-    return nil --- OBS: RFC 2822 says in this case tz = 0
+    return nil -- OBS: RFC 2822 says in this case tz = 0, but we prefer not
+               -- to convert and return nil to signal that date should be
+               -- shown in the original format.
   end
 
+  -- get the Unix time of the date of the message
+  --XXX to do: how to calculate at the exact time of the message
+  --           considering its zone?
   local ts = os.time{year=year, month=month_number,
                       day=day, hour=hh, min=mm, sec=ss}
 
@@ -635,7 +640,9 @@ function rfc2822_to_localtime_or_nil(date)
     util.errorf('Failed to convert [[%s]] to local time', date)
   end
 
-  return ts - (tz - util.localtime_minus_UTC) 
+  -- we need the difference of localtime and UTC at the date of the
+  -- message, which may not be the same as the current timezone.
+  return ts - (tz - util.localtime_minus_UTC(ts)) 
 end
 
 __doc.valid_boundary = [[function(boundary) Returns boundary if boundary

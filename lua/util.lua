@@ -626,14 +626,22 @@ Understands these units and their plurals:
   end
 end
 
------------------------------
-__doc.localtime_minus_UTC = 
-      [[number of seconds difference between local time and UTC]]
+----------------------------------------------------------------
 
-do
-  local now = os.time()
-  localtime_minus_UTC = os.difftime(os.time(os.date("*t", now)),
-                                    os.time(os.date("!*t", now)))
+__doc.localtime_minus_UTC = [[function(timestamp) returns the difference
+in seconds between local time and UTC at a given time or, if not given,
+at current time.
+
+timestamp is the time in seconds since Unix epoch, for which the difference
+is calculated. If timestamp is not given, current time is used.]]
+
+function localtime_minus_UTC(timestamp)
+  timestamp = timestamp or os.time()
+  assert(type(timestamp) == 'number')
+  local t = os.date('*t', timestamp)
+  t.isdst = false -- don't cancel DST difference when converting back
+                  -- to Unix time
+  return os.difftime(os.time(t), os.time(os.date('!*t', timestamp)))
 end
 
 ----------------------------------------------------------------
