@@ -1,7 +1,7 @@
 /*
  * OSBF-Lua - library for text classification
  *
- * See Copyright Notice in osbflua.h
+ * See Copyright Notice in osbflib.h
  *
  */
 
@@ -36,6 +36,7 @@ extern int OPENFUN (lua_State * L);  /* exported to the outside world */
 
 /* utility for us */
 
+static int      lua_isuint32(lua_State *L, int index);
 static uint32_t lua_checkuint32(lua_State *L, int index);
 
 
@@ -1071,14 +1072,41 @@ static int lua_class_pairs(lua_State *L) {
 }
 
 static int lua_classfields(lua_State *L) {
-  const char *key = luaL_checkstring(L,  2);
-  lua_getfield(L, lua_upvalueindex(1), key);
-  if (lua_isfunction(L, -1)) {
-    lua_insert(L, 1);
-    lua_call(L, 2, 1);
-    return 1;
+  if (lua_isuint32(L, 2)) {
+    CLASS_STRUCT *class = check_class(L, 1);
+    uint32_t n = (uint32_t) lua_tonumber(L, 2);
+    if (n == 0 || n > class->header->num_buckets)
+      return luaL_error(L, "Index %d out of range; class %s has buckets 1..%d",
+                        n, class->classname, class->header->num_buckets);
+    else if (class->state == OSBF_CLOSED)
+      return luaL_error(L, "Cannot look at buckets of a closed class");
+    else {
+      /* TODO: all sorts of things wrong here---
+         at minimum should make result immutable---at maximum should make table
+         a real proxy for bucket including having it keep the class alive---but
+         this will do for experiments */
+      OSBF_BUCKET_STRUCT *b = &class->buckets[n-1];
+      lua_newtable(L);
+      lua_pushnumber(L, b->hash1);
+      lua_setfield(L, -2, "hash1");
+      lua_pushnumber(L, b->hash2);
+      lua_setfield(L, -2, "hash2");
+      lua_pushnumber(L, b->count);
+      lua_setfield(L, -2, "count");
+      return 1;
+    }
+  } else if (lua_isstring(L, 2)) {
+    const char *key = luaL_checkstring(L,  2);
+    lua_getfield(L, lua_upvalueindex(1), key);
+    if (lua_isfunction(L, -1)) {
+      lua_insert(L, 1);
+      lua_call(L, 2, 1);
+      return 1;
+    } else {
+      return luaL_error(L, "OSBF class has no field named %s", key);
+    }
   } else {
-    return luaL_error(L, "OSBF class has no field named %s", key);
+    return luaL_error(L, "OSBF class can be indexed only with field name or bucket number");
   }
 }
 
@@ -1182,6 +1210,16 @@ OPENFUN (lua_State * L)
   return 1;
 }
 
+
+static int lua_isuint32(lua_State *L, int idx) {
+  lua_Number x;
+  if (lua_isnumber(L, idx)) {
+    x = lua_tonumber(L, idx);
+    return x == (lua_Number) (uint32_t) x;
+  } else {
+    return 0;
+  }
+}   
 
 static uint32_t lua_checkuint32(lua_State *L, int idx) {
   uint32_t n;

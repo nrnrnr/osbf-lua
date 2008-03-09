@@ -1,5 +1,5 @@
 /*
- * See Copyright Notice in osbflua.h
+ * See Copyright Notice in osbflib.h
  */
 
 #ifndef OSBF_ERR

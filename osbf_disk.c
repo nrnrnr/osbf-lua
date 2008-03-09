@@ -3,7 +3,7 @@
  *
  *  The purpose of this module is to hide the on-disk layout of the database.
  *  
- *  See Copyright Notice in osbflua.h
+ *  See Copyright Notice in osbflib.h
  *
  */
 

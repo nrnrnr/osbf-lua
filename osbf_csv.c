@@ -4,7 +4,7 @@
  *  The purpose of this module is to hide the human-readable layout
  *  of the CSV interchange format.
  *  
- *  See Copyright Notice in osbflua.h
+ *  See Copyright Notice in osbflib.h
  *
  */
 

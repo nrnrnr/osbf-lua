@@ -1,7 +1,7 @@
 /*
  * Format for database version 5
  *
- * See Copyright Notice in osbflua.h
+ * See Copyright Notice in osbflib.h
  */
 
 

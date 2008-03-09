@@ -1,7 +1,7 @@
 /*
  *  osbf_stats.c 
  *  
- * See Copyright Notice in osbflua.h
+ * See Copyright Notice in osbflib.h
  */
 
 #include <string.h>

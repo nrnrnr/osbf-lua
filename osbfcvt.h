@@ -6,7 +6,7 @@
  * from November 2007 onward will always be readable and convertible to the
  * preferred current format defined in osbflib.h.
  *
- * See Copyright Notice in osbflua.h
+ * See Copyright Notice in osbflib.h
  */
 
 #ifndef OSBF_CVT_H
