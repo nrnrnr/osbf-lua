@@ -602,6 +602,7 @@ function write_stats(verbose)
   local p2fmt = '%-30s' .. string.rep('%11.2f%%', #classes) .. '\n' -- 2-digit % rpt
 
   local gsfmt  = '%-15s%7.2f%%%22s%7.2f%%\n'  -- global accuracy & spam rate
+  local gafmt  = '%-15s%7.2f%%\n'             -- global accuracy only
 
   local hline = function() return util.write(hline, '\n') end -- tricky binding
   local function report(what, key, fmt)
@@ -649,8 +650,9 @@ function write_stats(verbose)
   end
 
   writef(p2fmt, 'Accuracy', classmap(function(c) return (1-error_rates[c])*100 end))
+  writef(p2fmt, 'Fraction of mail stream',
+                                      classmap(function(c) return rates[c]*100 end))
   hline()
-  writef(gsfmt, 'Global accuracy:', (1-global_error_rate)*100,
-         'Spam rate:', (rates.spam or 0) * 100)
+  writef(gafmt, 'Global accuracy:', (1-global_error_rate)*100)
   hline()
 end
