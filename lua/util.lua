@@ -20,13 +20,12 @@ __doc = { }
 ----------------------------------------------------------------
 --- Special tables.
 
-__doc.table_tab = [[function(t) Metafunction used to create a table
-on demand.]]
+__doc.table_tab = [[function(t) returns t with new metatable
+Each reference to a missing key in t now returns a fresh table.]]
 
 local function table__index(t, k) local u = { }; t[k] = u; return u end
 function table_tab(t)
-  setmetatable(t, { __index = table__index })
-  return t
+  return setmetatable(t, { __index = table__index })
 end
 ----------------------------------------------------------------
 __doc.isdir = [[function(pathname) returns boolean
