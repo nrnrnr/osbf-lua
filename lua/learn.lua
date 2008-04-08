@@ -466,10 +466,7 @@ do
 
     if count then
       local c = cfg.classes[class]:open 'rwh'
-      -- should limits be hidden in lua_set_classfields?
-      if c.classifications < 2^64-1 then
-        c.classifications = c.classifications + 1
-      end
+      c.classifications = c.classifications + 1 -- errors on overflow
       -- no close needed; let it be garbage-collected
     end
     local train = pR < cfg.classes[class].train_below
