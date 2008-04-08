@@ -103,7 +103,9 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
     if (osbf_lock_file (class->fd, 0, sizeof(*class->header)) != 0) {
       fprintf (stderr, "Couldn't lock the file %s.", classname);
       close (class->fd);
+      class->fd = -1;
       free(class->classname);
+      class->classname = NULL;
       osbf_raise(h, "Couldn't lock the file %s.", classname);
     }
   }
