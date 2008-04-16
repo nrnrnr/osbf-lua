@@ -340,7 +340,8 @@ but the message was previously learned as %s.]],
     if c.fp > 0 then c.fp = c.fp - 1 end
   end
 
-  cache.change_file_status(sfid, old_bc.class, 'unlearned')
+  cache.change_file_status(sfid, old_class, 'unlearned')
+    -- cache change must be consistent with old cache state
 
   -- report msg numbers not header numbers
   return string.format('Message unlearned (was %s [%4.2f], is now %s [%4.2f])',
