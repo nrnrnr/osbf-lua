@@ -37,8 +37,9 @@ extern int OPENFUN (lua_State * L);  /* exported to the outside world */
 /* utility for us */
 
 static int      lua_isuint32(lua_State *L, int index);
+static int      lua_isuint64(lua_State *L, int index);
 static uint32_t lua_checkuint32(lua_State *L, int index);
-
+static uint64_t lua_checkuint64(lua_State *L, int index);
 
 /****************************************************************/
 
@@ -350,7 +351,7 @@ DEFINE_FIELD_FUN(false_negatives, lua_pushnumber(L, c->header->false_negatives))
 DEFINE_FIELD_FUN(false_positives, lua_pushnumber(L, c->header->false_positives))
 DEFINE_FIELD_FUN(, lua_pushnil(L))
 
-#define DEFINE_MUTATE_FUN(fname, lvalue)                             \
+#define DEFINE_MUTATE_FUN_32(fname, lvalue)                             \
   static int lua_osbf_class_set_ ## fname(lua_State *L) {            \
     CLASS_STRUCT *c = check_class(L, 1);                             \
     uint32_t value = lua_checkuint32(L, 2);                          \
@@ -365,13 +366,28 @@ DEFINE_FIELD_FUN(, lua_pushnil(L))
     }                                                                \
   }
 
+#define DEFINE_MUTATE_FUN_64(fname, lvalue)                             \
+  static int lua_osbf_class_set_ ## fname(lua_State *L) {            \
+    CLASS_STRUCT *c = check_class(L, 1);                             \
+    uint64_t value = lua_checkuint64(L, 2);                          \
+                                                                     \
+    if (c->state == OSBF_CLOSED) {                                   \
+      return luaL_error(L, "Asked for " #fname " of closed class");  \
+    } else if (c->usage == OSBF_READ_ONLY) {                         \
+      return luaL_error(L, "Cannot mutate a read-only class");       \
+    } else {                                                         \
+      lvalue = value;                                                \
+      return 0;                                                      \
+    }                                                                \
+  }
+
 #define MFSTRUCT(fname) { #fname, lua_osbf_class_set_ ## fname }
 
-DEFINE_MUTATE_FUN(classifications, c->header->classifications)
-DEFINE_MUTATE_FUN(learnings,       c->header->learnings)
-DEFINE_MUTATE_FUN(extra_learnings, c->header->extra_learnings)
-DEFINE_MUTATE_FUN(fn,              c->header->false_negatives)
-DEFINE_MUTATE_FUN(fp,              c->header->false_positives)
+DEFINE_MUTATE_FUN_64(classifications, c->header->classifications)
+DEFINE_MUTATE_FUN_32(learnings,       c->header->learnings)
+DEFINE_MUTATE_FUN_32(extra_learnings, c->header->extra_learnings)
+DEFINE_MUTATE_FUN_32(fn,              c->header->false_negatives)
+DEFINE_MUTATE_FUN_32(fp,              c->header->false_positives)
 
 
 /* to provide a buckets array, we have to use a table, not userdata, because the 
@@ -1221,6 +1237,16 @@ static int lua_isuint32(lua_State *L, int idx) {
   }
 }   
 
+static int lua_isuint64(lua_State *L, int idx) {
+  lua_Number x;
+  if (lua_isnumber(L, idx)) {
+    x = lua_tonumber(L, idx);
+    return x == (lua_Number) (uint64_t) x;
+  } else {
+    return 0;
+  }
+}   
+
 static uint32_t lua_checkuint32(lua_State *L, int idx) {
   uint32_t n;
   lua_Number x = luaL_checknumber(L, idx);
@@ -1229,5 +1255,16 @@ static uint32_t lua_checkuint32(lua_State *L, int idx) {
     return luaL_error(L, "at index %d, %f is not representable "
                       "as a 32-bit unsigned integer", idx, x);
   else
-    return 1;
+    return n;
+}
+
+static uint64_t lua_checkuint64(lua_State *L, int idx) {
+  uint64_t n1, n2;
+  lua_Number x = luaL_checknumber(L, idx);
+  n1 = (uint64_t) x;
+  n2 = (uint64_t) (x + 1.0);
+  if (n1 == n2)
+    return luaL_error(L, "at index %d, integer overflow", idx, x);
+  else
+    return n1;
 }

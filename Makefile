@@ -73,7 +73,7 @@ clean:
 
 
 depend: $(SRCS) $(HFILES) strip-lua-headers
-	gcc $(CFLAGS) -MM $(SRCS) | ./strip-lua-headers `pkg-config --cflags lua5.1` > $@
+	gcc $(CFLAGS) -MM $(SRCS) | lua strip-lua-headers $(LUA_CFLAGS) > $@
 
 include ./depend
 
