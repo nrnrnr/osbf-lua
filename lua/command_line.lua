@@ -556,6 +556,8 @@ remove            => remove <sfid> from cache.
 local function batch_train(m)
   local m = msg.of_any(m)
   for sfid, cmd in string.gmatch(m.body, '(sfid.-)=(%S+)') do
+    -- remove initial '3D' of commands in quoted-printable encoded messages
+    cmd = string.gsub(cmd, '^3[dD]', '')
     run_batch_cmd(sfid, cmd, m)
   end
 end
