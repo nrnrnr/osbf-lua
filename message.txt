@@ -1,0 +1,143 @@
+Fidelis,
+
+I've been thinking for a long time about making changes to the msg.lua
+module, and I want to get some of my thoughts written down.  Here goes!
+
+
+              New representation of messages of OSBF-Lua
+              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+I would like to change the representation of messages to 
+  (a) exploit the fast parser
+  (b) have a simpler API
+  (c) be easy to reuse with other mail-handling tools
+
+I believe we have the following constraints:
+
+  * It must be possible to reconstruct the original message, and
+    ideally it should be relatively easy.
+
+  * It must be possible to modify existing headers and add new
+    headers, and then reconstruct a message containing the modified
+    and new headers plus the original body.
+
+  * It is necessary to deal sensibly with all well-formatted MIME
+    messages, including those that contain no body.
+
+  * It is necessary to deal sensibly with badly formatted messages in
+    Unix mbox format, which are MIME-compliant except for an initial
+    line that begins with the five characters 'From '.
+
+  * With other noncompliant messages, it is necessary to be able to
+    reproduce the original message, but it is OK if some headers are
+    misidentified as body or if some body is misidentified as headers.
+
+  * We intend to store the entire message in memory, and because a
+    body may be as large as 25MB (common cap on acceptable message
+    size among MTAs), we should store only one copy of the body.
+
+  * Because headers are generally short, it is acceptable to store
+    more than one copy of the headers.
+
+Here are my design goals:
+
+  * Easy and fast access to individual headers by name.
+
+  * Easy creation of new headers.
+
+  * The msg module should not deal with folding and unfolding of long
+    headers; instead, long headers should be left as is with embedded
+    CRLF (or other EOL) and whitespace.  Unfolding is as simple as
+    field_body:gsub(eol .. '%s+', '').
+
+  * To simplify the API, the msg module should work with strings and
+    only strings.  Code involving recovering messages from SFIDs and
+    files should migrate to another module.
+
+Here is my proposal for a new interface:
+
+  * The lua table-indexing syntax and dot notation are to be
+    overloaded with three meanings depending on the value used to
+    index the message:
+
+      . A string value beginning with two underscores refers to an
+        actual field of the message put there by the parser.  Example:
+        m.__eol
+
+      . A string value beginning with a single underscore is a
+        reference to a function defined by the 'msg' module or the
+        'sfid' module. Example: m._to_orig_string is the same value as
+        msg.to_orig_string.   Rationale: use as method syntax, e.g.,
+        feature extraction by
+           lim = m:_to_orig_string():sub(1, cfg.text_limit)
+        or
+           sfid = m:_sfid()
+           
+      . A string value beginning with a non-underscore is a reference
+        to the field *body* of the first header that case-matches with
+        the value.
+           Examples: m.date    == "Tue, 06 May 2008 15:11:26 -0400"
+                     m.subject == "Article titled: The Witcher: A (Book) Review"
+        In order to mutate a such a value or add a new header, such a
+        reference can be assigned to.  Unrealistically simple example:
+                     m.references = m.references .. " <" .. sfid .. ">" 
+        More realistic example:
+                     m['X-OSBF-Lua-Train'] = 'yes'
+                        -- replaces call to msg.append_header
+
+Finally, I propose to migrate functions out of the msg interface.
+I would like to create new submodules
+   'sfid'     sfid-related functions
+   'filter'   message-filtering functions, including filtering
+              and creating messages that contain batch commands
+   'mime'     functions related to parsing and creating RFC2822 email messages
+
+Here are the changes I propose in the msg module:
+
+  msg.add_osbf_header -> migrates to filter
+
+  msg.attach_message -> removed because it is used nowhere
+
+  msg.extract_sfid -> migrates to sfid
+
+  msg.has_sfid -> migrates to sfid
+
+  msg.header_tagged -> replaced with table indexing
+
+  msg.insert_sfid -> migrates to sfid
+
+  msg.of_any -> migrates to cache.msg_of_any
+
+  msg.of_file -> dropped; use msg.of_string(util.file_contents(filename))
+  msg.of_openfile -> dropped; use msg.of_string(util.openfile_contents(filename))
+
+  msg.of_sfid -> migrates to cache.msg_of_sfid
+
+  msg.parse_subject_command -> migrates to filter
+
+  msg.rfc2822_to_localtime_or_nil -> migrates to mime
+
+  msg.send_cmd_message -> migrates to filter
+
+  msg.send_message -> migrates to filter
+
+  msg.set_output_to_message -> migrates to filter
+    -- I would like eventually to drop this entireless and instead
+    -- create a message using local data without side effects, then send
+    -- it.
+
+  msg.sfid -> migrates to 'sfid' with a different semantics;
+              use becomes cache.msg_of_any(msgspec):_sfid()
+
+  msg.tag_subject -> dropped (only used once; code migrate to point of use)
+
+  msg.valid_boundary -> migrates to mime
+
+As you can see, I hope for a dramatic simplification.  I think it will
+be worth the major rewrite required.
+
+
+Please let me know your thoughts.
+
+
+P.S. I'm putting this message in CVS so you can edit if you like
