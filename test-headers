@@ -4,8 +4,10 @@ local modname, mailfile = assert(arg[1]), assert(arg[2])
 
 local osbf = require(modname)
 require (modname .. '.command_line')
+require (modname .. '.util')
 
-local m = osbf.msg.of_file(mailfile)
+local m = osbf.msg.of_string(osbf.util.file_contents(mailfile))
 
 for h in osbf.msg.headers_tagged(m, 'from', 'to', 'subject') do print(h) end
+print(m)
 

@@ -64,7 +64,8 @@ __doc = __doc or { }
 
 local function learned_as_msg(classification)
   local fmt = [[This message has already been learned as %s.  You'll need
-to unlearn it before another learn operation.]]
+to unlearn it before another learn operation.
+]]
   return string.format(fmt, classification)
 end
 
@@ -95,8 +96,6 @@ end
 
 
                 
-local msgmod = msg
-
 __doc.tone = [[function(text, class[, count]) returns tables old_bc, new_bc or errors
 Conditionally train 'text' as belonging to 'class'.  Training is done
 'on or near error' (TONE): if the classifier produces the wrong
@@ -187,9 +186,22 @@ end
 -- This function implements TONE-HR, a training protocol described in
 -- http://osbf-lua.luaforge.net/papers/trec2006_osbf_lua.pdf
 
-local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif)
+__doc.extract_feature = [[function(msg.T) returns string
+Extracts from a message a string to be used for classification and learning.]]
+
+function extract_feature(m)
+  return m:_to_orig_string():sub(1, cfg.text_limit)
+end
+extract_feature = util.memoize(extract_feature)
+
+local function extract_header_feature(m)
+  return m.__header:sub(1, cfg.text_limit)
+end
+extract_header_feature = util.memoize(extract_header_feature)
+  
+local function tone_msg_and_reinforce_header(msg, target_class, count_as_classif)
   -- train on the whole message if on or near error
-  local lim_orig_msg = lim.msg
+  local lim_orig_msg = extract_feature(msg)
   local old_bc, new_bc = tone(lim_orig_msg, target_class, count_as_classif)
   local old_pR, new_pR =  old_bc.target_pR, new_bc.target_pR
   if cfg.classes[target_class].hr 
@@ -205,7 +217,7 @@ local function tone_msg_and_reinforce_header(lim, target_class, count_as_classif
     local trd   = threshold_reinforcement_degree * 
                     cfg.classes[target_class].train_below
     local rd    = reinforcement_degree * header_learn_threshold
-    local lim_orig_header = lim.header
+    local lim_orig_header = extract_header_feature(msg)
     for i = 1, reinforcement_limit do
       -- (may exit early if the change in new_pR is big enough)
       local pR = new_pR
@@ -240,11 +252,11 @@ function learn(sfid, class)
     error('learn command requires one of these classes: ' .. cfg.classlist())
   end 
 
-  local msg, status = msg.of_sfid(sfid)
+  local contents, status = cache.recover(sfid)
   if status ~= 'unlearned' then
     error(learned_as_msg(status))
   end
-  local comment, orig, new = learn_msg(msg, class)
+  local comment, orig, new = learn_msg(msg.of_string(contents), class)
   cache.change_file_status(sfid, status, class)
 
   return comment, orig, new
@@ -271,18 +283,18 @@ cfg.after_loading_do(
     end
   end)
 
-function learn_msg(m, class, count, force)
-  if not force and msg.header_tagged(m, 'x-osbf-lua-score', unpack(multiheaders))
+function learn_msg(msg, class, count, force)
+  if not force and msg:_headers_tagged('x-osbf-lua-score', unpack(multiheaders))()
   then
     error('Tried to learn a message that is the *output* of an OSBF-Lua filter')
   end
-  local lim = m.lim
   if type(class) ~= 'string' then error('Class passed to learn_msg is not a string')
   elseif not cfg.classes[class] then error('Unknown class: ' .. class)
   end
   debugf('\n Learning <%s> with header <%s> as %s...\n', 
-         fingerprint(lim.msg), fingerprint(lim.header), class)
-  local old_bc, new_bc = tone_msg_and_reinforce_header(lim, class, count)
+         fingerprint(extract_feature(msg)),
+         fingerprint(extract_header_feature(msg)), class)
+  local old_bc, new_bc = tone_msg_and_reinforce_header(msg, class, count)
   local comment = old_bc == new_bc and
     string.format(cfg.training_not_necessary, old_bc.target_pR, cfg.classes[class].train_below) or
     string.format('Trained as %s: confidence %4.2f -> %4.2f', class,
@@ -299,8 +311,7 @@ but if present must be equal to the class originally learned.
 ]]
 
 function unlearn(sfid, old_class)
-  local msg, status = msg.of_sfid(sfid)
-  if not msg then error('Message ' .. sfid .. ' is missing from the cache') end
+  local contents, status = cache.recover(sfid)
   old_class = old_class or status -- unlearn parm now optional
   if status == 'unlearned' then
     error('This message was already unlearned or was never learned to begin with.')
@@ -313,18 +324,19 @@ but the message was previously learned as %s.]],
   end
 
   local table_of_sfid = cache.table_of_sfid(sfid)
-  local lim = msg.lim
+  local msg = msg.of_string(contents)
+  local lim_msg, lim_header = extract_feature(msg), extract_header_feature(msg)
   local k = cfg.constants
   -- find old best class
-  local old_bc = most_likely_pR_and_class(lim.msg)
+  local old_bc = most_likely_pR_and_class(lim_msg)
   local db = cfg.classes[status]:open 'rw'
-  core.unlearn(lim.msg, db, k.learn_flags+core.FALSE_NEGATIVE)
+  core.unlearn(lim_msg, db, k.learn_flags+core.FALSE_NEGATIVE)
   -- find new best class
-  local new_bc = most_likely_pR_and_class(lim.msg)
+  local new_bc = most_likely_pR_and_class(lim_msg)
   for i = 1, reinforcement_limit do
     if new_bc.class == status and new_bc.pR > 0 then
-      core.unlearn(lim.header, db, k.learn_flags+core.EXTRA_LEARNING)
-      new_bc = most_likely_pR_and_class(lim.msg)
+      core.unlearn(lim_header, db, k.learn_flags+core.EXTRA_LEARNING)
+      new_bc = most_likely_pR_and_class(lim_msg)
     else
       break
     end
@@ -352,8 +364,6 @@ end
 ----------------------------------------------------------------
 -- classification seems to go with learning
 
-local msgmod = msg
-
 __doc.classify = 
 [[function(msg, [probs, conf]) returns table with keys train, pR,
 sfid tag, subject tag, class.
@@ -365,7 +375,7 @@ confidence at all (zero information) and 20 is high confidence
 tags are always strings
 
 Probs and conf are optional arguments that must be the result
-of calling commands.multiclassify on msg.lim.msg.  They are there
+of calling commands.multiclassify on extract_feature(msg).  They are there
 so some clients can avoid having to call the classifier twice;
 if they are not present, classify() will call multiclassify() itself.
 
@@ -490,10 +500,10 @@ function classify (msg, probs, conf)
   -- Used mainly to whitelist the cache report
   local pwd_pat = '^.-: *' .. cfg.pwd .. '$'
   local found_pwd = false
-  for i in msgmod.header_indices(msg, 'x-spamfilter-lua-whitelist') do
-    if string.find(msg.headers[i], pwd_pat) then
+  for i in msg:_header_indices 'x-spamfilter-lua-whitelist' do
+    if msg.__headers[i]:find(pwd_pat) then
       -- remove password from header
-      msg.headers[i] = string.gsub(msg.headers[i], '^(.-:).*', '%1 Password OK')
+      msg.__headers[i] = msg.__headers[i]:gsub('^(.-:).*', '%1 Password OK')
       found_pwd = true
     end
   end
@@ -507,9 +517,9 @@ function classify (msg, probs, conf)
 
   -- continue with classification even if whitelisted or blacklisted
 
-  debugf('\nClassifying msg %s...\n', fingerprint(msg.lim.msg))
+  debugf('\nClassifying msg %s...\n', fingerprint(extract_feature(msg)))
   local bc =
-    most_likely_pR_and_class(msg.lim.msg, cfg.count_classifications, nil, probs, conf)
+    most_likely_pR_and_class(extract_feature(msg), cfg.count_classifications, nil, probs, conf)
   local t = assert(cfg.classes[bc.class], 'missing configuration for class')
   
   if not sfid_tag then
@@ -590,7 +600,7 @@ function write_stats(verbose)
 
   -------------- utility functions and values for writing reports
 
-  local function writef(...) return util.write(string.format(...)) end
+  local function writef(...) return output.write(string.format(...)) end
 
   local hline = string.rep('-', width)
   local sfmt  = '%-30s' .. string.rep('%12.12s', #classes) .. '\n' -- string report
@@ -602,7 +612,7 @@ function write_stats(verbose)
   local gsfmt  = '%-15s%7.2f%%%22s%7.2f%%\n'  -- global accuracy & spam rate
   local gafmt  = '%-15s%7.2f%%\n'             -- global accuracy only
 
-  local hline = function() return util.write(hline, '\n') end -- tricky binding
+  local hline = function() return output.write(hline, '\n') end -- tricky binding
   local function report(what, key, fmt)
     local data = { }
     for _, c in ipairs(classes) do table.insert(data, stats[c][key]) end

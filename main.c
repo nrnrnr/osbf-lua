@@ -5,11 +5,14 @@
 
 extern int lua_interp(int argc, char **argv, void (*)(lua_State*));
 extern int luaopen_osbf3_core(lua_State *);
+extern int luaopen_fastmime(lua_State *);
 
 static void open_osbf(lua_State *L) {
   int top = lua_gettop(L);
   lua_pushstring(L, "osbf3.core");
   (void)luaopen_osbf3_core(L);
+  lua_pushstring(L, "fastmime");
+  (void)luaopen_fastmime(L);
   lua_settop(L, top);
 }
 

@@ -12,6 +12,7 @@ local msg   = require(_PACKAGE .. 'msg')
 local log   = require(_PACKAGE .. 'log')
 local cache = require(_PACKAGE .. 'cache')
 local core  = require(_PACKAGE .. 'core')
+local filter = require(_PACKAGE .. 'filter')
 local dirs  = assert(cfg.dirs)
 require(_PACKAGE .. 'learn')  -- load the learning commands
 require(_PACKAGE .. 'report') -- load the cache-report command
@@ -124,7 +125,7 @@ do
     end
     local config = cfg.configfile
     if util.file_is_readable(config) then
-      util.write_error('Warning: not overwriting existing ', config, '\n')
+      output.error:write('Warning: not overwriting existing ', config, '\n')
     else
       local default = util.submodule_path 'default_cfg'
       local f = util.validate(io.open(default, 'r'))
@@ -153,48 +154,5 @@ do
 end
 
 ----------------------------------------------------------------
-__doc.filter = [[function(msg, options, [sfid]) returns sfid or calls error
-Classify message and insert appropriate tags, headers, and sfid.
-Call error() if anything goes wrong.  Does not insert message into
-the cache, as this function may be used on the results of cache.recover
-to re-deliver a mistakenly classified message.
-
-'sfid' is the sfid assigned to the message, if any; it may be nil,
-in which case a fresh sfid may be generated (depending on options).
-Options is a required table in which keys 'notag',
-and 'nosfid' can be set to disable subject tagging and sfid insertion.
-Headers are always inserted; otherwise, why call this function?
-
-This function returns the original sfid or the generated sfid, if any.
-]]
-
-function filter(m, options, sfid)
-  local probs, conf = multiclassify(m.lim.msg)
-  --local train, confidence, sfid_tag, subj_tag, class = classify(m, probs, conf)
-  -- find best class
-  local bc = classify(m, probs, conf)
-  local crc32 = core.crc32(msg.to_orig_string(m))
-  if not options.nosfid and cfg.use_sfid then
-    sfid = sfid or cache.generate_sfid(bc.sfid_tag, bc.pR)
-    msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
-  end
-  log.lua('filter', log.dt { probs = probs, conf = conf, train = bc.train,
-                             synopsis = msg.synopsis(m),
-                             class = bc.class, sfid = sfid, crc32 = crc32 })
-  if not options.notag and cfg.tag_subject then
-    msg.tag_subject(m, bc.subj_tag)
-  end
-  local classes = cfg.classes
-  local summary_header =
-    string.format('%.2f/%.2f [%s] (v%s, Spamfilter v%s)',
-                  bc.pR, classes[bc.class].conf_boost,
-                  bc.sfid_tag, core._VERSION, cfg.version)
-  local suffixes = cfg.header_suffixes
-  msg.add_osbf_header(m, suffixes.summary, summary_header)
-  msg.add_osbf_header(m, suffixes.class, bc.class)
-  msg.add_osbf_header(m, suffixes.confidence,
-                      bc.pR and string.format('%.2f', bc.pR) or '0.0')
-  msg.add_osbf_header(m, suffixes.needs_training, bc.train and 'yes' or 'no')
-  msg.add_osbf_header(m, suffixes.sfid, sfid)
-  return sfid
-end
+__doc.filter = filter.__doc.run
+_M.filter = filter.run

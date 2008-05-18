@@ -1,54 +1,54 @@
 -- See Copyright Notice in osbf.lua
 
-local require, print, pairs, ipairs, type, error, assert, loadfile, setmetatable =
-      require, print, pairs, ipairs, type, error, assert, loadfile, setmetatable
+local require, print, pairs, ipairs, type, error, assert, loadfile =
+      require, print, pairs, ipairs, type, error, assert, loadfile
 
-local tostring, pcall =
-      tostring, pcall
+local tostring, pcall, rawget, rawset, setmetatable, getmetatable =
+      tostring, pcall, rawget, rawset, setmetatable, getmetatable
 
 local function eprintf(...) return io.stderr:write(string.format(...)) end
 
-local io, os, string, table, coroutine, tonumber =
-      io, os, string, table, coroutine, tonumber
+local io, os, string, table, coroutine, tonumber, unpack =
+      io, os, string, table, coroutine, tonumber, unpack
 
+local modname = ...
 module(...)
 
-local cfg   = require(_PACKAGE .. 'cfg')
-local util  = require(_PACKAGE .. 'util')
-local cache = require(_PACKAGE .. 'cache')
-local log   = require(_PACKAGE .. 'log')
-local core  = require(_PACKAGE .. 'core')
+local util      = require(_PACKAGE .. 'util')
+local mime      = require(_PACKAGE .. 'mime')
+local core      = require(_PACKAGE .. 'core')
+local fastmime  = require 'fastmime'
 
-__doc = { }
+__doc = { __private = { } }
 
-__doc.__overview = [[
-The system understands four different representations of an RFC 822
-email message, the last of which is canonical.
+local debug = os.getenv 'OSBF_DEBUG'
 
-  1. The string representation specified by the RFC
-  2. The SFID of that message
-  3. The name of a file containing the message
-  4. A message table documented as type T
-]] 
+__doc.__overview = ([[
+A representation for parsing and modifying RFC 822 mail messages,
+documented as type %s.T
+]]):format(_PACKAGE)
 
-__doc.T = [[a table
-The main representation of a message is a table with these elements:
 
-    { headers   = list of header strings,
-      header_fields = string containing the original header of the
-                      message. It will also contain the EOL which
-                      separates the body from the header, if present
-                      in the message final part,
-      sep       = EOL which separates the header from body, or the empty
-                  string if there's no separator (and no body),
-      body      = string containing the original body,
-      eol       = string with the eol used by the message,
-      lim = { header = string.sub(header_fields, 1, cfg.text_limit),
-              msg = string.sub(header_fields .. body, 1, cfg.text_limit)
-            },
-      header_index = a table giving index in list of every
-                     occurrence of each header, indexed by all
-                     lower case
+__doc.__private.T = true
+__doc.T = ([===[
+The representation of a message, which is private to the %s module,
+is a table containing these fields:
+    { __headers       = list of headers, each a 'field' or 'obs-field' as 
+                        defined by RFC 2822, or __header_fields[1] may
+                        be a noncompliant string beginning with 'From ',
+      __header        = string containing the original header of the
+                        message plus possible separator (see Note Header below),
+      __body          = string containing the original body (possibly empty),
+                        or nil if the message was header-only,
+      __eol           = the sequence used to designate end of line:
+                        CRLF for a MIME-compliant system and for DOS files,
+                        LF alone for most Unix files,
+      __noncompliant  = non-nil if the message is not compliant to the RFC;
+                        field contains a string explaining the noncompliance,
+      __header_index  = a table giving index in list of every
+                        occurrence of each header, indexed by all
+                        lower case
+      [' From']       = nil or a string containing a Unix mbox 'From' line,
     }
 
 An example of the header_index table (abbreviated) might be
@@ -61,64 +61,117 @@ An example of the header_index table (abbreviated) might be
    ['subject'] = { 13 },
  }
 
-Some fields might be generated on demand by a metatable.
+Note Header: If the message has no body, the __header value is
+(fields / obs-fields) as defined by RFC 2822.   If the message has a body,
+the __header value is (fields / obs-fields) CRLF as defined by RFC2822.
+CRLF will be represented using the local EOL convention as defined by the
+__eol field of the message.
 
-It is intended that a client may mutate the message headers or body and
-then return a new message in string form.
-]]
+A message m satisfies these invariants:
 
-local demand_fields = { }
-demand_fields.lim = function(t, k)
-  return { header = string.sub(t.header_fields, 1, cfg.text_limit),
-           msg = string.sub(to_orig_string(t), 1, cfg.text_limit)
-         }
-end
+  * The original message is m.__header .. (m.__body or '')
 
-demand_fields.header_index = function(t, k)
-  local index = util.table_tab { }
-  local hs = t.headers
-  local start_idx = 1
-  -- handle envelope 'From ' header
-  if string.find(hs[1], '^From ') then
-    table.insert(index['from '], 1)
-    start_idx = 2
-  end
-  for i = start_idx, #hs do
-    -- io.stderr:write(string.format('Header is %q\n', hs[i]))
-    local h = string.match(hs[i], '^(%S-)%s*:')
-    if h then
-      table.insert(index[string.lower(h)], i)
-    else
-      if cfg.verbose then eprintf('Bad line in RFC 822 header: %q\n', hs[i]) end
-    end
-  end
-  return index
-end
+  * If m.__header_index[field_name] and m.__header_index[field_name][i],
+    then
+      m.__headers[m.__header_index[field_name][i]]:lower():sub(1, field_name:len()+1)
+        ==
+      field_name .. ':'
+
+A message contains a metatable such that indexing the message with a
+string value beginning with a non-underscore is a reference to the
+field *body* of the first header that case-matches with the value.
+
+       Examples: m.date    == "Tue, 06 May 2008 15:11:26 -0400"
+                 m.subject == "Article titled: The Witcher: A (Book) Review"
+
+In order to mutate a such a value or add a new header, such a
+reference can be assigned to.  Unrealistically simple example:
+                 m.references = m.references .. " <" .. sfid .. ">" 
+More realistic example:
+                 m['X-OSBF-Lua-Train'] = 'yes'
+
+It is intended that a client may mutate the message headers or body
+and then return a new message in string form.  Mutated headers are
+returned by the %s.to_string function.
+
+Functions in the %s and %s.mime modules may be used as message by
+putting an underscore before the name, e.g., m._to_string == %s.to_string.
+]===]):format(modname, modname, modname, _PACKAGE, modname)
 
 local msg_meta = {
   __index = function(t, k)
-              if demand_fields[k] then
-                local v = demand_fields[k](t, k)
-                t[k] = v
-                return v
+              if type(k) == 'string' then
+                if k:find '^_' then
+                  return _M[k:match('^_(.*)$')]
+                else
+                  return (headers_tagged(t, k)())
+                end
               end
             end,
+  __newindex = function(t, k, v)
+                 if type(k) ~= 'string' or k:find '^_' then
+                   error('Internal fault: stored extra field ' ..
+                         tostring(k) .. ' in message')
+                 else
+                   local indices = t.__header_index[k:lower()]
+                   if indices then
+                     local i = indices[1]
+                     if i then
+                       local prefix = t.__headers[i]:match '^.-:%S+'
+                       t.__headers[i] = prefix .. v
+                     end
+                   end
+                 end
+               end,
   __tostring = function(msg)
                  local s = to_orig_string(msg)
-                 local subject = header_tagged(msg, 'subject')
-                 local crc = core.b64encode(core.unsigned2string(core.crc32(s)))
-                 crc = crc:match('^(.-)=*$') -- strip trailing = signs
-                 local date = header_tagged(msg, 'date')
-                 date = date and rfc2822_to_localtime_or_nil(date) or os.time()
+                 local subject = msg.subject or '<no subject>'
+                 subject = subject:gsub('%s+', ' ')
+                 local fp = fingerprint(s)
+                 local date = msg.date
+                 date = date and mime.rfc2822_to_localtime_or_nil(date) or os.time()
                  date = os.date('(%b%y):', date)
-                 local str = table.concat({ _PACKAGE .. 'msg.T', crc, date, subject }, ' ')
+                 local str = table.concat({ _PACKAGE .. 'msg.T', fp, date, subject }, ' ')
                  return str:sub(1, 72)
                end,
 }
 
+local function is_T(v)
+  return type(v) == 'table' and getmetatable(v) == msg_meta
+end
+
 ---------------------------------------------------------------------
 ---- Conversions
 
+local function show(v)
+  local function escape(s)
+    return s:gsub('\n', [[\n]]):gsub('\r', [[\r]]):gsub('\t', [[\t]])
+  end
+  if type(v) == 'string' then
+    if v:len() < 20 then return escape(string.format('%q', v))
+    else return escape(string.format('%q... (%d chars)', v:sub(1, 20), v:len()))
+    end
+  elseif type(v) == 'table' then
+    return string.format('%s (#t == %d)', tostring(v), #v)
+  else
+    return tostring(v)
+  end
+end
+
+local function show_msg(what, m)
+  eprintf('%s is:\n', what)
+  for k, v in pairs(m) do
+    eprintf('  %-15s %s\n', tostring(k), show(v))
+  end
+  eprintf('  Header index:\n')
+  local keys = { }
+  for k in pairs(m.__header_index) do table.insert(keys, k) end
+  table.sort(keys)
+  for _, k in ipairs(keys) do
+    local v = m.__header_index[k]
+    eprintf('    %s = { %s }\n', k, table.concat(v, ', '))
+  end
+end
 __doc.of_string = [[function(s, uncertain) returns T
 Takes a message in RFC 822 format and returns our internal table-based
 representation of type T.  If the input string 's' is not actually an
@@ -131,160 +184,74 @@ parse spam, even when the spam violates the RFC.)
 Norman is less unhappy with the state of this function than he used to be.
 ]]
 
-function of_string(s, uncertain)
-  -- Detect header fields, body and eol
-  local header_fields, body, sep
-  local i, j, eol = string.find(s, '\r?\n(\r?\n)')
-  sep = '' -- assume not EOL between headers and body
-  if eol then
-    -- last header field is empty - OK and necessary if body is not empty
-    header_fields = string.sub(s, 1, j)
-    body = string.sub(s, j+1)
-    sep = eol
-  else
-    if uncertain and not string.find(s, '%:.*%:') then return nil end
-    eol = string.match(s, '(\r?\n)$')  -- only header fileds? only body?
-    if eol and string.find(s, '%a%:') then -- treat s as headers
-      header_fields = s .. '\n'  -- for uniform headers extraction
-      body = ''
-    else
-      -- if a valid EOL is not detected we add a warning Subject:
-      header_fields =
-        string.format('Subject: OSBF-Lua-Warning: No %s found in this message!\n\n',
-                      eol and 'headers' or 'EOL')
-      -- but if we can't find two colons, this just can't be a message
-      body = s
-      eol = '\n'
-      sep = eol
-    end
+local function header_index(tags)
+  local hi = setmetatable({ },
+              { __index = function(t, k) rawset(t, k, {}); return rawget(t, k) end })
+  for i = 1, #tags do
+    table.insert(hi[tags[i]:lower()], i)
   end
-
-  -- header fields extraction
-  local headers = {}
-  do
-    local lfc = ''
-    for h, nfc in string.gmatch(header_fields, '(.-)\r?\n([^ \t])') do
-      table.insert(headers, lfc .. h)
-      lfc = nfc
-    end
-  end
-  local msg = { headers = headers, header_fields = header_fields,
-                body = body, sep = sep, eol = eol }
-  setmetatable(msg, msg_meta)
-  return msg
+  return hi
 end
- 
----------- auxiliary converters
 
-__doc.of_openfile = [[
-function(f) returns T
-f is a file handle open for reading; it should contain an RFC 822
-message as described for 'msg.of_string'.]]
+local eols = { CRLF = '\r\n', LF = '\n', MIXED = '\n' }
 
-__doc.of_file = [[
-function(filename) returns T
-filename is the name of a file that contains an RFC 822 message as
-described for 'msg.of_string'.]]
-
-__doc.of_sfid = [[
-function(sfid) returns T, status
-Looks in the cache for the file designated by sfid, which is
-an original, unmodified message.  If found, returns the message
-and its cache status; if not found, returns nil, 'missing'.
-XXX seems nearly redundant with cache.recover
+function of_string(s, uncertain)
+  local parsed = fastmime.parse(s)
+--[[  eprintf('Output from parser is:\n')
+  for k, v in pairs(parsed) do
+    eprintf('  %-15s %s\n', tostring(k), show(v))
+  end
 ]]
 
-local function of_openfile(f)
-  local ok, msg = pcall(of_string, util.validate(f:read '*a'))
-  f:close()
-  if ok then
-    return msg
-  else
-    error(msg)
+  if uncertain and parsed.noncompliant and not string.find(s, '%:.*%:') then
+    return nil
   end
-end
-
-function of_file(filename)
-  return of_openfile(assert(io.open(filename, 'r')))
-end
-
-function of_sfid(sfid)
-  local openfile, status = cache.file_and_status(sfid)
-  if openfile then
-    return of_openfile(openfile), status
-  else
-    assert(status == 'missing')
-    return nil, status
+  
+  local headers = parsed.headers
+  local eol = assert(eols[parsed.eol])
+  local hi = header_index(parsed.tags)
+  local msg = { __headers = headers, __header = parsed.headerstring,
+                __noncompliant = parsed.noncompliant,
+                __body = parsed.body, __eol = eol, __header_index = hi,
+              }
+  setmetatable(msg, msg_meta)
+  if debug and parsed.noncompliant then
+    show_msg(string.format('Noncompliant message (%s):', parsed.noncompliant), msg)
   end
-end
-
----------- guess which converter
-
-__doc.of_any = [[function(v) returns T
-Takes v and tries to return a table of type T.
-Possibilities in order:
-  v is already a table
-  v is a sfid
-  v is a readable file
-  v is a string containing a message
-Generally to be used from the command line, not from
-functions that know what they're doing.]]
-
-
-function of_any(v)
-  if type(v) == 'table' then
-    return v
-  elseif cache.is_sfid(v) then
-    local m = of_sfid(v)
-    if not m then error('sfid ' .. v .. ' is missing from the cache') end
-    return m
-  else
-    assert(type(v) == 'string')
-    local f = io.open(v, 'r')
-    if f then
-      return of_openfile(f)
-    else
-      local msg = of_string(v, true)
-      if not msg then
-        util.errorf("'%s' is not a sfid, a readable file, or an RFC 822 message", v)
-      end
-      return msg
-    end
-  end
+  return msg
 end
 
 -------
-__doc.to_string = [[function(v) returns string
-Takes a 'v' in any form acceptable to of_any
-and returns a string containing the message.
-Most commonly used to convert a T to a string,
-e.g., for output.]]
+__doc.to_string = [[function(T) returns string
+Converts a message to a string in RFC 2822 format.]]
 
-__doc.to_orig_string = [[function(v) returns string
-Takes a 'v' in any form acceptable to of_any
-and returns a string containing the original message.
-Differs from to_string only when applied to a table
-whose headers or body have been modified.]]
+__doc.to_orig_string = [[function(T) returns string
+Returns the string originally used to create the message,
+which may or may comply with RFC 2822.]]
 
 function to_string(v)
-  v = of_any(v)
-  return table.concat{table.concat(v.headers, v.eol), v.eol, v.sep, v.body}
+  assert(is_T(v))
+  if v.__body then
+    return table.concat{table.concat(v.__headers, v.__eol), v.__eol, v.__body}
+  else
+    return table.concat(v.__headers, v.__eol)
+  end
 end
 
 function to_orig_string(v)
-  v = of_any(v)
-  return v.header_fields .. v.body
+  assert(is_T(v))
+  if v.__body then
+    return table.concat {v.__header, v.__body}
+  else
+    return v.__header
+  end
 end
 
 ----------------------------------------------------------------
 
 __doc.headers_tagged = [[function(msg, tag, ...) returns iterator
 Iterator successively yields the (untagged) value of each header
-tagged with any of the tags passed in.]]
-
-__doc.header_tagged = [[function(msg, tag, ...) returns string or nil
-Returns the value of the first header tagged with any of the
-tags passed in, if any such header exists.]]
+tagged with any of the tags passed in.  Values are *not* 'unfolded'.]]
 
 __doc.header_indices = [[function(msg, tag, ...) returns iterator
 Iterator successively yields *index* of each header tagged with any of
@@ -294,11 +261,10 @@ the tags passed in.]]
 --- return indices of headers with each tag in turn
 local yield = coroutine.yield
 function header_indices(msg, ...)
-  msg = of_any(msg)
   local tags = { ... }
   return coroutine.wrap(function()
                           for _, tag in ipairs(tags) do
-                            local t = msg.header_index[string.lower(tag)]
+                            local t = msg.__header_index[string.lower(tag)]
                             for i = 1, #t do
                               yield(t[i])
                             end
@@ -306,11 +272,11 @@ function header_indices(msg, ...)
                         end)
 end
 
-
 --- pass in list of tags and return iterator that will pass through 
 --- every header with any of the tags
 function headers_tagged(msg, ...)
-  local hs = msg.headers
+  assert(is_T(msg))
+  local hs = msg.__headers
   local f = header_indices(msg, ...)
   return function()
            local hi = f()
@@ -320,9 +286,6 @@ function headers_tagged(msg, ...)
          end
 end
 
-function header_tagged(msg, ...)
-  return (headers_tagged(msg, ...)())
-end
 
 ----------------------------------------------------------------
 
@@ -340,17 +303,9 @@ function add_header(msg, tag, contents)
   assert(is_rfc2822_field_name(tag), 'Not a valid RFC2822 field name')
   assert(type(contents) == 'string' or type(contents) == 'number',
          'Header contents must be string or number')
-  msg = of_any(msg)
-  table.insert(msg.headers, tag .. ': ' .. contents)
-  msg.lim = nil
-  msg.header_index = nil
-end
-
-__doc.add_osbf_header = [[function(T, tag, contents)
-Adds a new OSBF-Lua header to the message with the given suffix and contents.
-]]
-function add_osbf_header(msg, suffix, contents)
-  return add_header(msg, cfg.header_prefix .. '-' .. suffix, contents)
+  assert(is_T(msg), 'Tried to add a header to a non-message')
+  table.insert(msg.__headers, tag .. ': ' .. contents)
+  table.insert(msg.__header_index[tag:lower()], #msg.__headers)
 end
 
 __doc.del_header = [[function(T, tag, ...)
@@ -358,437 +313,27 @@ Deletes all headers with any of the tags passed in.
 ]]
 
 function del_header(msg, ...)
-  msg = of_any(msg)
+  assert(is_T(msg))
   tags = { ... }
   for _, tag in ipairs(tags) do
     if is_rfc2822_field_name(tag) then
       local indices = {}
       -- collect header indices
-      for i in header_indices(msg, string.lower(tag)) do
+      for i in header_indices(msg, tag:lower()) do
         table.insert(indices, i)
       end
       -- remove from last to first
       for i=#indices, 1, -1 do
-        table.remove(msg.headers, indices[i])
+        table.remove(msg.__headers, indices[i])
       end
+      msg.__header_index[tag:lower()] = nil
     else
       log.logf('del_header tried to delete header with invalid tag name %s',
                tostring(tag))
     end
   end
-  msg.lim = nil
-  msg.header_index = nil
 end 
 
-__doc.tag_subject = [[function(msg, tag)
-Prepends tag to all subject lines in msg headers.
-If msg has no subject, adds one.
-]]
-
-function tag_subject(msg, tag)
-  msg = of_any(msg)
-  assert(type(tag) == 'string', 'Subject tag must be string')
-  local saw_subject = false
-  -- tag all subject lines
-  for i in header_indices(msg, 'subject') do
-    if string.len(tag) > 0 then
-      local function add_tag(hdr) return hdr .. ' ' .. tag end
-         -- avoid trouble if tag contains, e.g., %0
-      msg.headers[i] = string.gsub(msg.headers[i], '^.-:', add_tag, 1)
-    end
-    saw_subject = true
-  end
-  -- if msg has no subject, add one
-  if not saw_subject then
-    add_header(msg, 'Subject', tag .. ' (no subject)')
-  end
-end
-
-__doc.insert_sfid = [[function(T, sfid, string list)
-Inserts the sfid into the headers named in the third argument.
-The only acceptable headers are References: and Message-ID:.
-Case is not significant.
-]]
-
-do
-  local valid_tag = { references = true, ['message-id'] = true }
-  local function valid_header_set(l)
-    assert(type(l) == 'table', 'Expecting a table with valid header names')
-    local t = { }
-    for _, h in ipairs(l) do
-      h = string.lower(h)
-      if valid_tag[h] then
-        t[h] = true
-      else
-        util.die([[I don't know how to insert a sfid into a ']] .. h [[' header.]])
-      end
-    end
-    return t
-  end
-
-  local function remove_old_sfids(msg)
-    local sfid_pat = '%s-[<%(]sfid%-.%d%+%-%d+%-%S-@' .. cfg.rightid .. '[>%)]'
-    for i in header_indices(msg, 'references', 'in-reply-to') do
-      msg.headers[i] = string.gsub(msg.headers[i], sfid_pat, '')
-    end
-  end
-
-  function insert_sfid(msg, sfid, where)
-    msg = of_any(msg)
-    assert(cache.is_sfid(sfid), 'bad argument #2 to insert_sfid: sfid expected')
-
-    -- add sfid to a header with tag, or if there's no such header, add one
-    local function modify(tag, l, r, add_angles)
-      -- l and r bracket the sfid
-      -- comment indicates sfid should also be added in angle brackets
-      for i in header_indices(msg, tag) do
-        msg.headers[i] = table.concat {msg.headers[i], msg.eol, '\t' , l, sfid, r}
-        return
-      end
-      -- no header found; create one and add the sfid
-      local h = {tag, ': ', l, sfid, r}
-      if add_angles then --- executed only if no Message-ID, so can be expensive
-        table.insert(h, 3, ' <'..sfid..'>')
-      end
-      table.insert(msg.headers, table.concat(h))
-    end
-
-    -- now remove the old sfids and insert the new one where called for
-    remove_old_sfids(msg)
-    local insert = valid_header_set(where or {'references'})
-    if insert['references'] then modify('References', '<', '>')       end
-    if insert['message-id'] then modify('Message-ID', '(', ')', true) end
-  end
-end
-
-__doc.sfid = [[function(msgspec) returns string or calls error
-Finds the sfid associated with the specified message.]]
-
-function sfid(msgspec)
-  if cache.is_sfid(msgspec) then
-    return msgspec
-  else
-    return extract_sfid(of_any(msgspec), msgspec)
-  end
-end
-
-__doc.extract_sfid = [[function(msg[, spec]) returns string or calls error
-Extracts the sfid from the headers of the specified message.]]
-
-local ref_pat, com_pat -- depend on cfg and cache; don't set until needed
-
-local sfid_header
-cfg.after_loading_do(
-  function() sfid_header = cfg.header_prefix .. '-' .. cfg.header_suffixes.sfid end)
-
-function extract_sfid(msg, spec)
-  -- if the sfid was not given in the command, extract it
-  -- from the appropriate header or from the references or in-reply-to field
-
-  local sfid = header_tagged(msg, sfid_header)
-  if sfid then return sfid end
-
-  ref_pat = ref_pat or '.*<(' .. cache.loose_sfid_pat .. ')>'
-  com_pat = com_pat or '.*%((' .. cache.loose_sfid_pat .. ')%)'
-  
-
-  for refs in headers_tagged(msg, 'references') do
-    -- match the last sfid in the field (hence the initial .*)
-    local sfid = refs:match(ref_pat)
-    if sfid then return sfid end
-  end
-
-  -- if not found as a reference, try as a comment in In-Reply-To or in References
-  for field in headers_tagged(msg, 'in-reply-to', 'references') do
-    local sfid = field:match(com_pat)
-    if sfid then return sfid end
-  end
-  
-  error('Could not extract sfid from message ' .. (spec or tostring(msg)))
-end
-
-__doc.has_sfid = [[function(T) returns bool
-Tells whether the given message contains a sfid in one
-of the relevant headers.
-]]
-
-function has_sfid(msg)
-  return (pcall(extract_sfid, msg)) -- just the one result
-end
-
-
--- Used to check and parse subject-line commands
-local subject_cmd_pattern = {
-  classify = '^(%S+)',
-  learn = '^(%S+)%s*(%S*)',
-  unlearn = '^(%S+)%s*(%S*)',
-  whitelist = '^(%S+)%s*(%S*)%s*(.*)',
-  blacklist = '^(%S+)%s*(%S*)%s*(.*)',
-  recover = '^(%S+)',
-  resend = '^(%S+)',
-  remove = '^(%S+)',
-  help = '^%$',
-  stats = '^$',
-  ['cache-report'] = '^$',
-  train_form = '^$',
-  batch_train = '^$',
-  help = '^$',
-}
-
-__doc.parse_subject_command = [[function(msg) searches first Subject: line
-in msg for a filter command.
-Returns a table with command and args or calls error
-]]
-
-function parse_subject_command(msg)
-  msg = of_any(msg)
-  local h = header_tagged(msg, 'subject')
-  if h then
-    local cmd, pwd, args = string.match(h, '^(%S+)%s+(%S+)%s*(.*)')
-    local cmd_pat = subject_cmd_pattern[cmd]
-    if cmd_pat and pwd == cfg.pwd and cfg.password_ok(pwd) then
-      local cmd_table = { cmd }
-      for _, v in ipairs{string.match(args, cmd_pat)} do
-        if v and v ~= '' then
-          table.insert(cmd_table, v)
-        end
-      end
-      return cmd_table
-    end
-  end
-  error('No commands found on the first Subject: line')
-end
-
-__doc.rfc2822_to_localtime_or_nil = [[function(date) returns number or nil
-Converts RFC2822 date to local time (Unix time).
-]]
-
-local tmonth = {jan=1, feb=2, mar=3, apr=4, may=5, jun=6,
-                jul=7, aug=8, sep=9, oct=10, nov=11, dec=12}
-
-function rfc2822_to_localtime_or_nil(date)
-  -- remove comments (CFWS)
-  date = string.gsub(date, "%b()", "")
-
-  -- Ex: Tue, 21 Nov 2006 14:26:58 -0200
-  local day, month, year, hh, mm, ss, zz =
-    string.match(date,
-     "%a%a%a,%s+(%d+)%s+(%a%a%a)%s+(%d%d+)%s+(%d%d):(%d%d)(%S*)%s+(%S+)")
-
-  if not (day and month and year) then
-    day, month, year, hh, mm, ss, zz =
-    string.match(date,
-     "(%d+)%s+(%a%a%a)%s+(%d%d+)%s+(%d%d):(%d%d)(%S*)%s+(%S+)")
-    if not (day and month and year) then
-      return nil
-    end
-  end
-
-  local month_number = tmonth[string.lower(month)]
-  if not month_number then
-    return nil
-  end
-
-  year = tonumber(year)
-
-  if year >= 0 and year < 50 then
-    year = year + 2000
-  elseif year >= 50 and year <= 99 then
-    year = year + 1900
-  end
-
-  if not ss or ss == "" then
-    ss = 0
-  else
-    ss = string.match(ss, "^:(%d%d)$")
-  end
-
-  if not ss then
-    return nil
-  end
-
-
-  local zonetable = { GMT = 0, UT = 0,
-                      EDT = -4,
-                      EST = -5, CDT = -5,
-                      CST = -6, MDT = -6,
-                      MST = -7, PDT = -7,
-                      PST = -8,
-                    } -- todo: military zones
-                      
-
-  local tz = nil
-  local s, zzh, zzm = string.match(zz, "([-+])(%d%d)(%d%d)")
-  if s and zzh and zzm then
-    tz = zzh * 3600 + zzm * 60
-    if s == "-" then tz = -tz end
-  elseif zonetable[zz] then
-    tz = zonetable[zz] * 3600
-  else
-    return nil -- OBS: RFC 2822 says in this case tz = 0, but we prefer not
-               -- to convert and return nil to signal that date should be
-               -- shown in the original format.
-  end
-
-  -- get the Unix time of the date of the message
-  -- sec might be out of range after subtracting tz but mktime,
-  -- called by os.time, normalizes the values if needed.
-  local ts = os.time{year=year, month=month_number,
-                      day=day, hour=hh, min=mm, sec=ss-tz}
-
-  if not ts then
-    util.errorf('Failed to convert [[%s]] to local time', date)
-  end
-
-  -- os.time considers the broken-down time as local time, but
-  -- RFC2822 date becomes UTC after the zone is subtracted, so
-  -- an adjustment is necessary to the ts calculated above.
-  local lts = ts + util.localtime_minus_UTC(ts)
-  
-  -- we need the difference of localtime and UTC at the date of the
-  -- message, which may not be the same as the current timezone.
-  return ts + util.localtime_minus_UTC(lts)
-end
-
-__doc.valid_boundary = [[function(boundary) Returns boundary if boundary
-is a valid RFC2046 MIME boundary or false otherwise.
-]]
-
--- RFC2046
-local bcharnospace = "[%d%a'()+_,-./:=?]"
-local bcharspace = "[ %d%a'()+_,-./:=?]"
-local bpattern = '^' .. bcharspace .. '*' .. bcharnospace .. '$'
-function valid_boundary(boundary)
-  return
-    type(boundary) == 'string'
-      and
-    string.len(boundary) <= 70 and string.match(boundary, bpattern)
-      and
-    boundary
-      or
-    false
-end
-
-__doc.attach_message = [[function(sfid, boundary)
-Recovers message associated with sfid from cache and returns it wrapped
-in MIME boundaries. boundary is optional string. If ommited, it is
-derived from sfid.
-If sfid is not found in cache, an error message is returned wrapped
-in MIME boundaries.
-]]
-
-function attach_message(sfid, boundary)
-  boundary = assert(boundary == nil or valid_boundary(boundary),
-   'Invalid boundary to attach_message')
-  if boundary == true then
-    boundary =
-      cache.is_sfid(sfid)
-        and
-      string.gsub(sfid, "@.*", "=-=-=", 1)
-        or
-      'error-boundary=_=_='
-  end
-    
-  local ok, msg_content = pcall (cache.recover, sfid)
-  if ok then
-    local m = of_string(msg_content)
-    -- protect and keep the original envelope-from line
-    local xooef =
-      string.find(msg_content, '^From ')
-        and 'X-OSBF-Original-Envelope-From: '
-      or ''
-
-    msg_content = table.concat({'--' .. boundary,
-       'Content-Type: message/rfc822;',
-       ' name="Recovered Message"',
-       'Content-Transfer-Encoding: 8bit',
-       'Content-Disposition: inline;',
-       ' filename="Recovered Message"', '',
-       xooef .. msg_content,
-       '--' .. boundary .. '--', ''}, m.eol)
-  else
-    msg_content = table.concat({'--' .. boundary,
-       'Content-Type: text/plain;',
-       ' name="Error message"',
-       'Content-Transfer-Encoding: 8bit',
-       'Content-Disposition: inline;', '',
-       msg_content,
-       '--' .. boundary .. '--', ''}, '\r\n')
-  end
-
-  return msg_content
-end
-
-__doc.send_message = [[function(message) Sends string message using
-a tmp file and the OS mail command configured in cfg.mail_cmd.
-Returns or calls error
-]]
-
--- os.popen may not be available
-function send_message(message)
-  local tmpfile = os.tmpname()
-  local tmp, err = io.open(tmpfile, "w")
-  if tmp then
-    tmp:write(message)
-    tmp:close()
-    os.execute(string.format(cfg.mail_cmd, tmpfile))
-    os.remove(tmpfile)
-  else
-    log.lua('error', log.dt { command = 'msg.send_message',
-                              tmpfile = tmpfile, err = err, message = message })
-    error('Could not open ' .. tmpfile .. ' to send message: ' .. err)
-  end
-end
-
-__doc.send_cmd_message = [[function(subject_command, eol) Sends a command
-message with From: and To: set to cfg.command_address.
-subject_command - command to be inserted in the subject line
-eol             - end-of-line to be used in the message.
-Returns or calls error.
-]]
-
-function send_cmd_message(subject_command, eol)
-  assert(type(subject_command) == 'string')
-  assert(type(eol) == 'string')
-  if type(cfg.command_address) == 'string' and cfg.command_address ~= '' then 
-    local message = table.concat({
-      'From: ' .. cfg.command_address,
-      'To: ' .. cfg.command_address,
-      'Subject: ' .. subject_command, eol}, eol)
-    return send_message(message)
-  else
-    error('Invalid or empty cfg.command_address')
-  end
-end
-
-__doc.set_output_to_message = [[function(m, subject) Builds a message
-header reusing some headers of m and making subject equal to arg subject.
-It also adds MIME headers to prepare for a multipart/mixed body.
-This permits that folowing outputs of util.write may be done in a proper
-way to be interpreted as the body of a message.
-The header and boundary generated are comunicated to
-util.set_output_to_message so util.write uses the same boundary for
-next parts.
-]]
-
-function set_output_to_message(m, subject)
-  m = of_any(m)
-  assert(type(subject) == 'string')
-  local boundary = util.generate_hex_string(40) .. "=-=-="
-  -- reuse some headers
-  local headers = {}
-  for i in header_indices(m, 'from ', 'date', 'from', 'to') do
-    if i then
-      table.insert(headers, m.headers[i])
-    end
-  end
-  for _, h in ipairs{'Subject: ' .. subject, 'MIME-Version: 1.0',
-               'Content-Type: multipart/mixed;',
-               ' boundary="' .. boundary .. '"', m.eol} do 
-    table.insert(headers, h)
-  end
-  util.set_output_to_message(boundary, table.concat(headers, m.eol), m.eol)
-end
 
 ----------------------------------------------------------------
 do 
@@ -801,36 +346,32 @@ do
   __doc.synopsis = __doc.synopsis:gsub('%$w', default_synopsis_width)
 
   local function choose_body_part(m)
-    local ct = header_tagged(m, 'content-type')
+    local ct = m['content-type']
     if not ct or not string.find(ct, 'multipart/') then
-      return m.body
+      return m.__body
     end
   --  io.stderr:write('content-type is ', ct, '\n')
     local boundary = string.match(ct, 'boundary="(.-)"')
                   or string.match(ct, 'boundary=(%S+)')
-                if not boundary then return m.body end
+                if not boundary then return m.__body end
     local bpat = '[\n\r]%-%-' .. string.gsub(boundary, '%W', '%%%1') .. '.-[\n\r]'
-    local _, next = string.find(m.body, bpat)
+    local _, next = string.find(m.__body, bpat)
   --  io.stderr:write('first boundary at ', tostring(next), '\n')
-    if not next then return m.body end
+    if not next then return m.__body end
     local parts = { }
-    repeat
-      local first, last = next+1
-      last, next = string.find(m.body, bpat, first)
-      if last then
-        table.insert(parts, (string.gsub(string.sub(m.body, first, last-1), '^%s+', '')))
-      end
-    until not last
+    for part, boundary in util.string_splits(m.__body, bpat) do
+      table.insert(parts, part:gsub('^%s+', ''))
+    end
     local msgs = { }
     for _, p in ipairs(parts) do
       msgs[#msgs+1] = of_string(p, true)
     end
   --  io.stderr:write(#parts, ' parts, of which ', #msgs, ' parse as messages\n')
     local good 
-    if #msgs == 0 then return parts[1] or m.body end
-  --  for _, m in ipairs(msgs) do io.stderr:write(header_tagged(m, 'content-type') or '??', '\n') end
+    if #msgs == 0 then return parts[1] or m.__body end
+--  for _, m in ipairs(msgs) do io.stderr:write(m['content-type']) or '??', '\n') end
     for _, m in ipairs(msgs) do
-      local ty = header_tagged(m, 'content-type')
+      local ty = m['content-type']
       if ty then
         if string.find(ty, 'text/plain') then
           good = m; break
@@ -839,19 +380,16 @@ do
         end
       end
     end
-    if good then return 'M: ' .. good.body else return m.body end
+    if good then return 'M: ' .. good.__body else return m.__body end
   end
         
 
   function synopsis(m, w)
     w = w or default_synopsis_width
     local function despace(s)
-      s = string.gsub(s, '^%s+', '')
-      s = string.gsub(s, '%s+', ' ')
-      s = string.gsub(s, ' $', '')
-      return s
+      return (s:gsub('^%s+', ''):gsub('%s+', ' '):gsub(' $', ''))
     end
-    local s = despace(header_tagged(m, 'subject') or '')
+    local s = despace(m.subject or '')
     s = s .. '>>'
     if string.len(s) < w then
       local body = despace(choose_body_part(m))
@@ -862,3 +400,37 @@ do
   end
 end
 
+--[==[
+__doc.fingerprint = [[function(string) returns string
+Returns a short, printable string which one hopes is a unique
+function of the argument.
+]]
+]==]
+
+local function badfingerprint(s)
+  local sums = setmetatable({ }, { __index = function() return 0 end })
+  for i = 1, s:len() do
+    local j = i % 8 + 1
+    sums[j] = sums[j] + s:byte(i) + i
+  end
+  for i = 1, #sums do
+    sums[i] = string.byte('a' + sums[i] % 26)
+  end
+  return string.char(unpack(sums))
+end
+
+-- this is overwritten by a better version in the util module
+
+
+-------------------------
+
+
+__doc.fingerprint = [[function(string) returns string
+Uses CRC-32 and base64 encoding to returns a short, printable string
+which one hopes is a unique function of the argument.
+]]
+
+function fingerprint(s)
+  return core.b64encode(core.unsigned2string(core.crc32(s))):match('^(.-)=*$')
+          -- trailing = signs are always redundant
+end

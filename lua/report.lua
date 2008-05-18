@@ -20,6 +20,7 @@ local cfg   = require(_PACKAGE .. 'cfg')
 local msg   = require(_PACKAGE .. 'msg')
 local core  = require(_PACKAGE .. 'core')
 local cache = require(_PACKAGE .. 'cache')
+local mime  = require(_PACKAGE .. 'mime')
 
 
 local html = util.html
@@ -369,15 +370,10 @@ function html_sfid_rows(sfids, ready) -- declared local above
   end
   rows = { html_first_row() }
   for _, sfid in ipairs(sfids) do
-    local m, status = msg.of_sfid(sfid)
+    local m = msg.of_string(cache.recover(sfid))
     local sfid_table = cache.table_of_sfid(sfid)
     util.validate(m, 'Sudden disappearance of sfid from the cache')
-    local function header(tag)
-      return msg.header_tagged(m, tag) or string.format('(no %s)', tag)
-    end
-    local function hex_to_char(h)
-      return string.format('%c', string.gsub(h, '=', '0x'))
-    end
+    local function header(tag) return m[tag] or string.format('(no %s)', tag) end
     local function htmlify(s, n)
       -- strip RFC2822 quotation from s and make sure it contains no word
       -- longer than n characters (by inserting spaces if necessary), then
@@ -399,7 +395,7 @@ function html_sfid_rows(sfids, ready) -- declared local above
 
     local tag       = assert(sfid_table.tag)
     local fgcolor   = ready and assert(tag_color(tag)) or colors.default
-    local lts       = msg.rfc2822_to_localtime_or_nil(date) 
+    local lts       = mime.rfc2822_to_localtime_or_nil(date) 
     local date      = lts and os.date("%Y/%m/%d %H:%M", lts) or date
     local datecolor = lts and fgcolor or colors.invalid
 
@@ -594,7 +590,7 @@ end
 
 __doc.write_training_message = [[function(email, temail, [locale]) 
 Writes an RFC822-compliant email message to stadndard output using
-util.write.
+output.write.
 The message contains a training form and is sent to 'email'.  
 When the training form is filled out and posted, the results
 are sent to 'temail', which may be omitted and defaults to 'email'.
@@ -602,5 +598,6 @@ The optional 'locale' determines the language used in the form.
 ]]
 
 function write_training_message(...)
-  util.write(generate_training_message(...))
+  output.write(generate_training_message(...))
+  --- WHY IS THIS NOT output.write_message()???
 end

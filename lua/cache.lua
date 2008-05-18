@@ -11,6 +11,7 @@ module(...)
 local cfg  = require(_PACKAGE .. 'cfg')
 local core = require(_PACKAGE .. 'core')
 local util = require(_PACKAGE .. 'util')
+local msg  = require(_PACKAGE .. 'msg')
 local slash = cfg.slash
 
 ----------------------------------------------------------------
@@ -141,7 +142,7 @@ do
   __doc.loose_sfid_pat = [[
 A string that will match something starting with sfid- and ending in
 cfg.rightid, possibly followed by a learning tag.  Replaces
-previously hard-wired patterns in msg.extract_sfid, so that it will
+previously hard-wired patterns in sfid.extract_sfid, so that it will
 extract only a sfid with the proper rightid.
 ]]
 
@@ -369,21 +370,21 @@ function remove(sfid)
   end
 end
  
-__doc.recover = [[function(sfid) returns string or calls error
-If the message is still in the cache, return the contents as a string.
+__doc.recover = [[function(sfid) returns contents, status or calls error
+If the message is still in the cache, return the contents and status as strings.
 Otherwise calls error().]]
 
 function recover(sfid)
   -- returns a string containing the message associated with sfid
-  -- or nil, err, if sfid is not in cache
-  local f, err = file_and_status(sfid)
+  -- plus a string indicating the message's status in the cache
+  local f, status = file_and_status(sfid)
   if f then
-    local msg = f:read('*a')
+    local msg = f:read '*a'
     f:close()
     if msg == nil then
       error('SFID ' .. sfid .. ' is an empty file in the cache')
     else
-      return msg
+      return msg, status
     end
   else
     if is_sfid(sfid) then
@@ -547,4 +548,38 @@ function expiry_candidates(seconds)
   return delenda
 end
 
-  
+---------- guess which converter
+
+__doc.msg_of_any = [[function(v) returns T
+Takes v and tries to return a table of type T.
+Possibilities in order:
+  v is already a table
+  v is a sfid
+  v is a readable file
+  v is a string containing a message
+Generally to be used from the command line, not from
+functions that know what they're doing.]]
+
+
+function msg_of_any(v)
+  if type(v) == 'table' then
+    return v
+  elseif is_sfid(v) then
+    return msg.of_string(recover(v))
+  else
+    assert(type(v) == 'string')
+    local f = io.open(v, 'r')
+    if f then
+      local contents = f:read '*a'
+      f:close()
+      return msg.of_string(contents)
+    else
+      local m = msg.of_string(v, true)
+      if not m then
+        util.errorf("'%s' is not a sfid, a readable file, or an RFC 822 message", v)
+      end
+      return m
+    end
+  end
+end
+

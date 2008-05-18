@@ -172,7 +172,7 @@ function cfg.init(email, totalsize, lang)
   walk(cfg.multitree)
   local config = cfg.configfile
   if util.file_is_readable(config) then
-    util.write_error('Warning: not overwriting existing ', config, '\n')
+    output.error:write('Warning: not overwriting existing ', config, '\n')
   else
     local default = util.submodule_path 'default_cfg'
     local f = util.validate(io.open(default, 'r'))

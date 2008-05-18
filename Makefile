@@ -1,6 +1,6 @@
 MODNAME=osbf3
 
-include ./config
+include ./pgconfig
 
 DIST_DIR= osbf-$LIB_VERSION
 TAR_FILE= $(DIST_DIR).tar.gz
@@ -14,10 +14,10 @@ MAILFILE = $(shell ./mailfile)
 HFILES= oarray.h osbf_disk.h osbfcvt.h osbferr.h osbflib.h
 SRCS= losbflib.c osbferrl.c oarray.c \
       osbf_bayes.c osbf_aux.c osbf_disk.c osbf_csv.c osbf_stats.c \
-      osbf_fmt_5.c osbf_fmt_6.c osbf_fmt_7.c 
+      osbf_fmt_5.c osbf_fmt_6.c osbf_fmt_7.c fastmime.c
 OBJS= losbflib.o osbferrl.o oarray.o \
       osbf_bayes.o osbf_aux.o osbf_disk.o osbf_csv.o osbf_stats.o \
-      osbf_fmt_5.o osbf_fmt_6.o osbf_fmt_7.o
+      osbf_fmt_5.o osbf_fmt_6.o osbf_fmt_7.o fastmime.o
 XOBJS= osbferrs.o
 
 CFLAGS += -DOPENFUN=luaopen_$(MODNAME)_core
@@ -62,10 +62,10 @@ uninstall:
 	rm -rf $(BINDIR)/$(BINNAME)
 
 test: install
-	$(LUABIN) -l$(MODNAME) ./print-contents $(MODNAME)
+	$(LUABIN) -l$(MODNAME) -l$(MODNAME).command_line ./print-contents $(MODNAME)
 	$(LUABIN) -l$(MODNAME) -l$(MODNAME).roc < /dev/null
 	$(LUABIN) ./test-headers $(MODNAME) $(MAILFILE)
-	$(LUABIN) -l$(MODNAME) -e "m = $(MODNAME).msg.of_file '$(MAILFILE)'; print(m)" -i
+	$(LUABIN) -l$(MODNAME) -e "m = $(MODNAME).cache.msg_of_any '$(MAILFILE)'; print(m)" -i
 
 clean:
 	rm -f $(LIBNAME) $(OBJS) *.so *~

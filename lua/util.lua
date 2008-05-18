@@ -9,9 +9,13 @@ local pcall
 local io, string, table, os, package, select, tostring, math, coroutine =
       io, string, table, os, package, select, tostring, math, coroutine
 
+local modname = ...
 module(...)
 
-local core = require(_PACKAGE .. 'core')
+local core   = require(_PACKAGE .. 'core')
+local output = require(_PACKAGE .. 'output')
+
+local debug = os.getenv 'OSBF_MEMO'
 
 __doc = { }
 
@@ -133,6 +137,43 @@ function file_is_readable(file)
     return false
   end
 end
+----------------------------------------------------------------
+__doc.memoize = [[function(f) returns f
+returns a memoized version of function f.
+f must always take exactly one non-nil argument
+and may return at most one result.]]
+
+local function pop(t)
+  local n = 0
+  for _ in pairs(t) do n = n + 1 end
+  return n
+end
+
+function memoize (f)
+  local n = 0
+  local function index(t, k)
+    -- metamethod called when k is not in the cache; f(k) is passed to update()
+    local function update(v, ...)
+      assert(select('#', ...) == 0)
+      t[k] = v
+      return v
+    end
+    if debug then
+      n = n + 1
+      if n == 100 then
+        io.stderr:write('Memoization table has ', pop(t), ' entries\n')
+        n = 1
+      end
+    end
+    return update(f(k))
+  end
+  local cache = setmetatable({ }, { __mode = 'k', __index = index })
+  return function (x, ...)
+           assert(select('#', ...) == 0)
+           return cache[x]
+         end
+end
+
 ----------------------------------------------------------------
 __doc.protected_dofile = [[function(filename) returns non-nil or nil, error
 Attempts 'dofile(filename)', but if filename can't be loaded
@@ -296,13 +337,7 @@ function sum(l)
   return sum
 end
 ----------------------------------------------------------------
-__doc.die = [[function(...) If output is not set to message, kills process
-Writes all arguments to io.stderr, then newline, then calls os.exit with
-nonzero exit status.
-If output is set to message, uses util.write_error to write all arguments,
-doesn't kill proccess and returns normally so that procmail, or similar,
-doesn't ignore filter result messages.
-]]
+__doc.die = [[function(...) Writes(..., '\n') to output.error and calls output.exit.]]
 
 --- Die with a fatal error message
 function die(...)
@@ -311,17 +346,9 @@ function die(...)
   if ok then
     pcall(log.lua, 'die', log.dt { err = table.concat { ... } })
   end
-  if is_output_set_to_message() then
-    writeln_error(...)
-    exit(0)
-  else
-    if progname then
-      io.stderr:write(string.gsub(progname, [=[^.*[\/]]=], ''), ': ')
-    end
-    io.stderr:write(...)
-    io.stderr:write('\n')
-    os.exit(2)
-  end
+  local pfx = progname and progname:gsub([=[^.*[\/]]=], '') .. ': ' or ''
+  output.error:writeln(pfx, ...)
+  output.exit()
 end
 
 __doc.progname = [[String containing the name of the current program.
@@ -525,6 +552,26 @@ split_qp_at = function(l, width)
 end
 
 ----------------------------------------------------------------
+__doc.string_splits = ([[function(s, pat) returns iterator
+Splits string 's' into pieces separated by strings matching 'pat'.
+Iterates over the pieces and the separators (or captures if
+'pat' contains captures).  Usage:
+
+  for between, cap1, ... in %s.string_splits(s, pat) do
+    ...
+  end
+
+]]):format(modname)
+
+function string_splits(self, pat)
+  local st, g = 1, self:gmatch("()("..pat..")")
+  local function getter(seg_start, seps, sep, cap1, ...)
+    st = sep and seps + #sep
+    return self:sub(seg_start, (seps or 0) - 1), cap1 or sep, ...
+  end
+  return function() if st then return getter(st, g()) end end
+end
+----------------------------------------------------------------
 --- html support
 __doc.html = [[html support functions.]]
 
@@ -645,40 +692,6 @@ end
 
 ----------------------------------------------------------------
 
-__doc.generate_hex_string = [[function(len) returns a string of random hex
-chars, with size len. The string is generated from random bytes read from
-/dev/urandom. If /dev/urandom is not readable, random bytes are produced
-with math.random, after seeding math.randomseed with current time.]] 
-
-function generate_hex_string(len)
-  assert (type(len) == 'number')
-  local bytes = math.floor(len / 2) + 1
-  local fh = io.open('/dev/urandom', 'r')
-  local s
-  if fh then
-    s = fh:read(bytes)
-    fh:close()
-  end
-  if not s then
-    math.randomseed(os.time())
-    s = string.gsub(string.rep(' ', bytes), '.',
-                      function(c)
-                        return string.char(math.random(0, 255))
-                      end)
-  end
-  s = string.gsub(s, '.', function(c)
-                            return string.format('%02x', string.byte(c))
-                          end)
-  return string.sub(s,1, len)
-end
-
-__doc.generate_pwd = [[function() returns a random password with 32 hex
-chars. The password is generated using util.generate_hex_string.]]
-
-function generate_pwd()
-  return generate_hex_string(32)
-end
-
 __doc.whereis = [[function(cmd) returns string or nil.
 Looks command cmd up in the program search path and returns the command's
 full path or nil if not found.i
@@ -718,177 +731,24 @@ do
   end
 end
 
--- Support to output to message or normal stdout.
-__doc.set_output_to_message = [[function(boundary, header, eol) Changes
-output so that all util.write calls output its args as the body of a
-properly formated message, with headers and necessary MIME part headers.
-]]
+__doc.generate_pwd = [[function() returns a random password with 32 hex
+chars. The password is generated using output.generate_hex_string.]]
 
-__doc.unset_output_to_message = [[function() Undoes set_output_to_message.
-]]
-
-__doc.is_output_set_to_message = [[function() Returns not nil if output
-is set to message or nil otherwise.
-]]
-
-__doc.write_header = [[function() Writes the header of the command-result
-message, if not yet done.
-]]
-
-__doc.write = [[function(...) Writes its args to standard output, like
-normal io.stdout:write, but prepends a MIME header of type text/plain
-for the first write in a MIME part, if output is set to message.
-]]
-
-__doc.writeln = [[function(...) Same as util.write, but appends the EOL
-detected in the filter-command message.
-]]
-
-__doc.write_message = [[function(message) Writes message to standard
-output, like normal io.stdout:write, but wraps it in a MIME part of
-type message/rfc822, if output is set to message.
-]]
-
-__doc.write_error = [[function(...) Calls util.write if output is set to
-message, or writes its args to standard error.
-]]
-
-__doc.writeln_error = [[function(...) Same as util.writeln, but appends
-the EOL detected in the filter-command message.
-]]
-
-__doc.close_mime_part = [[function() Closes a MIME part writing the
-proper boundary to standard output.
-]]
-
-__doc.close_mime_multipart = [[function() Closes a MIME multipart writing
-the proper boundary to standard output.
-]]
-
-__doc.exit = [[function(n) terminates execution with os.exit(n), but
-replaces n with 0 if output is set to message.
-Used to stop procmail, or similar, from ignoring filter result messages
-which will show up in the body of the command result, in case of error.
-]]
-
-do
-  local header
-  local mime_boundary
-  local in_part = false
-  local msg_eol = '\n'
-
-  local function write_header()
-    if header then
-      io.stdout:write(header)
-      header = nil
-    end
-  end
-
-  local function close_mime_part()
-    if in_part then
-      io.stdout:write(msg_eol, mime_boundary, msg_eol)
-      in_part = false
-    end
-  end
-
-  local function close_mime_multipart()
-    if mime_boundary then
-      write_header()
-      io.stdout:write(msg_eol, mime_boundary, '--', msg_eol)
-      in_part = false
-      mime_boundary = nil
-    end
-  end
-
-  function set_output_to_message(boundary, h, eol)
-    header = h
-    mime_boundary = '--' .. boundary
-    -- use eol of the message (should be of the system instead?)
-    msg_eol = eol or '\n'
-    in_part = false
-  end
-
-  function unset_output_to_message()
-    mime_boundary = nil
-    header = nil
-    in_part = false
-  end
-
-  function is_output_set_to_message()
-    return mime_boundary
-  end
-
-  function write(...)
-    if mime_boundary and not in_part then
-      -- output header only once
-      write_header()
-      io.stdout:write(table.concat({msg_eol, mime_boundary,
-        'Content-Type: text/plain;',
-        'Content-Transfer-Encoding: 8bit', '',''}, msg_eol))
-      in_part = true
-    end
-    io.stdout:write(...)
-  end
-
-
-  function write_message(message)
-    assert(type(message) == 'string')
-    if mime_boundary then
-      -- protect and keep the original envelope-from line
-      local xooef =
-        string.find(message, '^From ')
-          and 'X-OSBF-Original-Envelope-From: '
-        or ''
-      write_header()
-      io.stdout:write(table.concat({msg_eol, mime_boundary,
-       'Content-Type: message/rfc822;',
-       ' name="Attached Message"',
-       'Content-Transfer-Encoding: 8bit',
-       'Content-Disposition: inline;',
-       ' filename="Attached Message"', '',
-       --xooef .. message, mime_boundary, ''}, msg_eol))
-       xooef .. message, ''}, msg_eol))
-       in_part = false
-    else
-      io.stdout:write(message)
-    end
-  end
-
-  function writeln(...)
-    if mime_boundary then
-      write(...)
-      io.stdout:write(msg_eol)
-    else
-      io.stdout:write(...)
-      io.stdout:write('\n')
-    end
-  end
-
-  function write_error(...)
-    if mime_boundary then
-      write(...)
-    else
-      io.stderr:write(...)
-    end
-  end
-
-  function writeln_error(...)
-    if mime_boundary then
-      writeln(...)
-    else
-      io.stderr:write(...)
-      io.stderr:write('\n')
-    end
-  end
-
-  function exit(n)
-    if not mime_boundary then
-      os.exit(n)
-    else
-      close_mime_multipart()
-      os.exit(0)
-    end
-  end
-
+function generate_pwd()
+  return output.generate_hex_string(32)
 end
 
+--------------------------------------------------------------------------
+__doc.file_contents = [[function(filename) returns string or calls error
+Returns the contents of the specified file or calls error().]]
+
+function file_contents(filename)
+  local f, msg = io.open(filename)
+  if not f then
+    error(filename .. ': ' .. msg)
+  else
+    local contents = assert(f:read '*a')
+    f:close()
+    return contents
+  end
+end

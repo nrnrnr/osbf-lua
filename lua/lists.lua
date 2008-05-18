@@ -7,7 +7,6 @@ module (...)
 
 local util = require(_PACKAGE .. 'util')
 local cfg  = require(_PACKAGE .. 'cfg')
-local msg  = require(_PACKAGE .. 'msg')
 
 __doc = { }
 
@@ -139,23 +138,23 @@ function show(listname)
   local stags = table.sorted_keys(l.strings, util.case_lt)
   local ptags = table.sorted_keys(l.pats, util.case_lt)
   if #stags == 0 and #ptags == 0 then
-    util.write('======= ', listname, ' is empty ==========\n')
+    output.write('======= ', listname, ' is empty ==========\n')
   else
-    util.write('======= ', listname, ' ==========\n')
+    output.write('======= ', listname, ' ==========\n')
     if #stags > 0 then
-      util.write('Strings:\n')
+      output.write('Strings:\n')
       for _, tag in ipairs(stags) do
         for s in pairs(l.strings[tag]) do
-          util.write('  ', util.capitalize(tag), ': ', s, '\n')
+          output.write('  ', util.capitalize(tag), ': ', s, '\n')
         end
       end        
-      if #ptags > 0 then util.write '\n' end
+      if #ptags > 0 then output.write '\n' end
     end
     if #ptags > 0 then
-      util.write('Patterns:\n')
+      output.write('Patterns:\n')
       for _, tag in ipairs(ptags) do
         for s in pairs(l.pats[tag]) do
-          util.write('  ', util.capitalize(tag), ': ', s, '\n')
+          output.write('  ', util.capitalize(tag), ': ', s, '\n')
         end
       end        
     end
@@ -180,13 +179,13 @@ function show_op(op)
            for _, tag in ipairs(stags) do
              for s in pairs(l.strings[tag]) do
                local cmd = { progname, listname, op, tag, util.os_quote(s) }
-               util.write(table.concat(cmd, ' '), '\n')
+               output.write(table.concat(cmd, ' '), '\n')
              end
            end
            for _, tag in ipairs(ptags) do
              for s in pairs(l.pats[tag]) do
                local cmd = { progname, listname, op..'-pat', tag, util.os_quote(s) }
-               util.write(table.concat(cmd, ' '), '\n')
+               output.write(table.concat(cmd, ' '), '\n')
              end
            end
          end
@@ -278,13 +277,13 @@ function match(listname, m)
   assert(type(m) == 'table')
   local l = load(listname)
   for tag, set in pairs(l.strings) do
-    for h in msg.headers_tagged(m, tag) do
+    for h in m:_headers_tagged(tag) do
       if set[h] then return true end
     end
   end
   local find = string.find
   for tag, set in pairs(l.pats) do
-    for h in msg.headers_tagged(m, tag) do
+    for h in m:_headers_tagged(tag) do
       for pat in pairs(set) do
         if find(h, pat) then return true end
       end

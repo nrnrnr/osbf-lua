@@ -11,3 +11,5 @@ o*osbf*.c
 cachegrind.out.*
 *.prof
 hr*-results
+*.gcda
+*.gcno

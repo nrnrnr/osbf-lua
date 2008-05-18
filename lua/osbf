@@ -7,6 +7,7 @@ require 'osbf'
 require 'osbf.command_line'
 require 'osbf.options'
 require 'osbf.util'
+require 'osbf.output'
 
 osbf.util.progname = arg[0] or 'osbf'
 
@@ -38,5 +39,5 @@ if not ok then
 end
 
 osbf.command_line.run(unpack(args))
-osbf.util.exit(0)
+osbf.output.exit(0)
 

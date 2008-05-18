@@ -894,7 +894,9 @@ static int lua_crc32(lua_State *L) {
   size_t n;
   const unsigned char *s = (const unsigned char *)luaL_checklstring(L, 1, &n);
   uint32_t sum = 0;
-  do sum = (sum>>8) ^ crc_table[(sum^(*s++))&0xff]; while (--n > 0);
+  while (n-- > 0) {
+    sum = (sum>>8) ^ crc_table[(sum^(*s++))&0xff];
+  }
   lua_pushnumber(L, (lua_Number) sum);
   return 1;
 }

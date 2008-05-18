@@ -48,7 +48,7 @@ Here are my design goals:
   * The msg module should not deal with folding and unfolding of long
     headers; instead, long headers should be left as is with embedded
     CRLF (or other EOL) and whitespace.  Unfolding is as simple as
-    field_body:gsub(eol .. '%s+', '').
+    field_body:gsub(eol .. '([ \t])', '%1').
 
   * To simplify the API, the msg module should work with strings and
     only strings.  Code involving recovering messages from SFIDs and

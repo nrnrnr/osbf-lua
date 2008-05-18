@@ -18,9 +18,11 @@ local msg      = require (_PACKAGE .. 'msg')
 local cache    = require (_PACKAGE .. 'cache')
 local options  = require (_PACKAGE .. 'options')
 local log      = require (_PACKAGE .. 'log')
+local filter   = require (_PACKAGE .. 'filter')
+local output   = require (_PACKAGE .. 'output')
 require(_PACKAGE .. 'learn') -- loaded into 'commands'
 
-local function eprintf(...) return util.write_error(string.format(...)) end
+local function eprintf(...) return output.error:write(string.format(...)) end
 
 __doc  = __doc  or { } -- internal documentation
 
@@ -44,7 +46,7 @@ function run(cmd, ...)
     local ok, msg = pcall (_M[cmd], ...)
     if not ok then
       msg = string.gsub(msg, '^.-%:%s+', '')
-      util.writeln_error(string.gsub(msg or 'unknown error calling command ' .. cmd, '\n*$', ''))
+      output.error:writeln(string.gsub(msg or 'unknown error calling command ' .. cmd, '\n*$', ''))
     end
   else
     eprintf('Unknown command %s\n', cmd)
@@ -73,7 +75,7 @@ local function help_string(pattern)
 end
 
 local function filter_help()
-  util.write([[
+  output.write([[
 
 Valid subject-line commands:
 
@@ -132,10 +134,10 @@ $prog help <command>
 ]]
 
 function help(pattern)
-  if util.is_output_set_to_message() then
+  if output.type() == 'message' then
     filter_help()
   else
-    util.write(help_string(pattern))
+    output.write(help_string(pattern))
   end
 end
 
@@ -147,10 +149,10 @@ Prints command syntax to stderr and exits with error code 1.
 
 function usage(msg, pattern)
   if msg then
-    util.writeln_error(msg)
+    output.error:writeln(msg)
   end
   help(pattern)
-  util.exit(1)
+  output.exit(1)
 end
 
 ----------------------------------------------------------------
@@ -179,11 +181,11 @@ local function listfun(listname)
            -- if arg is SFID, replace it with its tag contents
            if cache.is_sfid(arg) then
               local message = cache.recover(arg)
-              local header_field = msg.header_tagged(message, tag)
+              local header_field = message[tag]
               if header_field then
                 arg = header_field
               else
-                util.writeln('header ',
+                output.writeln('header ',
                              util.capitalize(tostring(tag)), ' not found in SFID.')
               end
            end
@@ -199,7 +201,7 @@ local function listfun(listname)
                arg, tag)
              local response =
                list_responses[string.gsub(cmd, '%-.*', '')][result == true]
-             util.write(string.format(response, thing, listname))
+             output.write(string.format(response, thing, listname))
            end
          end
 end
@@ -277,7 +279,7 @@ message.
 local function msgs(...) --- maybe should be in util?
   local n =  select('#', ...) 
   -- we can't combine these two cases because for reliability,
-  -- reading from standard input should not call msg.of_any,
+  -- reading from standard input should not call cache.msg_of_any,
   -- which could fail on something that doesn't look like an
   -- RFC 822 message
   if n == 0 then
@@ -294,7 +296,7 @@ local function msgs(...) --- maybe should be in util?
     return function()
              i = i + 1;
              if i <= n then
-               return msg.of_any(specs[i]), specs[i]
+               return cache.msg_of_any(specs[i]), specs[i]
              end
            end
   end
@@ -315,33 +317,37 @@ local function learner(command_name)
     else
       for m, sfid in has_class and msgs(...) or msgs(classification, ... ) do
         local cfn_info, crc32
+        local added_to_cache = false
         if not cache.is_sfid(sfid) then
-          if msg.has_sfid(m) then
-            sfid = msg.sfid(m)
+          if m:_has_sfid() then
+            sfid = m:_sfid()
           elseif not (cfg.use_sfid and cfg.cache.use) then
             error('Cannot ' .. command_name .. ' messages because ' ..
                   ' the configuration file is set\n  '..
                   (cfg.use_sfid and 'not to save messages' or 'not to use sfids'))
           else
-            local probs, conftab = commands.multiclassify(m.lim.msg)
+            local probs, conftab = commands.multiclassify(commands.extract_feature(m))
             --local train, conf, sfid_tag, subj_tag, class =
             local bc = commands.classify(m, probs, conftab)
-            local orig = msg.to_orig_string(m)
+            local orig = m:_to_orig_string()
             crc32 = core.crc32(orig)
             cfn_info = { probs = probs, conf = conftab, train = bc.train,
                          class = bc.class }
             sfid = cache.generate_sfid(bc.sfid_tag, bc.pR)
             cache.store(sfid, orig)
+            added_to_cache = true
           end
         end
 
         local comment = cmd(sfid, has_class and classification or nil)
-        util.writeln(comment)
+        output.writeln(comment)
         log.lua(command_name, log.dt
                     { class = classification, sfid = sfid,
                       synopsis = msg.synopsis(m),
                       crc32 = crc32 or core.crc32(msg.to_orig_string(m)),
-                      classification = cfn_info })
+                      classification = cfn_info,
+                      added_to_cache = added_to_cache,  -- for debugging
+                    })
         -- redelivers message if it was trained and config calls for a resend
         -- subject tag and it was a subject command 
         -- (is_output_set_to_message())
@@ -350,15 +356,15 @@ local function learner(command_name)
           cfg.tag_subject and
           cmd == commands.learn and class_cfg.resend ~= false and
           cache.table_of_sfid(sfid).confidence <= class_cfg.train_below
-        if tagged_and_to_be_resent and util.is_output_set_to_message() then
-          local m = msg.of_sfid(sfid)
+        if tagged_and_to_be_resent and output.type() == 'message' then
+          local m = msg.of_string(cache.recover(sfid))
           local subj_cmd = 'resend ' .. cfg.pwd .. ' ' .. sfid
-          local ok, err = pcall(msg.send_cmd_message, subj_cmd, m.eol)
+          local ok, err = pcall(filter.send_cmd_message, subj_cmd, m.eol)
           if ok then
-            util.writeln(' The original message, without subject tags, ',
+            output.writeln(' The original message, without subject tags, ',
               'will be sent to you.')
           else
-            util.writeln(' Error: unable to resend original message.')
+            output.writeln(' Error: unable to resend original message.')
             log.logf('Could resend message %s: %s', sfid, err)
           end
         end
@@ -381,8 +387,7 @@ Searches SFID and prints to stdout for each message spec
 
 function sfid(...)
   for m, what in msgs(...) do
-    local sfid = msg.extract_sfid(m)
-    util.writeln('SFID of ', what, ' is ', sfid)
+    output.writeln('SFID of ', what, ' is ', m:_sfid())
   end
 end
 
@@ -405,13 +410,12 @@ function resend(sfid)
   local score_header =
     string.format( '%.2f/%.2f [%s] (v%s, Spamfilter v%s)', bc.pR,
                   boost, sfid_tag, core._VERSION, cfg.version)
-  msg.add_osbf_header(m, cfg.header_suffixes.summary, score_header)
-  msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
-  util.unset_output_to_message()
+  filter.add_osbf_header(m, cfg.header_suffixes.summary, score_header)
+  filter.insert_sfid(m, sfid, cfg.insert_sfid_in)
+  output.flush() -- just in case we were writing to a message, stop
+                 -- XXX almost certainly broken
   io.stdout:write(msg.to_string(m))
-  log.lua('resend', log.dt { msg = msg.to_string(m) })
-    --- XXX do we have to log the whole message here, or can we just log the sfid?
-    --- (trying to keep a constant among of logging per event)
+  log.lua('resend', log.dt { msg = tostring(m) })
 end
 
 table.insert(usage_lines, 'resend <sfid>')
@@ -423,7 +427,7 @@ atachment to the command-result message.
 ]]
 
 function recover(sfid)
-  util.write_message(cache.recover(sfid))
+  output.write_message(cache.recover(sfid))
 end
 
 table.insert(usage_lines, 'recover <sfid>')
@@ -432,7 +436,7 @@ __doc.remove = [[function(sfid) Removes sfid from cache.]]
 
 function remove(sfid)
   cache.remove(sfid)
-  util.writeln('SFID removed.')
+  output.writeln('SFID removed.')
 end
 
 table.insert(usage_lines, 'remove <sfid>')
@@ -464,7 +468,7 @@ function classify(...)
     end 
   
   for m, what in msgs(unpack(argv)) do
-    local probs, conf = commands.multiclassify(m.lim.msg)
+    local probs, conf = commands.multiclassify(commands.extract_feature(m))
     local bc = commands.classify(m, probs, conf)
     local sfid
     if options.cache then
@@ -475,7 +479,7 @@ function classify(...)
     log.lua('classify', log.dt { probs = probs, conf = conf, train = bc.train,
                                  synopsis = msg.synopsis(m),
                                  class = bc.class, sfid = sfid, crc32 = crc32 })
-    util.write(what, ' is ', show(bc.pR, bc.sfid_tag, bc.class),
+    output.write(what, ' is ', show(bc.pR, bc.sfid_tag, bc.class),
                bc.train and ' [needs training]' or '', m.eol)
   end
 end
@@ -485,7 +489,7 @@ table.insert(usage_lines, 'classify [-tag] [-cache] [<sfid|filename> ...]')
 __doc.do_nothing = [[function(sfid) just prints the message "Nothing done.".]]
 
 function do_nothing(sfid)
-  util.writeln('Nothing done.')
+  output.writeln('Nothing done.')
 end
 
 -- checks and maps batch-commands to valid string commands
@@ -513,23 +517,23 @@ local function run_batch_cmd(sfid, cmd, m)
   if type(valid_batch_cmds[cmd]) == 'table' then
     local args = {unpack(valid_batch_cmds[cmd])} -- copies table
     table.insert(args, sfid)
-    util.write(tostring(sfid), ': ')
+    output.write(tostring(sfid), ': ')
     if cmd == 'recover' or cmd == 'resend' then
       -- send a separate mail with subject-line command
-      local ok, err = pcall(msg.send_cmd_message, cmd .. ' ' .. cfg.pwd .. ' ' .. sfid,
+      local ok, err = pcall(filter.send_cmd_message, cmd .. ' ' .. cfg.pwd .. ' ' .. sfid,
                             m.eol)
       if ok then 
-        util.writeln('The ', cmd, ' command was issued.')
-        util.writeln( ' The message will be re-delivered to you if still in cache.')
+        output.writeln('The ', cmd, ' command was issued.')
+        output.writeln( ' The message will be re-delivered to you if still in cache.')
       else
-        util.writeln('Error: could not send the ', cmd, ' command.')
+        output.writeln('Error: could not send the ', cmd, ' command.')
         log.logf('Could not send %s: %s', cmd, err)
       end
     else
       run(unpack(args))
     end
   else
-    util.writeln('Unknown batch command: ', tostring(cmd))
+    output.writeln('Unknown batch command: ', tostring(cmd))
   end
 end
 
@@ -554,7 +558,7 @@ remove            => remove <sfid> from cache.
 ]]
 
 local function batch_train(m)
-  local m = msg.of_any(m)
+  local m = cache.msg_of_any(m)
   for sfid, cmd in string.gmatch(m.body, '(sfid.-)=(%S+)') do
     -- remove initial '3D' of commands in quoted-printable encoded messages
     cmd = string.gsub(cmd, '^3[dD]', '')
@@ -572,17 +576,17 @@ local subject_line_commands = { classify = 1, learn = 1, unlearn = 1,
 
 local function exec_subject_line_command(cmd, m)
   assert(type(cmd) == 'table' and type(m) == 'table')
-  msg.set_output_to_message(m,
+  filter.set_output_to_message(m,
     'OSBF-Lua command result - ' .. cmd[1] or 'nil?!')
   -- insert sfid if required
   if subject_line_commands[cmd[1]] == 1 and not cache.is_sfid(cmd[#cmd]) then
-    table.insert(cmd, msg.sfid(m))
+    table.insert(cmd, m:_sfid())
   end
 
   if cmd[1] == 'batch_train' then
     return batch_train(m) -- prevents execution of 'run' below
   elseif cmd[1] == 'train_form' or cmd[1] == 'cache-report' then
-    cmd = {'cache-report', '-send', msg.header_tagged(m, 'to')}
+    cmd = {'cache-report', '-send', m.to }
   end
   run(unpack(cmd))
 end
@@ -603,7 +607,7 @@ function filter(...)
        nosfid = options.std.bool})
 
   local function filter_one(m)
-    local have_subject_cmd, cmd = _G.pcall(msg.parse_subject_command, m)
+    local have_subject_cmd, cmd = _G.pcall(filter.parse_subject_command, m)
     if have_subject_cmd then
       exec_subject_line_command(cmd, m)
     else
@@ -622,13 +626,13 @@ function filter(...)
       if ok then ok2, err = _G.pcall(filter_one, m) end -- cannot use 'and' here
     if ok then
       if not ok2 then
-        msg.add_osbf_header(m, 'Error', err or 'unknown error')
+        filter.add_osbf_header(m, 'Error', err or 'unknown error')
         local maybe_class = err:match [[^Couldn't lock the file /.*/(.-)%.cfc%.$]]
         if maybe_class then -- salvage locking error on classification update
           local suffixes = cfg.header_suffixes
-          msg.add_osbf_header(m, suffixes.class, maybe_class)
-          msg.add_osbf_header(m, suffixes.confidence, '0.0')
-          msg.add_osbf_header(m, suffixes.needs_training, 'yes')
+          filter.add_osbf_header(m, suffixes.class, maybe_class)
+          filter.add_osbf_header(m, suffixes.confidence, '0.0')
+          filter.add_osbf_header(m, suffixes.needs_training, 'yes')
         end
         io.stdout:write(msg.to_string(m))
       end
@@ -753,7 +757,7 @@ do
      
     nb = commands.init(email, buckets or bytes, translate[units] or units,
                        rightid, opts.lang)
-    util.writeln('Created directories and databases using a total of ', 
+    output.writeln('Created directories and databases using a total of ', 
       util.human_of_bytes(nb))
   end
 
@@ -786,7 +790,7 @@ function resize(class, newsize, ...)
     core.import(tmpname, dbname)
     util.validate(os.rename(tmpname, dbname))
     class = util.capitalize(class)
-    util.writeln(class, ' database resized to ', util.human_of_bytes(real_bytes))
+    output.writeln(class, ' database resized to ', util.human_of_bytes(real_bytes))
   end
 end
 
@@ -812,7 +816,7 @@ function dump(class, csvfile, ...)
     core.dump(dbname, tmpname)
     util.validate(os.rename(tmpname, csvfile))
     class = util.capitalize(class)
-    util.writeln(class, ' database dumped to ', csvfile)
+    output.writeln(class, ' database dumped to ', csvfile)
   end
 end
 
@@ -838,7 +842,7 @@ function restore(class, csvfile, ...)
     core.restore(tmpname, csvfile)
     util.validate(os.rename(tmpname, dbname))
     class = util.capitalize(class)
-    util.writeln(class, ' database restored from ', csvfile)
+    output.writeln(class, ' database restored from ', csvfile)
   end
 end
 
@@ -884,9 +888,9 @@ do
       email = email or cfg.command_address
       --if not email or args[3] then usage() end
       if opts.send then
-        msg.send_message(
+        filter.send_message(
           commands.generate_training_message(email, temail, opts.lang))
-        util.writeln('Training form sent.')
+        output.writeln('Training form sent.')
       else
         commands.write_training_message(email, temail, opts.lang)
       end
@@ -899,7 +903,7 @@ table.insert(usage_lines, 'cache-report [-lang=<locale>] <user-email> [<training
 __doc.homepage = [[function() Shows the project's home page.]]
 
 function homepage()
-  util.writeln(cfg.homepage)
+  output.writeln(cfg.homepage)
 end
 table.insert(usage_lines, 'homepage')
 
