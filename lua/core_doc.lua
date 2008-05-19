@@ -7,7 +7,7 @@ local io, string, table, math =
       io, string, table, math
 
 local modname = ...
-local modname = string.gsub(modname, '[^%.]+$', 'core')
+local modname = modname:gsub('[^%.]+$', 'core')
 module(modname)
 
 __doc = __doc or { }

@@ -93,7 +93,7 @@ message to be sent.
   sent to. Normally, this is set to user's email address.
 ]],
 
-  cache = [[
+  cache = ([[
 Table of properties of the message cache.  
 If omitted, no cache is used; if true, use a cache with default properties.
 
@@ -112,13 +112,9 @@ Properties include:
   report_locale    Language to use in the cache-report training message.
                    Default of $report_locale uses the user's locale; 
                    otherwise we understand 'en_US' and 'pt_BR'.
-]],
+]]):gsub('%$([%w_]+)', function (s) return tostring(d.cache[s]) end),
 
 }
-
-__doc.cache = string.gsub(__doc.cache, '%$([%w_]+)',
-                          function (s) return tostring(d.cache[s]) end)
-
 
 ----------------------------------------------------------------
 

@@ -131,7 +131,7 @@ function sfid_of_table(t, serial)
                    '@',
                    validate_rightid(t.rightid or cfg.rightid),
                    t.learned }, '-')
-  return string.gsub(s, '%-%@%-', '@', 1)
+  return (s:gsub('%-%@%-', '@', 1))
 end
 
 do
@@ -149,7 +149,7 @@ extract only a sfid with the proper rightid.
   local full_sfid_pat = nil
 
   local function set_pats()
-    rid_pat = string.gsub(cfg.rightid, '%W', '%%%1')
+    rid_pat = cfg.rightid:gsub('%W', '%%%1')
     loose_sfid_pat = 'sfid%-.-%@' .. rid_pat .. '%-?%l?'
     full_sfid_pat = '^sfid%-(%a)%-(%d%d%d%d)(%d%d)(%d%d)%-(%d%d)(%d%d)(%d%d)%-' ..
                     '([%+%-]%d+%.%d+)%-(%d+)%@(' .. rid_pat .. ')(%-?)(%l?)$'

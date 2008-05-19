@@ -63,12 +63,12 @@ local function help_string(pattern)
     if string.find(u, '^' .. pattern) then
       table.insert(output, table.concat{prefix, prog, ' [options] ', u})
     end
-    prefix = string.gsub(prefix, '.', ' ')
+    prefix = prefix:gsub('.', ' ')
   end
   prefix = 'Options: '
   for _, u in ipairs(table.sorted_keys(options.usage)) do
     table.insert(output, table.concat{prefix, '--', u, options.usage[u]})
-    prefix = string.gsub(prefix, '.', ' ')
+    prefix = prefix:gsub('.', ' ')
   end
   table.insert(output, '')
   return table.concat(output, '\n')
@@ -200,7 +200,7 @@ local function listfun(listname)
              local thing = string.format('%s %q for header %s:', what[cmd],
                arg, tag)
              local response =
-               list_responses[string.gsub(cmd, '%-.*', '')][result == true]
+               list_responses[cmd:gsub('%-.*', '')][result == true]
              output.write(string.format(response, thing, listname))
            end
          end
@@ -561,7 +561,7 @@ local function batch_train(m)
   local m = cache.msg_of_any(m)
   for sfid, cmd in string.gmatch(m.body, '(sfid.-)=(%S+)') do
     -- remove initial '3D' of commands in quoted-printable encoded messages
-    cmd = string.gsub(cmd, '^3[dD]', '')
+    cmd = cmd:gsub('^3[dD]', '')
     run_batch_cmd(sfid, cmd, m)
   end
 end

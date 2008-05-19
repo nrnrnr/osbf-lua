@@ -2,7 +2,7 @@
 -- See Copyright Notice in osbf.lua
 
 local modname = ...
-local osbfname = string.gsub(modname, '%..-$', '')
+local osbfname = modname:gsub('%..-$', '')
 local util = require(osbfname .. '.util')
 
 local osbf = _G[osbfname]
@@ -76,11 +76,10 @@ local function internals(out, s)
 
     local function document(k)
       if string.find(k, '^__') then return end
-      local d = string.gsub(doc[k], '\n\n', '\n  \n')
-      d = string.gsub(d, '\n(.)', '\n  %1')
+      local d = doc[k]:gsub('\n\n', '\n  \n'):gsub('\n(.)', '\n  %1')
       local exported = type(osbf[module]) ~= 'table' or osbf[module][k] ~= nil
       if not exported then
-        d = string.gsub(d, '^%s*function', 'local function')
+        d = d:gsub('^%s*function', 'local function')
       end
       out:write('\n', module, exported and '.' or ': ', k, ' = ', d, final_newline(d))
     end
@@ -94,7 +93,7 @@ local function internals(out, s)
       if doc.__overview then
         out:write('=============== Overview of module ', s, ' ===============\n\n')
         out:write(doc.__overview, final_newline(doc.__overview))
-        out:write('===================================', string.gsub(s, '.', '='),
+        out:write('===================================', (s:gsub('.', '=')),
                   '===============\n')
       end
       for _, k in ipairs(first) do

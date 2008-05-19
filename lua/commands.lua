@@ -132,18 +132,14 @@ do
       local u = util.validate(io.open(config, 'w'))
       local x = f:read '*a'
       -- sets initial password to a random string
-      x = string.gsub(x, '(pwd%s*=%s*)[^\r\n]*',
-        string.format('%%1%q,', util.generate_pwd()))
+      x = x:gsub('(pwd%s*=%s*)[^\r\n]*', string.format('%%1%q,', util.generate_pwd()))
       -- sets email address for commands 
-      x = string.gsub(x, '(command_address%s*=%s*)[^\r\n]*',
-        string.format('%%1%q,', email))
+      x = x:gsub('(command_address%s*=%s*)[^\r\n]*', string.format('%%1%q,', email))
       -- sets sfid's rightid
-      x = string.gsub(x, '(rightid%s*=%s*)[^\r\n]*',
-        string.format('%%1%q,', rightid))
+      x = x:gsub('(rightid%s*=%s*)[^\r\n]*', string.format('%%1%q,', rightid))
       -- sets report_locale
       if lang then
-        x = string.gsub(x, '(report_locale%s*=%s*)[^\r\n]*',
-          string.format('%%1%q,', lang))
+        x = x:gsub('(report_locale%s*=%s*)[^\r\n]*', string.format('%%1%q,', lang))
       end
       u:write(x)
       f:close()

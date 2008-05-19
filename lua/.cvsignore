@@ -2,3 +2,4 @@
 dep.dot
 *.ps
 gmon.out
+*.s

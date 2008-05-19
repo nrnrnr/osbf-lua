@@ -10,7 +10,7 @@ local os, string, table, math, tostring =
       os, string, table, math, tostring
 
 local modname = ...
-local modname = string.gsub(modname, '[^%.]+$', 'commands')
+local modname = modname:gsub('[^%.]+$', 'commands')
 module(modname)
 
 __doc = __doc or { }
@@ -58,8 +58,7 @@ local function tag_color(s)
 end
 
 local function replace_dollar(s, t)
-  s = string.gsub(s, '%$colors%.([%a_]+)', colors)
-  return (string.gsub(s, '%$([%a_]+)', t))
+  return (s:gsub('%$colors%.([%a_]+)', colors):gsub('%$([%a_]+)', t))
 end
 
 
@@ -363,10 +362,10 @@ function html_sfid_rows(sfids, ready) -- declared local above
 
   -- for case insensitive match - from PIL
   local function nocase (s)
-    return string.gsub(s, "%a", function (c)
+    return (string.gsub(s, "%a", function (c)
           return string.format("[%s%s]", string.lower(c),
                                          string.upper(c))
-        end)
+        end))
   end
   rows = { html_first_row() }
   for _, sfid in ipairs(sfids) do
@@ -381,8 +380,8 @@ function html_sfid_rows(sfids, ready) -- declared local above
       -- iso-8859-1 encoded chars to html with html.of_iso_8859_1. The length
       -- limit prevents the HTML browser from showing overwide columns.
       local ns
-      s, ns = string.gsub(s, "=%?[Ii][Ss][Oo]%-8859%-1%?[Qq]%?(.-)%?=", "%1")
-      s = string.gsub(s, "(" .. string.rep("%S", n) ..")(%S)", "%1 %2")
+      s, ns = s:gsub("=%?[Ii][Ss][Oo]%-8859%-1%?[Qq]%?(.-)%?=", "%1")
+      s = s:gsub("(" .. string.rep("%S", n) ..")(%S)", "%1 %2")
       s = html.of_ascii(s)
       if ns > 0 then
         s = util.html.of_iso_8859_1(s)

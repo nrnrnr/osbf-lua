@@ -43,7 +43,7 @@ function tag_subject(msg, tag)
     if string.len(tag) > 0 then
       local function add_tag(hdr) return hdr .. ' ' .. tag end
          -- avoid trouble if tag contains, e.g., %0
-      msg.__headers[i] = string.gsub(msg.__headers[i], '^.-:', add_tag, 1)
+      msg.__headers[i] = msg.__headers[i]:gsub('^.-:', add_tag, 1)
     end
     saw_subject = true
   end

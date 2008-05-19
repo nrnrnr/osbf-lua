@@ -39,7 +39,7 @@ end
 local prog = _G.arg and _G.arg[0] or 'osbf'
 
 local modname = ...
-local modname = string.gsub(modname, '[^%.]+$', 'commands')
+local modname = modname:gsub('[^%.]+$', 'commands')
 module(modname)
 
 local util  = require(_PACKAGE .. 'util')
@@ -51,7 +51,7 @@ local cache = require(_PACKAGE .. 'cache')
 
 local function fingerprint(s)
   local function hex(s) return string.format('%02x', string.byte(s)) end
-  return string.gsub(md5.sum(s), '.', hex)
+  return (md5.sum(s):gsub('.', hex))
 end
 
 __doc = __doc or { }

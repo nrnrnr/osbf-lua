@@ -210,9 +210,7 @@ function generate_hex_string(len)
                         return string.char(math.random(0, 255))
                       end)
   end
-  s = string.gsub(s, '.', function(c)
-                            return string.format('%02x', string.byte(c))
-                          end)
+  s = s:gsub('.', function(c) return string.format('%02x', string.byte(c)) end)
   return string.sub(s,1, len)
 end
 

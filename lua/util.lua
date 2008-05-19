@@ -196,9 +196,9 @@ This is used to find the default_cfg.lua file used to create the
 user's config.lua file by the init command.]]
 
 function submodule_path(subname)
-  local basename = append_slash(string.gsub(_PACKAGE, '%.$', '')) .. subname
+  local basename = append_slash((_PACKAGE:gsub('%.$', ''))) .. subname
   for p in string.gmatch (package.path, '[^;]+') do
-    local path = string.gsub(p, '%?', basename)
+    local path = p:gsub('%?', basename)
     if file_is_readable(path) then
       return path
     end
@@ -468,7 +468,7 @@ __doc.capitalize = [[function(s) puts string into typical form for RFC 822 heade
 
 function capitalize(s)
   s = '_' .. string.lower(s)
-  s = string.gsub(s, '(%A)(%a)', function(nl, let) return nl .. string.upper(let) end)
+  s = s:gsub('(%A)(%a)', function(nl, let) return nl .. string.upper(let) end)
   return string.sub(s, 2)
 end
 
@@ -517,10 +517,10 @@ local split_qp_at -- returns prefix, suffix; defined below
 
 function encode_quoted_printable(s, max_width)
   local function qpsubst(c) return string.format("=%02X", string.byte(c)) end
-  s = string.gsub(s, "([\128-\255=])", qpsubst)
+  s = s:gsub("([\128-\255=])", qpsubst)
   local lines = { } -- accumulate lines of output
   for l in string.gmatch(string.find(s, '\n$') and s or s .. '\n', '(.-)\n') do
-    l = string.gsub(l, '(%s)$', qpsubst) -- quote space at end of line
+    l = l:gsub('(%s)$', qpsubst) -- quote space at end of line
     repeat
       first, rest = split_qp_at(l, max_width)
       table.insert(lines, first)
@@ -581,7 +581,7 @@ do
 
   __doc['html.of_ascii'] = [[function(s) quotes special html chars.]]
   function html.of_ascii(s)
-    return string.gsub(s, '[%&%<%>%"]', quote)
+    return (string.gsub(s, '[%&%<%>%"]', quote))
   end
 
   __doc['html.qp_to_html'] = [[function(qp) converts qp char to html numeric
@@ -597,9 +597,7 @@ representation: '=%x%x' => '&#%d%d%d;'.]]
   __doc['html.of_iso_8859_1'] = [[function(s) encodes ISO 8859-1 strings into
 html.]]
   function html.of_iso_8859_1(s)
-    s = string.gsub(s, '=(%x%x)', html.qp_to_html)
-    s = string.gsub(s, '_', '&nbsp;')
-    return s
+    return (s:gsub('=(%x%x)', html.qp_to_html):gsub('_', '&nbsp;'))
   end
 
   __doc.html_atts = [[function(t) concatenates keys and values in table t

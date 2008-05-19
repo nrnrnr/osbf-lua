@@ -145,7 +145,7 @@ end
 
 local function show(v)
   local function escape(s)
-    return s:gsub('\n', [[\n]]):gsub('\r', [[\r]]):gsub('\t', [[\t]])
+    return (s:gsub('\n', [[\n]]):gsub('\r', [[\r]]):gsub('\t', [[\t]]))
   end
   if type(v) == 'string' then
     if v:len() < 20 then return escape(string.format('%q', v))
@@ -281,7 +281,7 @@ function headers_tagged(msg, ...)
   return function()
            local hi = f()
            if hi then
-             return string.gsub(hs[hi], '^.-:%s*', '')
+             return (string.gsub(hs[hi], '^.-:%s*', ''))
            end
          end
 end
@@ -360,7 +360,7 @@ do
     if not next then return m.__body end
     local parts = { }
     for part, boundary in util.string_splits(m.__body, bpat) do
-      table.insert(parts, part:gsub('^%s+', ''))
+      table.insert(parts, (part:gsub('^%s+', '')))
     end
     local msgs = { }
     for _, p in ipairs(parts) do
