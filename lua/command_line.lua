@@ -45,8 +45,8 @@ function run(cmd, ...)
   elseif _M[cmd] then
     local ok, msg = pcall (_M[cmd], ...)
     if not ok then
-      msg = string.gsub(msg, '^.-%:%s+', '')
-      output.error:writeln(string.gsub(msg or 'unknown error calling command ' .. cmd, '\n*$', ''))
+      msg = msg and msg:gsub('^.-%:%s+', '') or 'unknown error calling command ' .. cmd
+      output.error:writeln((msg:gsub('\n+$', '')))
     end
   else
     eprintf('Unknown command %s\n', cmd)
@@ -600,7 +600,7 @@ Valid options: -notag   => disables subject tagging
                -nosfid  => disables sfid (implies -nocache)
 ]]
 
-function filter(...)
+_M.filter = function(...)
   local options, argv =
     options.parse({...},
       {nocache = options.std.bool, notag = options.std.bool,

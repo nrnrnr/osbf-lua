@@ -61,7 +61,7 @@ end
 local msg = require(_PACKAGE .. 'msg')
 for k, v in pairs(_M) do
   if msg[k] == nil then
-    msg[k] == v
+    msg[k] = v
     if __doc[k] and not msg.__doc[k] then
       msg.__doc[k] = table.concat { __doc[k], '\n(copied from ', _PACKAGE, (...), ')' }
     end

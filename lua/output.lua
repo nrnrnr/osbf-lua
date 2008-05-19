@@ -20,7 +20,7 @@ local reset = function() end
 
 local eol, header, mime_boundary
 local reset =
-  function() reset(); eol, header, mime_boundary = false, '\n' end
+  function() reset(); eol, header, mime_boundary = '\n' end
 
 
 __doc.order = { 'stdout', 'write', 'writeln', 'writemsg', 'set' }
@@ -60,7 +60,12 @@ local table_meta = {
 }
 
 local function err_index(t, k)
-  return file_meta[k] or io[k] and function(self, ...) return io[k](self.file, ...) end
+  local v = file_meta[k]
+  if v then return v end
+  if type(t) == 'userdata' then return io[k]
+  elseif t.file and t.file[k] then
+    return function(self, ...) return self.file[k](self.file, ...) end
+  end
 end
 
 local error_has_occurred

@@ -155,4 +155,4 @@ end
 
 ----------------------------------------------------------------
 __doc.filter = filter.__doc.run
-_M.filter = filter.run
+_M.filter = assert(filter.run)

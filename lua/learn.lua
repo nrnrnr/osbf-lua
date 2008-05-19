@@ -664,3 +664,5 @@ function write_stats(verbose)
   writef(gafmt, 'Global accuracy:', (1-global_error_rate)*100)
   hline()
 end
+
+return _M

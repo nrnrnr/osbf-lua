@@ -9,9 +9,7 @@ local require, print, pairs, ipairs, type, assert, setmetatable =
 local os, string, table, math, tostring =
       os, string, table, math, tostring
 
-local modname = ...
-local modname = string.gsub(modname, '[^%.]+$', 'commands')
-module(modname)
+module(...)
 
 __doc = __doc or { }
 
@@ -29,7 +27,7 @@ __doc.add_osbf_header = [[function(T, tag, contents)
 Adds a new OSBF-Lua header to the message with the given suffix and contents.
 ]]
 function add_osbf_header(msg, suffix, contents)
-  return add_header(msg, cfg.header_prefix .. '-' .. suffix, contents)
+  return msg:_add_header(cfg.header_prefix .. '-' .. suffix, contents)
 end
 
 __doc.tag_subject = [[function(msg.T, tag)
@@ -79,7 +77,7 @@ do
 
   local function remove_old_sfids(msg)
     local sfid_pat = '%s-[<%(]sfid%-.%d%+%-%d+%-%S-@' .. cfg.rightid .. '[>%)]'
-    for i in header_indices(msg, 'references', 'in-reply-to') do
+    for i in msg:_header_indices('references', 'in-reply-to') do
       msg.__headers[i] = msg.__headers[i]:gsub(sfid_pat, '')
     end
   end
@@ -93,7 +91,8 @@ do
       -- l and r bracket the sfid
       -- comment indicates sfid should also be added in angle brackets
       for i in msg:_header_indices(tag) do
-        msg.__headers[i] = table.concat {msg.__headers[i], msg.eol, '\t' , l, sfid, r}
+        msg.__headers[i] =
+          table.concat {msg.__headers[i], msg.__eol, '\t' , l, sfid, r}
         return
       end
       -- no header found; create one and add the sfid
@@ -220,7 +219,7 @@ function run(m, options, sfid)
   local crc32 = core.crc32(msg.to_orig_string(m))
   if not options.nosfid and cfg.use_sfid then
     sfid = sfid or cache.generate_sfid(bc.sfid_tag, bc.pR)
-    msg.insert_sfid(m, sfid, cfg.insert_sfid_in)
+    insert_sfid(m, sfid, cfg.insert_sfid_in)
   end
   log.lua('filter', log.dt { probs = probs, conf = conf, train = bc.train,
                              synopsis = msg.synopsis(m),
