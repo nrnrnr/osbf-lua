@@ -11,8 +11,10 @@ local os, string, table, math, io, tostring =
 
 local modname = ...
 module(modname)
+local basename = modname:gsub('^.*%.', '')
 
 __doc = __doc or { }
+__private = __private or { }
 
 local reset = function() end
   -- will keep rebinding this function to re-initialize the 
@@ -23,15 +25,24 @@ local reset =
   function() reset(); eol, header, mime_boundary = '\n' end
 
 
-__doc.order = { 'stdout', 'write', 'writeln', 'writemsg', 'set' }
+__doc.__order = { 'stdout', 'error', 'write', 'writeln', 'write_message',
+                  'set', 'type', 'flush', 'exit' }
 
-__doc.stdout = ([[file or table of (message parts or strings)
-
+__doc.__overview = ([[
 The purpose of this module is to accumulate output without knowing
-whether the output will go to file (likely io.stdout and io.stderr)
+whether the output will go to files (likely io.stdout and io.stderr)
 or to a message.  The module provides the ability to write strings
-or messages and to set the destination of the output.  If the
-destination is a message, then stdout is a table with these fields:
+or messages and to set the destination of the output.  There are
+two objects 'stdout' and 'error' which support the 'write' and 'writeln'
+methods; there is also a write_message function.  If output is set to
+a file, then 'stdout' goes to that file and 'error' goes to io.stderr.
+If output is set to a message, everything written is accumulated as
+text and eventually can be flushed as a multipart message in MIME format.
+
+Output to files is written eagerly; output to a message is not written
+until %s.flush or %s.exit is called.]]):format(basename, basename)
+
+__doc.T = [[an internal table representing accumulated output:
 
   { boundary = MIME multipart boundary,
     header   = string header of the whole message,
@@ -42,8 +53,17 @@ destination is a message, then stdout is a table with these fields:
                                envelope header followed by eol,
   }
 
-Output to files is written eagerly; output to a message is not written
-until %s.exit is called.]]):format(modname)
+The table has a metatable supporting 'write' and 'writeln' methods.
+]]
+
+
+__doc.stdout = [[file or object of type T
+For normal output; supports 'write' and 'writeln' methods.
+]]
+
+__doc.error = [[file or object of type T
+For error output; supports 'write' and 'writeln' methods.
+]]
 
 -- default output and default error output
 local stdout
@@ -75,6 +95,15 @@ local reset = function()
                 error = setmetatable({ file = io.stderr }, {__index = err_index})
               end
 
+__doc.write = ([[function(...) 
+Writes the arguments, which must be strings or numbers,
+to %s.stdout; equivalent to %s.stdout:write(...).]]):format(basename, basename)
+
+__doc.writeln = ([[function(...) 
+Equivalent to %s.write(...) followed by %s.write(eol),
+where eol is locally acceptable end-of-line marker.
+]]):format(basename, basename)
+
 function write(...) return stdout:write(...) end
 function writeln(...) return (stdout.writeln or file_meta.writeln)(stdout, ...) end
 
@@ -85,6 +114,17 @@ function _M.type()
 end
 
 local envelope_field_name =  'X-OSBF-Original-Envelope-From: ' 
+
+__doc.write_message = ([[function(string) returns nothing
+Takes its string argument and 
+  * writes to %s.stdout, if output is set to 'file'
+  * accumulates the argument as an embedded message/rfc822 part, 
+    if output is set to 'message'
+If the string begins with a Unix mbox 'From ' line, that line
+is added to the part's headers with field name
+  %s
+]]):format(basename, envelope_field_name)
+ 
 
 function write_message(message)
   assert(type(message) == 'string')
@@ -97,14 +137,20 @@ function write_message(message)
   end
 end
 
-local function flush()
+__doc.flush = ([[function([file]) returns nothing
+Flushes all accumulated output to 'file', and resets
+the %s module to write to standard output.  Argument
+'file' defaults to io.stdout.]]):format(basename)
+
+function flush(outfile)
+  outfile = outfile or io.stdout
   if mime_boundary then
-    io.stdout:write(header, eol, 'This is a message in MIME format.', eol)
+    outfile:write(header, eol, 'This is a message in MIME format.', eol)
     local contents = stdout.contents
     while #contents > 0 do
       local next = table.remove(contents, 1)
       if type(next) == 'table' then
-        io.stdout:write((([[
+        outfile:write((([[
 --%s
 Content-Type: message/rfc822; name="Attached Message"
 Content-Transfer-Encoding: 8bit
@@ -117,19 +163,20 @@ Content-Disposition: inline; filename="Attached Message"
             or '',
              message):gsub('\n', eol)))
       else         
-        io.stdout:write((([[
+        outfile:write((([[
 --%s
 Content-Type: text/plain
 Content-Transfer-Encoding: 8bit
 
 ]]):format(mime_boundary):gsub('\n', eol)))
-        io.stdout:write(next)
+        outfile:write(next)
         while type(contents[1]) == 'string' do
-          io.stdout:write(table.remove(contents, 1))
+          outfile:write(table.remove(contents, 1))
         end
       end
     end
-    io.stdout:write(eol, '--', mime_boundary, '--', eol)
+    outfile:write(eol, '--', mime_boundary, '--', eol)
+    outfile:flush()
     reset()
   else
     stdout:flush()
@@ -138,8 +185,10 @@ Content-Transfer-Encoding: 8bit
 end
 
 
-__doc.exit = [[function(n) terminates execution with os.exit(n), but
-replaces n with 0 if output is set to message.
+__doc.exit = [[function(n) terminates execution 
+Flushes all accumulated output and
+  * calls os.exit(n), if the output is set to 'file'
+  * calls os.exit(0), if the output is set to 'message'
 Used to stop procmail, or similar, from ignoring filter result messages
 which will show up in the body of the command result, in case of error.
 ]]
@@ -150,7 +199,8 @@ function exit(n)
   os.exit(n)
 end
 
-__doc.set = [[
+__doc.set = ([[
+
 function(m, subject, [eol])  set output to message starting from m
 function()                   set output to io.stdout
 function(file)               set output to file
@@ -159,7 +209,7 @@ This function determines the destination of text written by %s.write()
 and %s.writeln().  Destination may be a message, in which case the message
 borrows headers and takes its subject from the given message and subject,
 or destination may be a file, in which case writes are directly to the file.
-]]
+]]):format(basename, basename)
 
 function set(m, subject, new_eol)
   if m == nil then m = io.stdout end
@@ -189,10 +239,11 @@ Content-Type: multipart/mixed;
 ]]):format(subject, boundary):gsub('\n', m.eol)))
 end
 
-__doc.generate_hex_string = [[function(len) returns a string of random hex
-chars, with size len. The string is generated from random bytes read from
-/dev/urandom. If /dev/urandom is not readable, random bytes are produced
-with math.random, after seeding math.randomseed with current time.]] 
+__doc.generate_hex_string = [[function(len) returns string
+Returns a string of length 'len' containing random hex chars.
+The string is generated from random bytes read from /dev/urandom. 
+If /dev/urandom is not readable, random bytes are produced with
+math.random, after seeding math.randomseed with current time.]]
 
 function generate_hex_string(len)
   assert (type(len) == 'number')

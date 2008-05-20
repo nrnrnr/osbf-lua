@@ -1,10 +1,11 @@
 -- See Copyright Notice in osbf.lua
 
-local require, print, pairs, ipairs, type, error, assert =
-      require, print, pairs, ipairs, type, error, assert
+local require, print, pairs, ipairs, type, error, assert, tostring, pcall =
+      require, print, pairs, ipairs, type, error, assert, tostring, pcall
 
-local tostring, pcall =
-      tostring, pcall
+local table =
+      table
+      
 
 module(...)
 

@@ -75,7 +75,7 @@ local function internals(out, s)
     end
 
     local function document(k)
-      if string.find(k, '^__') then return end
+      if k:find('^__') or type(doc[k]) ~= 'string' then return end
       local d = doc[k]:gsub('\n\n', '\n  \n'):gsub('\n(.)', '\n  %1')
       local exported = type(osbf[module]) ~= 'table' or osbf[module][k] ~= nil
       if not exported then

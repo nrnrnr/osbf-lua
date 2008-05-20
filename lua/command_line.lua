@@ -20,7 +20,9 @@ local options  = require (_PACKAGE .. 'options')
 local log      = require (_PACKAGE .. 'log')
 local filter   = require (_PACKAGE .. 'filter')
 local output   = require (_PACKAGE .. 'output')
-require(_PACKAGE .. 'learn') -- loaded into 'commands'
+local sfid     = require (_PACKAGE .. 'sfid')
+require(_PACKAGE .. 'learn')  -- loaded into 'commands'
+require(_PACKAGE .. 'report') -- loaded into 'commands'
 
 local function eprintf(...) return output.error:write(string.format(...)) end
 

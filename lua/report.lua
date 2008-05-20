@@ -589,7 +589,7 @@ function generate_training_message(email, temail, opt_locale)
 end
 
 __doc.write_training_message = [[function(email, temail, [locale]) 
-Writes an RFC822-compliant email message to stadndard output using
+Writes an RFC822-compliant email message to standard output using
 output.write.
 The message contains a training form and is sent to 'email'.  
 When the training form is filled out and posted, the results
