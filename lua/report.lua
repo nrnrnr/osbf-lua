@@ -15,12 +15,13 @@ module(modname)
 
 __doc = __doc or { }
 
-local util  = require(_PACKAGE .. 'util')
-local cfg   = require(_PACKAGE .. 'cfg')
-local msg   = require(_PACKAGE .. 'msg')
-local core  = require(_PACKAGE .. 'core')
-local cache = require(_PACKAGE .. 'cache')
-local mime  = require(_PACKAGE .. 'mime')
+local util   = require(_PACKAGE .. 'util')
+local cfg    = require(_PACKAGE .. 'cfg')
+local msg    = require(_PACKAGE .. 'msg')
+local core   = require(_PACKAGE .. 'core')
+local cache  = require(_PACKAGE .. 'cache')
+local output = require(_PACKAGE .. 'output')
+local mime   = require(_PACKAGE .. 'mime')
 
 
 local html = util.html

@@ -164,7 +164,8 @@ extract only a sfid with the proper rightid.
     local tag, year, month, day, hour, min, sec, confidence,
           serial, rightid, dash, learned = s:match(full_sfid_pat)
     if not (tag and learned) then
-      error("Ill-formed sfid " .. s)
+      error(string.format("Ill-formed sfid %q\n  (does not match pattern %q)",
+                          s, full_sfid_pat))
     end
     if dash == '' then
       rightid = rightid .. learned
