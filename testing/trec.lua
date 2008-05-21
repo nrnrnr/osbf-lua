@@ -95,7 +95,8 @@ for l in assert(io.lines(trecdir .. 'index')) do
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')
   if debug then io.stderr:write("\nMsg ", file) end 
   table.insert(files, file)
-  local m = msg.of_file(trecdir .. file)
+  --local m = msg.of_file(trecdir .. file)
+  local m = msg.of_string(util.file_contents(trecdir .. file))
   -- find best class
   local bc = commands.classify(m)
   nclass = nclass + 1
@@ -127,7 +128,7 @@ io.stderr:write(info, '\n')
 if opts.ctimes then
   local start_time = os.time()
   for _, file in ipairs(files) do
-    local m = msg.of_any(trecdir .. file)
+    local m = cache.msg_of_any(trecdir .. file)
     commands.classify(m)
   end
   local end_time = os.time()

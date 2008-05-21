@@ -1,6 +1,6 @@
 MODNAME=osbf3
 
-include ./pgconfig
+include ./config
 
 DIST_DIR= osbf-$LIB_VERSION
 TAR_FILE= $(DIST_DIR).tar.gz
