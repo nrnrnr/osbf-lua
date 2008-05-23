@@ -42,12 +42,13 @@ local modname = ...
 local modname = modname:gsub('[^%.]+$', 'commands')
 module(modname)
 
-local util  = require(_PACKAGE .. 'util')
-local cfg   = require(_PACKAGE .. 'cfg')
-local msg   = require(_PACKAGE .. 'msg')
-local core  = require(_PACKAGE .. 'core')
-local lists = require(_PACKAGE .. 'lists')
-local cache = require(_PACKAGE .. 'cache')
+local util   = require(_PACKAGE .. 'util')
+local cfg    = require(_PACKAGE .. 'cfg')
+local msg    = require(_PACKAGE .. 'msg')
+local core   = require(_PACKAGE .. 'core')
+local lists  = require(_PACKAGE .. 'lists')
+local cache  = require(_PACKAGE .. 'cache')
+local output = require(_PACKAGE .. 'output')
 
 local function fingerprint(s)
   local function hex(s) return string.format('%02x', string.byte(s)) end

@@ -1,5 +1,13 @@
 #! /usr/bin/env lua5.1
 --  -*- mode: lua -*-
+ 
+--[[  -- not very useful
+require 'profiler' ; profiler.start()
+do
+  local x = os.exit
+  os.exit = function(n) profiler.stop(); x(n) end
+end
+]]
 
 local osbf         = require 'osbf3'
 local command_line = require 'osbf3.command_line'
@@ -174,3 +182,4 @@ if not opts.keep then
   os.execute('/bin/rm -rf ' .. test_dir)
 end
 
+os.exit(0)
