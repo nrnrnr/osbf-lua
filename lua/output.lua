@@ -20,9 +20,9 @@ local reset = function() end
   -- will keep rebinding this function to re-initialize the 
   -- private mutable state of this module
 
-local eol, header, mime_boundary
+local eol, mime_boundary
 local reset =
-  function() reset(); eol, header, mime_boundary = '\n' end
+  function() reset(); eol, mime_boundary = '\n' end
 
 
 __doc.__order = { 'stdout', 'error', 'write', 'writeln', 'write_message',
@@ -45,7 +45,6 @@ until %s.flush or %s.exit is called.]]):format(basename, basename)
 __doc.T = [[an internal table representing accumulated output:
 
   { boundary = MIME multipart boundary,
-    header   = string header of the whole message,
     contents = list in which each element is a string or a message,
                where a message is represented by a table with two fields:
                   body      -- a string
@@ -145,7 +144,7 @@ the %s module to write to standard output.  Argument
 function flush(outfile)
   outfile = outfile or io.stdout
   if mime_boundary then
-    outfile:write(header, eol, 'This is a message in MIME format.', eol)
+    outfile:write(eol, 'This is a message in MIME format.', eol)
     local contents = stdout.contents
     while #contents > 0 do
       local next = table.remove(contents, 1)
@@ -220,11 +219,11 @@ function set(m, subject, new_eol)
     error = io.stderr
   else
     assert(m.__headers) -- proxy for stronger test
-    mime_boundary = util.generate_hex_string(40) .. "=-=-="
+    mime_boundary = generate_hex_string(40) .. "=-=-="
     stdout = setmetatable({ }, table_meta)
     error  = stdout
     eol = new_eol or '\n'
-    for i in header_indices(m, 'from ', 'date', 'from', 'to') do
+    for i in m:_header_indices('from ', 'date', 'from', 'to') do
       if i then
         writeln(m.__headers[i])
       end
@@ -236,7 +235,7 @@ Subject: %s
 MIME-Version: 1.0
 Content-Type: multipart/mixed;
   boundary="%s"
-]]):format(subject, boundary):gsub('\n', m.eol)))
+]]):format(subject, boundary):gsub('\n', m.__eol)))
 end
 
 __doc.generate_hex_string = [[function(len) returns string

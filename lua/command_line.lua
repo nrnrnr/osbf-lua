@@ -578,8 +578,7 @@ local subject_line_commands = { classify = 1, learn = 1, unlearn = 1,
 
 local function exec_subject_line_command(cmd, m)
   assert(type(cmd) == 'table' and type(m) == 'table')
-  filter.set_output_to_message(m,
-    'OSBF-Lua command result - ' .. cmd[1] or 'nil?!')
+  output.set(m, 'OSBF-Lua command result - ' .. cmd[1] or 'nil?!')
   -- insert sfid if required
   if subject_line_commands[cmd[1]] == 1 and not cache.is_sfid(cmd[#cmd]) then
     table.insert(cmd, m:_sfid())

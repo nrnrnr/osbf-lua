@@ -130,12 +130,12 @@ static int parsemime(lua_State *L) {
   debugf(("len == %d && p[4] == '%c' && p[0] == '%c' && !strncmp(...) == %d\n",
           len, p[4], p[0], !strncmp((char *)p, "From ", 5)));
   if (len > 5 && p[4] == ' ' && p[0] == 'F' && !strncmp((char *)p, "From ", 5)) {
-    debugf(("Found sendmail-style 'From '\n"));
+    debugf(("Found mbox-style 'From '\n"));
     /* concoct and add a bogus header for this line */
-    lua_pushstring(L, "X-Sendmail-From");
+    lua_pushstring(L, "X-Mbox-From");
     lua_rawseti(L, tindex, n);
     while (*p != '\r' && *p != '\n') p++;
-    lua_pushfstring(L, "X-Sendmail-From: ");
+    lua_pushfstring(L, "X-Mbox-From: ");
     lua_pushlstring(L, (char *)s+5, p-(s+5));
     lua_concat(L, 2);
     lua_rawseti(L, hindex, n);
@@ -390,6 +390,7 @@ static const luaL_Reg lib[] = {
   {NULL, NULL}
 };
 
+extern int luaopen_fastmime (lua_State *L);
 extern int luaopen_fastmime (lua_State *L) {
   luaL_register(L, luaL_checkstring(L, -1), lib);
   return 1;
