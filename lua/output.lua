@@ -45,6 +45,7 @@ until %s.flush or %s.exit is called.]]):format(basename, basename)
 __doc.T = [[an internal table representing accumulated output:
 
   { boundary = MIME multipart boundary,
+    header   = header of the MIME message (a string),
     contents = list in which each element is a string or a message,
                where a message is represented by a table with two fields:
                   body      -- a string
@@ -147,7 +148,7 @@ the %s module to write to standard output.  Argument
 function flush(outfile)
   outfile = outfile or io.stdout
   if mime_boundary then
-    outfile:write(eol, 'This is a message in MIME format.', eol)
+    outfile:write(stdout.header, eol, 'This is a message in MIME format.', eol)
     local contents = stdout.contents
     while #contents > 0 do
       local next = table.remove(contents, 1)
@@ -228,7 +229,7 @@ function set(m, subject, new_eol)
     eol = new_eol or '\n'
     for i in m:_header_indices('from ', 'date', 'from', 'to') do
       if i then
-        writeln(m.__headers[i])
+        writeln(m.__headers[i]) -- a flagrant cheat
       end
     end
   end
@@ -238,7 +239,8 @@ Subject: %s
 MIME-Version: 1.0
 Content-Type: multipart/mixed;
   boundary="%s"
-]]):format(subject, mime_boundary):gsub('\n', m.__eol)))
+]]):format(subject, mime_boundary):gsub('\n', m.__eol))) -- more cheating
+  stdout.header, stdout.contents = table.concat(stdout.contents), { } -- stop cheating
 end
 
 __doc.generate_hex_string = [[function(len) returns string
