@@ -58,6 +58,7 @@ The table has a metatable supporting 'write' and 'writeln' methods.
 
 __doc.stdout = [[file or object of type T
 For normal output; supports 'write' and 'writeln' methods.
+May be of type T or may be a table containing a 'file' field.
 ]]
 
 __doc.error = [[file or object of type T
@@ -70,12 +71,14 @@ local stdout
 local reset = function() reset(); stdout = io.stdout end
 
 local file_meta = {
-  writeln = function(self, ...) self:write(...); self:write(eol) end,
+  writeln = function(self, ...) self.file:write(...); self.file:write(eol) end,
 }
 
 local table_meta = {
-  write   = function(self, ...) table.insert(self.contents, table.concat {...}) end,
-  writeln = file_meta.writeln,
+  __index = {
+    write   = function(self, ...) table.insert(self.contents, table.concat {...}) end,
+    writeln = function(self, ...) self:write(...); self:write(eol) end,
+  }
 }
 
 local function err_index(t, k)
@@ -104,7 +107,7 @@ where eol is locally acceptable end-of-line marker.
 ]]):format(basename, basename)
 
 function write(...) return stdout:write(...) end
-function writeln(...) return (stdout.writeln or file_meta.writeln)(stdout, ...) end
+function writeln(...) return (stdout.writeln or table_meta.writeln)(stdout, ...) end
 
 __doc.type = [[function() returns 'message' or 'file']]
 
@@ -220,7 +223,7 @@ function set(m, subject, new_eol)
   else
     assert(m.__headers) -- proxy for stronger test
     mime_boundary = generate_hex_string(40) .. "=-=-="
-    stdout = setmetatable({ }, table_meta)
+    stdout = setmetatable({ boundary = mime_boundary, contents = { } }, table_meta)
     error  = stdout
     eol = new_eol or '\n'
     for i in m:_header_indices('from ', 'date', 'from', 'to') do
@@ -229,13 +232,13 @@ function set(m, subject, new_eol)
       end
     end
   end
-  subject = subject or '(No subject)' --- probably bad
+  subject = subject or '(Reply from OSBF-Lua)'
   writeln((([[
 Subject: %s
 MIME-Version: 1.0
 Content-Type: multipart/mixed;
   boundary="%s"
-]]):format(subject, boundary):gsub('\n', m.__eol)))
+]]):format(subject, mime_boundary):gsub('\n', m.__eol)))
 end
 
 __doc.generate_hex_string = [[function(len) returns string

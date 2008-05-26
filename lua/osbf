@@ -40,6 +40,7 @@ end
 
 if options.trace then
   osbf.command_line.pcall = function(f, ...) return true, f(...) end
+  pcall =     osbf.command_line.pcall 
 end
 
 local pcall = osbf.command_line.pcall

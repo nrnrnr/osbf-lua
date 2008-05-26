@@ -24,8 +24,6 @@ local sfid     = require (_PACKAGE .. 'sfid')
 require(_PACKAGE .. 'learn')  -- loaded into 'commands'
 require(_PACKAGE .. 'report') -- loaded into 'commands'
 
-local function eprintf(...) return output.error:write(string.format(...)) end
-
 __doc  = __doc  or { } -- internal documentation
 
 __help = __help or { } -- the detailed help
@@ -51,7 +49,7 @@ function run(cmd, ...)
       output.error:writeln((msg:gsub('\n+$', '')))
     end
   else
-    eprintf('Unknown command %s\n', cmd)
+    output.error:writeln('Unknown command ', cmd)
     usage()
   end
 end
@@ -195,7 +193,7 @@ local function listfun(listname)
            local result = lists.run(listname, cmd, tag, arg)
            if not lists.show_cmd[cmd] then
              if not (cmd and tag and arg) then
-               eprintf('Bad %s commmand\n', listname)
+               output.error:writeln('Bad ', listname, ' commmand')
                usage()
              end
              tag = util.capitalize(tag)
@@ -590,6 +588,7 @@ local function exec_subject_line_command(cmd, m)
     cmd = {'cache-report', '-send', m.to }
   end
   run(unpack(cmd))
+  output.flush()
 end
 
 __doc.filter = [[function(...)
@@ -608,7 +607,7 @@ _M.filter = function(...)
        nosfid = options.std.bool})
 
   local function filter_one(m)
-    local have_subject_cmd, cmd = _G.pcall(filter.parse_subject_command, m)
+    local have_subject_cmd, cmd = pcall(filter.parse_subject_command, m)
     if have_subject_cmd then
       exec_subject_line_command(cmd, m)
     else
