@@ -19,7 +19,9 @@ I believe we have the following constraints:
 
   * It must be possible to modify existing headers and add new
     headers, and then reconstruct a message containing the modified
-    and new headers plus the original body.
+    and new headers plus the original body.  If the original message
+    begina with a 'From ' line inserted by the delivery agent, so must
+    the modified message.
 
   * It is necessary to deal sensibly with all well-formatted MIME
     messages, including those that contain no body.
