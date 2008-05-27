@@ -42,6 +42,7 @@ function check_parse(fname)
   local s = f:read '*a'
   f:close()
   if s:len() > 0 then
+    msg.of_string_test = msg.of_string_test or msg.of_string
     local m = msg.of_string_test(s)
     if opts.print then print(fname, tostring(m)) end
   end

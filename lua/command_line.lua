@@ -607,7 +607,7 @@ _M.filter = function(...)
        nosfid = options.std.bool})
 
   local function filter_one(m)
-    local have_subject_cmd, cmd = pcall(filter.parse_subject_command, m)
+    local have_subject_cmd, cmd = _G.pcall(filter.parse_subject_command, m)
     if have_subject_cmd then
       exec_subject_line_command(cmd, m)
     else

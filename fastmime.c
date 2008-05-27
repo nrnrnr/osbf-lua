@@ -51,7 +51,11 @@ enum eol { LF, CRLF, MIXED };
 static int parsemime(lua_State *L) {
   /* function(string) returns { headers = list, tags = list, body = string or nil,
                                 headerstring = string, workaround = string or nil, 
-                                eol = enum, noncompliant = string or nil } */
+                                mbox_from = string_or_nil
+                                eol = enum, noncompliant = string or nil } 
+    N.B. neither mbox_from nor headers[i], if present, contains a terminating eol.
+    Presence of an mbox 'From ' line is not sufficient to deem a message noncompliant.
+   */
   
 
   size_t len;
@@ -64,18 +68,22 @@ static int parsemime(lua_State *L) {
   unsigned char *p;                 /* pointer used to scan through headers */
   unsigned n = 1;                   /* next header/tag to write */
   int hindex, tindex;   /* locations (on Lua stack) of headers and tags tables */
+  int resindex;         /* location on Lua stack of result table */
   int has_crlf;         /* true iff first occurrence of \n is preceded by \r */
   int has_no_lf;        /* true iff string contains no \n */
   const char *eolname = "this can't happen";  /* string name of eol chosen */
   const char *workaround = NULL;
                             /* if not NULL, identifies compliance workaround used */
   unsigned char *badchar;   /* temporary pointer to bad character in header name */
+  int body_present;         /* nonzero if headers end with double EOL */
 
-  /* create headers and tags tables and put indices in hindex, tindex */
+  /* create tables and put indices in hindex, tindex, resindex */
   lua_newtable(L);
   hindex = lua_gettop(L);
   lua_newtable(L);
   tindex = lua_gettop(L);
+  lua_newtable(L);
+  resindex = lua_gettop(L);
 
 
   /* The basic idea is a state machine with these states:
@@ -131,15 +139,9 @@ static int parsemime(lua_State *L) {
           len, p[4], p[0], !strncmp((char *)p, "From ", 5)));
   if (len > 5 && p[4] == ' ' && p[0] == 'F' && !strncmp((char *)p, "From ", 5)) {
     debugf(("Found mbox-style 'From '\n"));
-    /* concoct and add a bogus header for this line */
-    lua_pushstring(L, "X-Mbox-From");
-    lua_rawseti(L, tindex, n);
     while (*p != '\r' && *p != '\n') p++;
-    lua_pushfstring(L, "X-Mbox-From: ");
-    lua_pushlstring(L, (char *)s+5, p-(s+5));
-    lua_concat(L, 2);
-    lua_rawseti(L, hindex, n);
-    n++;
+    lua_pushlstring(L, (char *)s, p-s);
+    lua_setfield(L, resindex, "mbox_from");
 
     /* step past line terminator and go to appropriate start of header */
     if (has_crlf) {
@@ -297,15 +299,17 @@ memchr(start_hline, '\r', p-start_hline-EOLWIDTH), p,                           
       lua_pushlstring(L, (char *) start_header, p-EOLWIDTH-start_header);           \
       lua_rawseti(L, hindex, n);                                                    \
       p += EOLWIDTH;                                                                \
+      body_present = (p <= limit);                                                  \
       if (p > limit) p = limit;                                                     \
       eolname = #EOL;                                                               \
       goto body;                                                                    \
     } else if (p == limit) {                                                        \
-      /* end of message: save last header; capture empty body */                    \
+      /* end of message: save last header; no body */                               \
       debugf(("message is headers only\n"));                                        \
       lua_pushlstring(L, (char *) start_header, p-EOLWIDTH-start_header);           \
       lua_rawseti(L, hindex, n);                                                    \
       n++;                                                                          \
+      body_present = 0;                                                             \
       eolname = #EOL;                                                               \
       goto body;                                                                    \
     } else if (*p == ' ' || *p == '\t') {                                           \
@@ -349,38 +353,36 @@ memchr(start_hline, '\r', p-start_hline-EOLWIDTH), p,                           
  body:
   /* we arrive here if all headers are parsed successfully with proper compliance */
   /* p points to the dividing line between header part (for reinforcement)
-     and body part.  Body is set only if nonempty */
-  lua_newtable(L);  /* push the result table and finish */
+     and body part.  Body is set only if present */
  finish:
   /* result table is on the stack and p points to the division between
      headerstring and body */
   /* set fields of result, restore sentinel, and return result */
   lua_pushlstring(L, (char *)s, p - s);
-  lua_setfield(L, -2, "headerstring");
-  if (p < limit) {
+  lua_setfield(L, resindex, "headerstring");
+  if (body_present) { /* body could be present but empty; this is OK */
     lua_pushlstring(L, (char *) p, limit-p);
-    lua_setfield(L, -2, "body");
+    lua_setfield(L, resindex, "body");
   }
   lua_pushvalue(L, hindex);
-  lua_setfield(L, -2, "headers");
+  lua_setfield(L, resindex, "headers");
   lua_pushvalue(L, tindex);
-  lua_setfield(L, -2, "tags");
+  lua_setfield(L, resindex, "tags");
   lua_pushstring(L, eolname);
-  lua_setfield(L, -2, "eol");
+  lua_setfield(L, resindex, "eol");
   if (workaround != NULL) {
     lua_pushstring(L, workaround);
-    lua_setfield(L, -2, "workaround");
+    lua_setfield(L, resindex, "workaround");
   }
   *limit = limitchar; /* restore sentinel */
+  lua_settop(L, resindex);
   return 1;
  noncompliant:
   /* we arrive here if we tripped over a noncompliant message.
      start_header points to the dividing line between compliant headers
      and something noncompliant.  A string indicating the reason for noncompliance
      is on the Lua stack. */
-  lua_newtable(L); /* push the result table */
-  lua_insert(L, -2); /* get the noncompliance string where we can set it */
-  lua_setfield(L, -2, "noncompliant");
+  lua_setfield(L, resindex, "noncompliant");
   p = start_header; /* do this to share code with finish: */
   goto finish;
 }

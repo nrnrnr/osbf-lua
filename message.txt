@@ -19,9 +19,14 @@ I believe we have the following constraints:
 
   * It must be possible to modify existing headers and add new
     headers, and then reconstruct a message containing the modified
-    and new headers plus the original body.  If the original message
-    begina with a 'From ' line inserted by the delivery agent, so must
-    the modified message.
+    and new headers plus the original body.  
+
+  * If the original message is in mbox format, then the original
+    'From ' line inserted by the delivery agent must be preserved by
+    msg.to_string as well as msg.to_orig_string.  However, this line
+    need not be considered a 'header' in the sense of RFC 2822, and it
+    is not necessary to provide access to this line using the same
+    mechanisms used for true headers.
 
   * It is necessary to deal sensibly with all well-formatted MIME
     messages, including those that contain no body.
@@ -86,6 +91,12 @@ Here is my proposal for a new interface:
         More realistic example:
                      m['X-OSBF-Lua-Train'] = 'yes'
                         -- replaces call to msg.append_header
+
+      . The mbox 'From ' line, if present, is accessible as the field
+        __from of the message, and it does not participate in the
+        header system.  The terminating eol is not part of the __from
+        field. 
+        
 
 Finally, I propose to migrate functions out of the msg interface.
 I would like to create new submodules

@@ -3,8 +3,8 @@
 -- See Copyright Notice in osbf.lua
 
 
-local require, print, pairs, ipairs, type, assert, setmetatable =
-      require, print, pairs, ipairs, type, assert, setmetatable
+local require, print, pairs, ipairs, type, assert, setmetatable, error =
+      require, print, pairs, ipairs, type, assert, setmetatable, error
 
 local os, string, table, math, tostring =
       os, string, table, math, tostring

@@ -227,10 +227,11 @@ function set(m, subject, new_eol)
     stdout = setmetatable({ boundary = mime_boundary, contents = { } }, table_meta)
     error  = stdout
     eol = new_eol or '\n'
-    for i in m:_header_indices('from ', 'date', 'from', 'to') do
-      if i then
-        writeln(m.__headers[i]) -- a flagrant cheat
-      end
+    -- we now cheat by abusing writeln to build the stdout.header field!
+    if m.__from then writeln(m.__from) end -- abuse
+    for i in m:_header_indices('date', 'from', 'to') do
+      assert(i and m.__headers[i])
+      writeln(m.__headers[i]) -- still abusing writeln
     end
   end
   subject = subject or '(Reply from OSBF-Lua)'
@@ -239,8 +240,8 @@ Subject: %s
 MIME-Version: 1.0
 Content-Type: multipart/mixed;
   boundary="%s"
-]]):format(subject, mime_boundary):gsub('\n', m.__eol))) -- more cheating
-  stdout.header, stdout.contents = table.concat(stdout.contents), { } -- stop cheating
+]]):format(subject, mime_boundary):gsub('\n', m.__eol))) -- more abuse
+  stdout.header, stdout.contents = table.concat(stdout.contents), { } -- stop abuse
 end
 
 __doc.generate_hex_string = [[function(len) returns string

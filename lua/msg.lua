@@ -33,9 +33,10 @@ __doc.__private.T = true
 __doc.T = ([===[
 The representation of a message, which is private to the %s module,
 is a table containing these fields:
-    { __headers       = list of headers, each a 'field' or 'obs-field' as 
-                        defined by RFC 2822, or __header_fields[1] may
-                        be a noncompliant string beginning with 'From ',
+    { __from          = mbox format 'From ' line (without eol, if this
+                        was the first line of the message),
+      __headers       = list of headers, each a 'field' or 'obs-field' as 
+                        defined by RFC 2822 (does not includes __from),
       __header        = string containing the original header of the
                         message plus possible separator (see Note Header below),
       __body          = string containing the original body (possibly empty),
@@ -65,7 +66,8 @@ Note Header: If the message has no body, the __header value is
 (fields / obs-fields) as defined by RFC 2822.   If the message has a body,
 the __header value is (fields / obs-fields) CRLF as defined by RFC2822.
 CRLF will be represented using the local EOL convention as defined by the
-__eol field of the message.
+__eol field of the message.  If the message has an mbox 'From ' line,
+that is the first line of the __header value.
 
 A message m satisfies these invariants:
 
@@ -212,6 +214,7 @@ function of_string(s, uncertain)
   local hi = header_index(parsed.tags)
   local msg = { __headers = headers, __header = parsed.headerstring,
                 __noncompliant = parsed.noncompliant,
+                __from = parsed.mbox_from, 
                 __body = parsed.body, __eol = eol, __header_index = hi,
               }
   setmetatable(msg, msg_meta)
@@ -219,6 +222,36 @@ function of_string(s, uncertain)
     show_msg(string.format('Noncompliant message (%s):', parsed.noncompliant), msg)
   end
   return msg
+end
+
+do
+  local old = of_string
+  local n = 0
+  of_string = function(...)
+                local msg = old(...)
+                if not (msg:_to_string() == msg:_to_orig_string()) then
+                  n = n + 1
+                  local f = io.open('/tmp/A' .. n, 'w')
+                  if f then f:write(msg:_to_orig_string()); f:close() end
+                  local f = io.open('/tmp/B' .. n, 'w')
+                  if f then f:write(msg:_to_string()); f:close() end
+                  local f = io.open('/tmp/msg' .. n, 'w')
+                  if f then
+                    local stderr = io.stderr
+                    io.stderr = f
+                    show_msg('Message ' .. n, msg)
+                    io.stderr = stderr
+                    f:close()
+                  end
+                  local f = io.open('/tmp/show-bad-msgs', 'a+')
+                  if f then
+                    f:write(string.format('cat /tmp/msg%d\n', n))
+                    f:write(string.format('diff -u /tmp/A%d /tmp/B%d\n', n, n))
+                    f:close()
+                  end
+                end
+                return msg
+              end
 end
 
 -------
@@ -231,11 +264,19 @@ which may or may comply with RFC 2822.]]
 
 function to_string(v)
   assert(is_T(v))
-  if v.__body then
-    return table.concat{table.concat(v.__headers, v.__eol), v.__eol, v.__body}
+  local elements
+  if v.__from then
+    elements = { v.__from, v.__eol }
   else
-    return table.concat(v.__headers, v.__eol)
+    elements = { }
   end
+  table.insert(elements, table.concat(v.__headers, v.__eol))
+  table.insert(elements, v.__eol)
+  if v.__body then
+    table.insert(elements, v.__eol)
+    table.insert(elements, v.__body)
+  end
+  return table.concat(elements)
 end
 
 function to_orig_string(v)

@@ -38,9 +38,10 @@ if options.profile then
   profiler.start 'osbf.lprof'
 end
 
+-- we dare not override the global pcall, because that's used
+-- as an exception handler for trying to parse subject-line commands
 if options.trace then
   osbf.command_line.pcall = function(f, ...) return true, f(...) end
-  pcall =     osbf.command_line.pcall 
 end
 
 local pcall = osbf.command_line.pcall
