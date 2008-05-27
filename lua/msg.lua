@@ -33,7 +33,7 @@ __doc.__private.T = true
 __doc.T = ([===[
 The representation of a message, which is private to the %s module,
 is a table containing these fields:
-    { __from          = mbox format 'From ' line (without eol, if this
+    { __from          = nil or mbox format 'From ' line (without eol, if this
                         was the first line of the message),
       __headers       = list of headers, each a 'field' or 'obs-field' as 
                         defined by RFC 2822 (does not includes __from),
@@ -49,7 +49,6 @@ is a table containing these fields:
       __header_index  = a table giving index in list of every
                         occurrence of each header, indexed by all
                         lower case
-      [' From']       = nil or a string containing a Unix mbox 'From' line,
     }
 
 An example of the header_index table (abbreviated) might be
@@ -106,6 +105,7 @@ local msg_meta = {
                 if k:find '^_' then
                   return _M[k:match('^_(.*)$')]
                 else
+                  assert(not k:find '%s', 'space not permitted in header field name')
                   return (headers_tagged(t, k)())
                 end
               end
@@ -115,6 +115,7 @@ local msg_meta = {
                    error('Internal fault: stored extra field ' ..
                          tostring(k) .. ' in message')
                  else
+                   assert(not k:find '%s', 'space not permitted in header field name')
                    local indices = t.__header_index[k:lower()]
                    if indices then
                      local i = indices[1]
