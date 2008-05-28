@@ -79,11 +79,9 @@ local function filter_help()
 
 Valid subject-line commands:
 
-- train_form <password>
-  Sends a training form.
-
-- help <password>
-  Sends this help.
+- classify <password> [<sfid>] 
+  Classifies a message. If <sfid> [1] is not given, it's extracted
+  from the header.
 
 - learn <password> ham|spam [<sfid>]
   Trains message. If <sfid> is not given, it's extracted
@@ -91,6 +89,9 @@ Valid subject-line commands:
 
 - unlearn <password> [ham|spam] [<sfid>]
   Undoes a previous learning.
+
+- cache-report <password>
+  Sends a training form.
 
 - whitelist <password> add|del <tag> <string>
   Adds/deletes strings to/from whitelist. <tag> is a header
@@ -102,7 +103,7 @@ Valid subject-line commands:
 
 - whitelist <password> add-pat|del-pat <tag> <pattern>
   Adds/deletes patterns to/from whitelist. <pattern> is a
-  Lua pattern [1] to match some part of the <tag> contents.
+  Lua pattern [2] to match some part of the <tag> contents.
 
 - blacklist <password> add-pat|del-pat <tag> <pattern>
   Idem for blacklists.
@@ -111,9 +112,19 @@ Valid subject-line commands:
   Shows list contents.
 
 - resend <password> <sfid>
-  Resends message with <sfid>
+  Resends message with <sfid>.
 
-[1] http://www.lua.org/manual/5.1/manual.html#5.4.1
+- recover <password> <sfid>
+  Recover a message with <sfid> as an attachment.
+
+- stats <password>
+  Sends database and filter statistics.
+
+- help <password>
+  Sends this help.
+
+[1] <sfid>, spamfilter id, identifies a message in filter's cache.
+[2] http://www.lua.org/manual/5.1/manual.html#5.4.1
 
 ]])
 end

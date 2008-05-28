@@ -6,8 +6,8 @@
 local require, print, pairs, ipairs, type, assert, setmetatable, error =
       require, print, pairs, ipairs, type, assert, setmetatable, error
 
-local os, string, table, math, tostring =
-      os, string, table, math, tostring
+local io, os, string, table, math, tostring =
+      io, os, string, table, math, tostring
 
 module(...)
 

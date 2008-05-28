@@ -23,7 +23,7 @@ XOBJS= osbferrs.o
 CFLAGS += -DOPENFUN=luaopen_$(MODNAME)_core
 CFLAGS += -DLUA_USE_LINUX
 
-lib: $(LIBNAME)
+lib: $(LIBNAME) fastmime.so
 
 $(OBJS) $(XOBJS): osbflib.h osbferr.h config pgconfig
 
@@ -33,6 +33,9 @@ oarray.o: osbferr.h oarray.h
 
 $(LIBNAME): $(OBJS) $(XOBJS)
 	$(CC) $(CFLAGS) $(LIB_OPTION) -o $(LIBNAME) $(OBJS) $(LIBS)
+
+fastmime.so: fastmime.o
+	$(CC) $(CFLAGS) $(LIB_OPTION) -o fastmime.so fastmime.o
 
 osbf-lua: $(OBJS) lua.o main.o
 	$(CC) $(CFLAGS)  -o osbf-lua main.o $(OBJS) lua.o $(LIBDEBUG) $(PGLUALIB) $(PG) -ldl -lreadline -lhistory -lncurses $(LIBS) 
@@ -46,8 +49,10 @@ main.o: config
 install: $(LIBNAME)
 	mkdir -p $(LUAMODULE_DIR)/$(MODNAME)
 	cp $(LIBNAME) $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT)
+	cp fastmime.so $(LUAMODULE_DIR)/fastmime.so
 ifneq ($(STRIP),no)
 	strip $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT)
+	strip $(LUAMODULE_DIR)/fastmime.so
 endif
 	cp lua/*.lua $(LUAMODULE_DIR)/$(MODNAME)
 	# cp and rm may work where mv will not (directory permissions)
