@@ -121,7 +121,6 @@ local subject_cmd_pattern = {
   recover = '^(%S+)',
   resend = '^(%S+)',
   remove = '^(%S+)',
-  help = '^%$',
   stats = '^$',
   ['cache-report'] = '^$',
   train_form = '^$',

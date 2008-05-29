@@ -115,7 +115,10 @@ Valid subject-line commands:
   Resends message with <sfid>.
 
 - recover <password> <sfid>
-  Recover a message with <sfid> as an attachment.
+  Recovers a message with <sfid> as an attachment.
+
+- remove <password> <sfid>
+  Removes the message with <sfid> from cache.
 
 - stats <password>
   Sends database and filter statistics.
@@ -370,7 +373,7 @@ local function learner(command_name)
         if tagged_and_to_be_resent and output.type() == 'message' then
           local m = msg.of_string(cache.recover(sfid))
           local subj_cmd = 'resend ' .. cfg.pwd .. ' ' .. sfid
-          local ok, err = pcall(filter.send_cmd_message, subj_cmd, m.eol)
+          local ok, err = pcall(filter.send_cmd_message, subj_cmd, m.__eol)
           if ok then
             output.writeln(' The original message, without subject tags, ',
               'will be sent to you.')
@@ -491,7 +494,7 @@ function classify(...)
                                  synopsis = msg.synopsis(m),
                                  class = bc.class, sfid = sfid, crc32 = crc32 })
     output.write(what, ' is ', show(bc.pR, bc.sfid_tag, bc.class),
-               bc.train and ' [needs training]' or '', m.eol)
+               bc.train and ' [needs training]' or '', m.__eol)
   end
 end
 
@@ -532,7 +535,7 @@ local function run_batch_cmd(sfid, cmd, m)
     if cmd == 'recover' or cmd == 'resend' then
       -- send a separate mail with subject-line command
       local ok, err = pcall(filter.send_cmd_message, cmd .. ' ' .. cfg.pwd .. ' ' .. sfid,
-                            m.eol)
+                            m.__eol)
       if ok then 
         output.writeln('The ', cmd, ' command was issued.')
         output.writeln( ' The message will be re-delivered to you if still in cache.')
@@ -570,7 +573,7 @@ remove            => remove <sfid> from cache.
 
 local function batch_train(m)
   local m = cache.msg_of_any(m)
-  for sfid, cmd in string.gmatch(m.body, '(sfid.-)=(%S+)') do
+  for sfid, cmd in string.gmatch(m.__body, '(sfid.-)=(%S+)') do
     -- remove initial '3D' of commands in quoted-printable encoded messages
     cmd = cmd:gsub('^3[dD]', '')
     run_batch_cmd(sfid, cmd, m)
@@ -579,9 +582,9 @@ end
 
 
 -- valid subject-line commands for filter command.
--- commands with value 1 require sfid. 
+-- commands with value 1 require the last arg to be a sfid.
 local subject_line_commands = { classify = 1, learn = 1, unlearn = 1,
-  recover = 1, resend = 1, remove = 1, sfid = 1, help = 0, whitelist = 0,
+  recover = 1, resend = 1, remove = 1, whitelist = 0,
   blacklist = 0, stats = 0, ['cache-report'] = 0, train_form = 0,
   batch_train = 0, help = 0}
 
