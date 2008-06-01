@@ -426,7 +426,7 @@ function resend(sfid)
                   boost, sfid_tag, core._VERSION, cfg.version)
   filter.add_osbf_header(m, cfg.header_suffixes.summary, score_header)
   filter.insert_sfid(m, sfid, cfg.insert_sfid_in)
-  output.flush() -- just in case we were writing to a message, stop
+  --output.flush() -- just in case we were writing to a message, stop
                  -- XXX almost certainly broken
   io.stdout:write(msg.to_string(m))
   log.lua('resend', log.dt { msg = tostring(m) })
@@ -590,12 +590,15 @@ local subject_line_commands = { classify = 1, learn = 1, unlearn = 1,
 
 local function exec_subject_line_command(cmd, m)
   assert(type(cmd) == 'table' and type(m) == 'table')
-  output.set(m, 'OSBF-Lua command result - ' .. cmd[1] or 'nil?!')
   -- insert sfid if required
   if subject_line_commands[cmd[1]] == 1 and not cache.is_sfid(cmd[#cmd]) then
     table.insert(cmd, m:_sfid())
   end
 
+  -- resend command replaces the result-command message completely
+  if cmd[1] ~= 'resend' then
+    output.set(m, 'OSBF-Lua command result - ' .. cmd[1] or 'nil?!')
+  end
   if cmd[1] == 'batch_train' then
     return batch_train(m) -- prevents execution of 'run' below
   elseif cmd[1] == 'train_form' or cmd[1] == 'cache-report' then

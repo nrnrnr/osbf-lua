@@ -46,7 +46,7 @@ mem-test: small.o lua.o main.o
 lua.o: config
 main.o: config
 
-install: $(LIBNAME)
+install: $(LIBNAME) fastmime.so
 	mkdir -p $(LUAMODULE_DIR)/$(MODNAME)
 	cp $(LIBNAME) $(LUAMODULE_DIR)/$(MODNAME)/core$(LIB_EXT)
 	cp fastmime.so $(LUAMODULE_DIR)/fastmime.so
