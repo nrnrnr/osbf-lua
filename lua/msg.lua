@@ -175,7 +175,8 @@ local function show_msg(what, m)
     eprintf('    %s = { %s }\n', k, table.concat(v, ', '))
   end
 end
-__doc.of_string = [[function(s, uncertain) returns T
+
+__doc.of_string = [[function(s, uncertain) returns T or nil
 Takes a message in RFC 822 format and returns our internal table-based
 representation of type T.  If the input string 's' is not actually an
 RFC 822 message, the results are unpredictable, but if the function
@@ -230,7 +231,7 @@ do
   local n = 0
   of_string = function(...)
                 local msg = old(...)
-                if not (msg:_to_string() == msg:_to_orig_string()) then
+                if msg and not (msg:_to_string() == msg:_to_orig_string()) then
                   n = n + 1
                   local f = io.open('/tmp/A' .. n, 'w')
                   if f then f:write(msg:_to_orig_string()); f:close() end
