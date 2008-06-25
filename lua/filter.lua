@@ -215,13 +215,15 @@ function run(m, options, sfid)
   local probs, conf = learn.multiclassify(learn.extract_feature(m))
   -- find best class
   local bc = learn.classify(m, probs, conf)
-  local crc32 = core.crc32(msg.to_orig_string(m))
+  local orig = msg.to_orig_string(m)
+  local crc32, size = core.crc32(orig), orig:len()
+  orig = nil --it's garbage collectable now
   if not options.nosfid and cfg.use_sfid then
     sfid = sfid or cache.generate_sfid(bc.sfid_tag, bc.pR)
     insert_sfid(m, sfid, cfg.insert_sfid_in)
   end
   log.lua('filter', log.dt { probs = probs, conf = conf, train = bc.train,
-                             synopsis = msg.synopsis(m),
+                             synopsis = msg.synopsis(m), size = size,
                              class = bc.class, sfid = sfid, crc32 = crc32 })
   if not options.notag and cfg.tag_subject then
     tag_subject(m, bc.subj_tag)
