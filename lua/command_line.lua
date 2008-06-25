@@ -67,7 +67,9 @@ local function help_string(pattern)
   end
   prefix = 'Options: '
   for _, u in ipairs(table.sorted_keys(options.usage)) do
-    table.insert(output, table.concat{prefix, '--', u, options.usage[u]})
+    table.insert(output, table.concat{prefix, '--', u, options.usage[u],
+                                      options.env[u] and
+                                        ' (env. $' .. options.env[u] .. ')' or ''})
     prefix = prefix:gsub('.', ' ')
   end
   table.insert(output, '')

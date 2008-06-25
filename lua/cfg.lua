@@ -215,12 +215,12 @@ local chelp = [[
 
 
 local opts = {
-  { type = dir, long = 'udir', usage = "=<dir>      # User's OSBF-Lua directory", help = uhelp },
+  { type = dir, long = 'udir', usage = "=<dir>      # User's OSBF-Lua directory", help = uhelp, env = 'OSBFUDIR' },
   { type = val, long = 'config', usage = "=<file>   # Configuration file", help = cfhelp },
-  { type = dir, long = 'dbdir', usage = "=<dir>     # Database directory", help = dbhelp },
+  { type = dir, long = 'dbdir', usage = "=<dir>     # Database directory", help = dbhelp, env = 'OSBFDBDIR' },
   { type = dir, long = 'listdir', usage = "=<dir>   # Directory for blacklist, whitelist",
     help = lhelp },
-  { type = dir, long = 'cachedir', usage = "=<dir>  # Directory for message cache", help = chelp},
+  { type = dir, long = 'cachedir', usage = "=<dir>  # Directory for message cache", help = chelp, env = 'OSBFCACHEDIR' },
 }
 
 for _, o in ipairs(opts) do options.register(o) end
@@ -250,6 +250,8 @@ If no_dirs_ok is false, all dirs, given or default, are checked for
 existance. In that case, the program exits with error if any doesn't exist.
 ]]
 
+local env = options.env_default
+
 function set_dirs(options, no_dirs_ok)
   local HOME = os.getenv 'HOME'
   local default_dir = HOME and table.concat { HOME, slash, '.osbf-lua' }
@@ -261,13 +263,14 @@ function set_dirs(options, no_dirs_ok)
     util.die(default_dir, ' is not a directory.')
   end
 
-  dirs.database = options.dbdir    or dirs.user
-  dirs.lists    = options.listsdir or dirs.user
+  dirs.database = options.dbdir    or env.dbdir    or dirs.user
+  dirs.lists    = options.listsdir or env.listsdir or dirs.user
 
   for k in pairs(dirs) do dirs[k] = util.append_slash(dirs[k]) end
 
-  configfile = options.config   or dirfilename('user', 'config.lua')
-  dirs.cache = options.cachedir or util.append_slash(dirs.user .. "cache")
+  configfile = options.config   or env.config or dirfilename('user', 'config.lua')
+  dirs.cache = options.cachedir or env.cachedir or
+               util.append_slash(dirs.user .. "cache")
   dirs.log   = util.append_slash(dirs.user .. 'log')
 
   -- validate that everything is a directory

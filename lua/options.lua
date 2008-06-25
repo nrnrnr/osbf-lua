@@ -2,9 +2,10 @@
 --
 -- See Copyright Notice in osbf.lua
 
+local io = io -- debugging
 
-local table, string, require, assert, ipairs, tonumber, error =
-      table, string, require, assert, ipairs, tonumber, error
+local table, string, os, require, assert, ipairs, pairs, tonumber, error =
+      table, string, os, require, assert, ipairs, pairs, tonumber, error
 
 module(...)
 local core = require (_PACKAGE .. 'core')
@@ -29,6 +30,7 @@ Registers a command-line option used by the main program.
   type  - The type of the option, from the option.std table (defaults to bool)
   usage - A usage line for the option (optional)
   help  - A long help text for the option (optional)
+  env   - Environment variable used as the value of the option if not given (optional)
 ]],
 
   help  = [[a table of long help texts indexed by option]],
@@ -78,7 +80,7 @@ end
 local default = std.bool -- default type if not specified at registration
 
 local parsers = { }
-usage, help = { }, { }
+usage, help, env_default = { }, { }, { }
 
 function register(t)
   local long = t.long
@@ -89,6 +91,9 @@ function register(t)
   usage[long] = t.usage
   assert(help[long] == nil)
   help[long] = t.help
+  if t.env then 
+    env_default[long] = os.getenv(t.env)
+  end
 end
 
 ----------------------------------------------------------------
@@ -130,7 +135,12 @@ function parse(args, options)
       break -- no more options
     else
       table.remove(args, 1)
-      found[key] = (options[key] or no_such_option)(key, value, args)
+      found[key] = (options[key] or no_such_option)(key, value, args) or true
+    end
+  end
+  for k, f in pairs(options) do
+    if not found[k] and env_default[k] then
+      found[k] = env_default[k]
     end
   end
   return found, args
