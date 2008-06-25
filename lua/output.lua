@@ -75,10 +75,12 @@ local file_meta = {
   writeln = function(self, ...) self.file:write(...); self.file:write(eol) end,
 }
 
+local function basic_writeln(self, ...) self:write(...); self:write(eol) end
+
 local table_meta = {
   __index = {
     write   = function(self, ...) table.insert(self.contents, table.concat {...}) end,
-    writeln = function(self, ...) self:write(...); self:write(eol) end,
+    writeln = basic_writeln,
   }
 }
 
@@ -108,7 +110,7 @@ where eol is locally acceptable end-of-line marker.
 ]]):format(basename, basename)
 
 function write(...) return stdout:write(...) end
-function writeln(...) return (stdout.writeln or table_meta.writeln)(stdout, ...) end
+function writeln(...) return (stdout.writeln or basic_writeln)(stdout, ...) end
 
 __doc.type = [[function() returns 'message' or 'file']]
 
