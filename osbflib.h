@@ -359,7 +359,9 @@ osbf_open_class (const char *classname, osbf_class_usage usage, CLASS_STRUCT * c
 		 OSBF_HANDLER *h);
 extern void osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h);
 extern int osbf_lock_file (int fd, uint32_t start, uint32_t len);
+extern int osbf_lock_class (CLASS_STRUCT *class, uint32_t start, uint32_t len);
 extern int osbf_unlock_file (int fd, uint32_t start, uint32_t len);
+extern int osbf_unlock_class (CLASS_STRUCT *class, uint32_t start, uint32_t len);
 extern off_t check_file (const char *file);
   /* Check if a file exists. Return its length if yes and < 0 if no */
 

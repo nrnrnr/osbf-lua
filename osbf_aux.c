@@ -572,6 +572,8 @@ check_file (const char *file)
 
 /*****************************************************************/
 
+#if 0
+
 int
 osbf_lock_file (int fd, uint32_t start, uint32_t len)
 {
@@ -620,6 +622,8 @@ osbf_unlock_file (int fd, uint32_t start, uint32_t len)
   else
     return 0;
 }
+
+#endif
 
 /*****************************************************************/
 

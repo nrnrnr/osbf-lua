@@ -23,6 +23,12 @@
 
 #define DEBUG 0
 
+
+#define SYMLINK_LOCK 1
+#define FCNTL_LOCK   2
+/* set LOCK_METHOD to SYMLINK_LOCK or FCNTL_LOCK */
+#define LOCK_METHOD  SYMLINK_LOCK
+
 /* fail if two formats claim the same unique id or if the number
    of native formats is unacceptable */
 
@@ -54,9 +60,107 @@ static void check_format_uniqueness(OSBF_HANDLER *h) {
 #define USE_LOCKING 1
 
 
+/*****************************************************************/
 
+int make_linkname(const char *classname, char *linkname, int size);
+int make_linkname(const char *classname, char *linkname, int size) {
+  int len = strlen(classname);
 
+  if (len+4 > size)
+    return -1;
 
+  strncpy(linkname, classname, size);
+  strncat(linkname, ".lck", size-len);
+  return 0;
+}
+
+int
+osbf_lock_class (CLASS_STRUCT *class, uint32_t start, uint32_t len)
+{
+
+  int max_lock_attempts = 20;
+  int errsv = 0;
+#if LOCK_METHOD==FCNTL_LOCK
+  struct flock fl;
+
+  fl.l_type = F_WRLCK;          /* write lock */
+  fl.l_whence = SEEK_SET;
+  fl.l_start = start;
+  fl.l_len = len;
+#elif LOCK_METHOD==SYMLINK_LOCK
+  char linkname[512]; /* temporary, for tests */
+
+  start = len;  /* keep compiler quiet */
+  len = start;  /* keep compiler quiet */
+  if (make_linkname(class->classname, linkname, sizeof(linkname)) != 0)
+    return -1;
+#else
+  #error("Lock method undefined: must be FCNTL_LOCK or SYMLINK_LOCK");
+#endif
+
+  while (max_lock_attempts > 0)
+    {
+      errsv = 0;
+
+#if LOCK_METHOD==FCNTL_LOCK
+      if (fcntl (class->fd, F_SETLK, &fl) < 0)
+#elif LOCK_METHOD==SYMLINK_LOCK
+      if (symlink(class->classname, linkname) < 0)
+#else
+      #error("Lock method undefined: must be FCNTL_LOCK or SYMLINK_LOCK");
+#endif
+        {
+          errsv = errno;
+          if (errsv == EAGAIN || errsv == EACCES || errsv == EEXIST)
+            {
+              max_lock_attempts--;
+              sleep (1);
+            }
+          else
+            break;
+        }
+      else
+          break;
+    }
+
+  return errsv;
+}
+
+/*****************************************************************/
+
+int
+osbf_unlock_class (CLASS_STRUCT *class, uint32_t start, uint32_t len)
+{
+
+#if LOCK_METHOD==FCNTL_LOCK
+  struct flock fl;
+
+  fl.l_type = F_UNLCK;
+  fl.l_whence = SEEK_SET;
+  fl.l_start = start;
+  fl.l_len = len;
+  if (fcntl (class->fd, F_SETLK, &fl) == -1)
+    return -1;
+  else
+    return 0;
+#elif LOCK_METHOD==SYMLINK_LOCK
+  char linkname[512]; /* temporary, for tests */
+  start = len;  /* keep compiler quiet */
+  len = start;  /* keep compiler quiet */
+
+  if (class->classname != NULL) {
+    if (make_linkname(class->classname, linkname, sizeof(linkname)) != 0)
+      return -1;
+    return unlink(linkname);
+  } else {
+    fprintf(stderr, "Warning: Trying to unlock NULL class\n");
+    return 0;
+  }
+#else
+  #error("Lock method undefined: must be FCNTL_LOCK or SYMLINK_LOCK");
+#endif
+
+}
 
 
 /*****************************************************************/
@@ -99,9 +203,9 @@ osbf_open_class (const char *classname, osbf_class_usage usage,
   class->classname = osbf_malloc(strlen(classname)+1, h, "class name");
   strcpy(class->classname, classname);
 
-  if (usage != OSBF_READ_ONLY && USE_LOCKING) {
-    if (osbf_lock_file (class->fd, 0, sizeof(*class->header)) != 0) {
-      fprintf (stderr, "Couldn't lock the file %s.", classname);
+  if ((usage != OSBF_READ_ONLY) && USE_LOCKING) {
+    /* if (osbf_lock_file (class->fd, 0, sizeof(*class->header)) != 0) { */
+    if (osbf_lock_class (class, 0, sizeof(*class->header)) != 0) {
       close (class->fd);
       class->fd = -1;
       free(class->classname);
@@ -302,24 +406,27 @@ osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h)
     class->state = OSBF_CLOSED;
   }
 
-  if (class->classname) {
-    free(class->classname);
-    class->classname = NULL;
-  }
-
   if (class->fd >= 0) {
       int unlock_failed = 0;
       if (class->usage != OSBF_READ_ONLY)
 	{
           touch_fd(class->fd); /* workaround for snarky NFS problems; see below */
 
-          if (USE_LOCKING)
-            unlock_failed = (osbf_unlock_file (class->fd, 0, 0) != 0);
+          if (USE_LOCKING) {
+            /* unlock_failed = (osbf_unlock_file (class->fd, 0, 0) != 0); */
+            unlock_failed = (osbf_unlock_class (class, 0, sizeof(*class->header)) != 0);
+            if (unlock_failed)
+              osbf_raise(h, "Couldn't unlock file");
+          }
 	}
+
       close (class->fd);
       class->fd = -1;
-      if (unlock_failed)
-        osbf_raise(h, "Couldn't unlock file");
+  }
+
+  if (class->classname) {
+    free(class->classname);
+    class->classname = NULL;
   }
 }
 
