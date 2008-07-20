@@ -50,11 +50,18 @@ PIC=-fPIC
 # probably faster, but may not work on your system
 #PIC=-fpic
 
+# Locking method for databases: LOCKFILE, FCNTL_LOCK or NO_LOCK
+LM=LOCKFILE
+
 # Compilation directives
 # turned off warning about returning an aggregate!
 OPTIONS=-Wall ${PIC} -fomit-frame-pointer -pedantic-errors -W -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings -Wswitch
-CFLAGS= $(OPTIONS) $(LUA_CFLAGS) -DLIB_VERSION=\"$(LIB_VERSION)\"
+CFLAGS= $(OPTIONS) $(LUA_CFLAGS) -DLOCK_METHOD=$(LM) \
+        -DLIB_VERSION=\"$(LIB_VERSION)\"
 LIBS= $(LUA_LIBS) -lm
+ifeq ($(LM),LOCKFILE)
+  LIBS+= -llockfile
+endif
 CC= gcc
 PROFLIBS = -ldl 
 
@@ -71,3 +78,4 @@ CFLAGS += -g -fno-optimize-sibling-calls
 
 PG=
 PGLUALIB = -llua5.1
+
