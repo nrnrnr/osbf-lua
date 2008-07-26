@@ -3,8 +3,8 @@
 local require, print, pairs, type, assert, loadfile, setmetatable, tonumber, error =
       require, print, pairs, type, assert, loadfile, setmetatable, tonumber, error
 
-local pcall 
-    = pcall
+local pcall, next
+    = pcall, next
 
 local io, string, table, os, package, select, tostring, math, coroutine =
       io, string, table, os, package, select, tostring, math, coroutine
@@ -58,6 +58,17 @@ function tablemap(f, t, ...)
   return data
 end
 ----------------------------------------------------------------
+__doc.tablemapk = [[function(f, t, ...) returns table
+Takes the table t and applies f to every key-value pair.
+More exactly, returns a fresh table t2 in which 
+every key k is associated with f(k, t[k], ...).]]
+
+function tablemapk(f, t, ...)
+  local data = { }
+  for k, v in pairs(t) do data[k] = f(k, v, ...) end
+  return data
+end
+----------------------------------------------------------------
 __doc.tablefilter = [[function(f, l, ...) returns array
 Takes the array l and applies f to every element to
 get a Boolean result. More exactly, the Boolean is f(l[i], ...).
@@ -105,7 +116,7 @@ empty.
 ]]
 
 function key_max(t, f, ...)
-  local key, max = nil, -math.huge  -- best key and value
+  local key, max = next(t)
   f = f or tonumber
   for k, v in pairs(t) do
     local x = f(v, ...)

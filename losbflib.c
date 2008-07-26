@@ -37,7 +37,6 @@ extern int OPENFUN (lua_State * L);  /* exported to the outside world */
 /* utility for us */
 
 static int      lua_isuint32(lua_State *L, int index);
-static int      lua_isuint64(lua_State *L, int index);
 static uint32_t lua_checkuint32(lua_State *L, int index);
 static uint64_t lua_checkuint64(lua_State *L, int index);
 
@@ -1228,22 +1227,11 @@ OPENFUN (lua_State * L)
   return 1;
 }
 
-
 static int lua_isuint32(lua_State *L, int idx) {
   lua_Number x;
   if (lua_isnumber(L, idx)) {
     x = lua_tonumber(L, idx);
     return x == (lua_Number) (uint32_t) x;
-  } else {
-    return 0;
-  }
-}   
-
-static int lua_isuint64(lua_State *L, int idx) {
-  lua_Number x;
-  if (lua_isnumber(L, idx)) {
-    x = lua_tonumber(L, idx);
-    return x == (lua_Number) (uint64_t) x;
   } else {
     return 0;
   }

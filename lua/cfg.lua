@@ -326,55 +326,9 @@ function after_loading_do(f)
   end
 end
 
-__doc.classes = [[Classes of email to be identified.
+__doc.classes = [[Classes of email to be identified.  To be replaced by a classifier]]
 
-This value is a table containing a record (table) for each class.
-Each key is a class name.  A minimal table might look like
-
-  classes = { spam = { sfid = 's', resend = false },
-              ham  = { sfid = 'h' },
-            }
-
-A more aggressive mail filter might contain more classes, e.g., 
-
-  classes = { spam          = { sfid = 's', resend = false },
-              work          = { sfid = 'w' },
-              ecommerce     = { sfid = 'c' },
-              entertainment = { sfid = 'e' },
-              sports        = { sfid = 's' },
-              personal      = { sfid = 'p' },
-            }
-
-As shown above, the only information that is required for each class
-is a 'sfid', which must be a lowercase letter that is unique to the
-class.  (This letter is used to tag the class of learned messages.)
-It is also possible to include other information:
-
-  sfid        -- unique lowercase letter to identify class (required)
-  sure        -- Subject: tag when mail definitely classified (defaults empty)
-  unsure      -- Subject: tag when mail in reinforcement zone (defaults '?')
-  train_below -- confidence below which training is assumed needed (defaults 20)
-  conf_boost  -- during classification, a number added to confidence for this 
-                 class; larger boost makes the classifier more likely to choose
-                 the class (default 0)
-  hr          -- Use Header Reinforcement when training this class
-                 (default true for spam and ham, false otherwise)
-  resend      -- if this message is trained, resend it with new headers (default true)
-
-Sfids 's' and 'h' are reserved for 'spam' and 'ham', and sfids 'w',
-'b', and 'e' are reserved for whitelisting, blacklisting, and errors.
-
-Once the filter is well trained, training thresholds should be reduced from the 
-default value of 20 to something like 10, to reduce the burden of training.
-(We'd love to have an automatic reduction, but we don't have an algorithm.)
-
-For internal clients, osbf.init adds the following fields:
-
-  db         -- full pathname of the class database file
-  open       -- function(self, mode) returns core.open_class(self.db, mode)
-
-Usage is, e.g., classes.ham:open 'rwh'.
-]]
+__doc.classifier = [[the root classifier]]
 
 class_of_tag = { }
 

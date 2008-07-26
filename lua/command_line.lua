@@ -9,18 +9,19 @@ local unpack, type, print, assert, tonumber
 
 module(...)
 
-local util     = require (_PACKAGE .. 'util')
+local cache    = require (_PACKAGE .. 'cache')
 local cfg      = require (_PACKAGE .. 'cfg')
 local core     = require (_PACKAGE .. 'core')
-local lists    = require (_PACKAGE .. 'lists')
 local commands = require (_PACKAGE .. 'commands')
-local msg      = require (_PACKAGE .. 'msg')
-local cache    = require (_PACKAGE .. 'cache')
-local options  = require (_PACKAGE .. 'options')
-local log      = require (_PACKAGE .. 'log')
 local filter   = require (_PACKAGE .. 'filter')
+local lists    = require (_PACKAGE .. 'lists')
+local log      = require (_PACKAGE .. 'log')
+local mlearn   = require (_PACKAGE .. 'mlearn')
+local msg      = require (_PACKAGE .. 'msg')
+local options  = require (_PACKAGE .. 'options')
 local output   = require (_PACKAGE .. 'output')
 local sfid     = require (_PACKAGE .. 'sfid')
+local util     = require (_PACKAGE .. 'util')
 require(_PACKAGE .. 'learn')  -- loaded into 'commands'
 require(_PACKAGE .. 'report') -- loaded into 'commands'
 

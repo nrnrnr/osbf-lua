@@ -69,6 +69,7 @@ uninstall:
 test: install
 	$(LUABIN) -l$(MODNAME) -l$(MODNAME).command_line ./print-contents $(MODNAME)
 	$(LUABIN) -l$(MODNAME) -l$(MODNAME).roc < /dev/null
+	$(LUABIN) -l$(MODNAME) -l$(MODNAME).mlearn < /dev/null
 	$(LUABIN) ./test-headers $(MODNAME) $(MAILFILE)
 	$(LUABIN) -l$(MODNAME) -e "m = $(MODNAME).cache.msg_of_any '$(MAILFILE)'; print(m)" -i
 

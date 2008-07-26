@@ -1,0 +1,27 @@
+#!/usr/bin/env lua5.1
+
+local notcounted = { }
+
+local tocount = { }
+
+require 'osutil'
+require 'tabutil'
+
+if arg[1] == '-except' then
+  table.remove(arg, 1)
+  while arg[1] and arg[1] ~= '--' do
+    notcounted[arg[1]:gsub('%.lua$', '') .. '.lua'] = true
+    table.remove(arg, 1)
+  end
+  if arg[1] == '--' then
+    table.remove(arg, 1)
+  end
+end
+
+for _, f in ipairs(arg) do
+  if not notcounted[f] then
+    table.insert(tocount, os.quote(f))
+  end
+end
+
+os.execute('wc ' .. table.concat(tocount, ' '))
