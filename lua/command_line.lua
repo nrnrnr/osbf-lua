@@ -24,6 +24,8 @@ local sfid     = require (_PACKAGE .. 'sfid')
 require(_PACKAGE .. 'learn')  -- loaded into 'commands'
 require(_PACKAGE .. 'report') -- loaded into 'commands'
 
+local env = options.env_default
+
 __doc  = __doc  or { } -- internal documentation
 
 __help = __help or { } -- the detailed help
@@ -68,8 +70,7 @@ local function help_string(pattern)
   prefix = 'Options: '
   for _, u in ipairs(table.sorted_keys(options.usage)) do
     table.insert(output, table.concat{prefix, '--', u, options.usage[u],
-                                      options.env[u] and
-                                        ' (env. $' .. options.env[u] .. ')' or ''})
+                                      env[u] and ' (env. $' .. env[u] .. ')' or ''})
     prefix = prefix:gsub('.', ' ')
   end
   table.insert(output, '')
@@ -872,18 +873,28 @@ __doc.internals = [[function(s, ...)
 Shows docs.
 ]]
 
-function internals(s, ...)
+local function do_internals(short, s, ...)
   if select('#', ...) > 0 then
     usage()
   else
     local i = require(_PACKAGE .. 'internals')
     require(_PACKAGE .. 'core_doc')
     require(_PACKAGE .. 'roc')
-    i(io.stdout, s)
+    i(io.stdout, s, short)
   end
 end
 
-table.insert(usage_lines, 'internals [<module>|<module>.<function>]')
+function internals(s, ...)
+  if s == '-short' then
+    return do_internals(s, ...)
+  elseif s and s:find '^%-' then
+    usage()
+  else
+    return do_internals(false, s, ...)
+  end
+end
+
+table.insert(usage_lines, 'internals [-short] [<module>|<module>.<function>]')
 
 ----------------------------------------------------------------
 

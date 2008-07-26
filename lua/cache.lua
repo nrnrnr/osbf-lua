@@ -19,6 +19,8 @@ local slash = cfg.slash
 
 __doc = { }
 
+__doc.__oneline = 'the OSBF-Lua message cache'
+
 __doc.__order = { 'sfid', 'table_of_sfid', 'sfid_of_table',
                   'status', 'file_and_status', 'change_file_status' }
 

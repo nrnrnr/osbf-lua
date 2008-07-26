@@ -23,6 +23,8 @@ dep.dot: $(SRC) dep-to-dot
 dep.ps: dep.dot
 	dot -Tps dep.dot > dep.ps
 
+count:
+	./count-lines -except learn2 multitree omsg osbf3 -- *.lua osbf
 
 ################  generated with gcc -MM
 

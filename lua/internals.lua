@@ -7,15 +7,12 @@ local util = require(osbfname .. '.util')
 
 local osbf = _G[osbfname]
 
-local function internals(out, s)
-  local function show(what, t)
-    local l = table.sorted_keys(t)
-    if #l > 0 then
-      out:write('\n', what, ':\n')
-      for _, m in ipairs(l) do out:write('  ', m, '\n') end
-    end
-  end
+local function internals(out, s, short)
+  -- out: file
+  -- s: optional thing to be documented
+  -- short: show short documentation
 
+  -- add undocumented functions in m to ufuns table
   local function undoc(modname, m, ufuns)
     local doc = assert(m.__doc)
     ufuns = ufuns or { }
@@ -26,8 +23,23 @@ local function internals(out, s)
     end
     return ufuns
   end
-    
 
+  -- show lists of documented or undocumented keys
+  local function showkeys(what, t)
+    local l = table.sorted_keys(t)
+    if #l > 0 then
+      local width = 0
+      for m in pairs(t) do if m:len() > width then width = m:len() end end
+      local fmt = ('  %%-%ds %%s\n'):format(width)
+      out:write('\n', what, ':\n')
+      for _, m in ipairs(l) do
+        local module = osbf[m]
+        local oneline = module and module.__doc and module.__doc.__oneline
+        out:write(fmt:format(m, oneline and '-- ' .. oneline or ''))
+      end
+    end
+  end
+    
   if not s then
     local documented, undocumented, ufuns = { }, { }, { }
     for k, v in pairs(osbf) do
@@ -38,9 +50,9 @@ local function internals(out, s)
         end
       end
     end
-    show('Documented modules', documented)
-    show('Undocumented modules', undocumented)
-    show('Undocumented functions', ufuns)
+    showkeys('Documented modules', documented)
+    showkeys('Undocumented modules', undocumented)
+    showkeys('Undocumented functions', ufuns)
   else
     local module, member
     if osbf[s] then
@@ -81,6 +93,9 @@ local function internals(out, s)
       if not exported then
         d = d:gsub('^%s*function', 'local function')
       end
+      if short then
+        d = d:gsub('\n.*', ''):gsub('%s*[%,%;%:]%s*$', '')
+      end
       out:write('\n', module, exported and '.' or ': ', k, ' = ', d, final_newline(d))
     end
 
@@ -90,7 +105,7 @@ local function internals(out, s)
       local first = doc.__order or { }
       local sorted = table.sorted_keys(doc)
       local written = { }
-      if doc.__overview then
+      if doc.__overview and not short then
         out:write('=============== Overview of module ', s, ' ===============\n\n')
         out:write(doc.__overview, final_newline(doc.__overview))
         out:write('===================================', (s:gsub('.', '=')),
@@ -105,7 +120,7 @@ local function internals(out, s)
           document(k)
         end
       end
-      show('Undocumented functions', undoc(module, osbf[module]))
+      showkeys('Undocumented functions', undoc(module, osbf[module]))
     else -- document just the member
       if doc[member] then
         document(member)

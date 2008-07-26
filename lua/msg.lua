@@ -6,6 +6,9 @@ local require, print, pairs, ipairs, type, error, assert, loadfile =
 local tostring, pcall, rawget, rawset, setmetatable, getmetatable =
       tostring, pcall, rawget, rawset, setmetatable, getmetatable
 
+local select
+    = select
+
 local function eprintf(...) return io.stderr:write(string.format(...)) end
 
 local io, os, string, table, coroutine, tonumber, unpack =
@@ -23,6 +26,8 @@ __doc = { __private = { } }
 
 local debug = os.getenv 'OSBF_DEBUG'
 
+__doc.__oneline = 'parse MIME message and manipulate headers'
+
 __doc.__overview = ([[
 A representation for parsing and modifying RFC 822 mail messages,
 documented as type %s.T
@@ -31,8 +36,8 @@ documented as type %s.T
 
 __doc.__private.T = true
 __doc.T = ([===[
-The representation of a message, which is private to the %s module,
-is a table containing these fields:
+The representation of a message, 
+which is private to the %s module, is a table containing these fields:
     { __from          = nil or mbox format 'From ' line (without eol, if this
                         was the first line of the message),
       __headers       = list of headers, each a 'field' or 'obs-field' as 
@@ -476,4 +481,31 @@ which one hopes is a unique function of the argument.
 function fingerprint(s)
   return core.b64encode(core.unsigned2string(core.crc32(s))):match('^(.-)=*$')
           -- trailing = signs are always redundant
+end
+
+local check = { T = is_T, string = function(s) return type(s) == 'string' end }
+
+do
+  local orig_to_string = to_string
+  to_string =
+    function(x, ...)
+      if select('#', ...) > 0 then
+        violation('Too many arguments to to_string')
+      elseif not check.T(x) then
+        violation('First argument to to_string is not of type T')
+      else
+        local function check_result(ok, s, ...)
+          if not ok then
+            violation('to_string called error()')
+          elseif select('#', ...) > 0 then
+            violation('Too many results from to_string')
+          elseif not check.string(s) then
+            violation('Result of to_string is not a string')
+          else
+            return s
+          end
+        end
+        return check_result(pcall(orig_to_string, x))
+      end
+    end
 end
