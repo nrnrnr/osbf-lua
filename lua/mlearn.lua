@@ -138,16 +138,15 @@ end
 
 
 __doc.best_class = 
-[[function(classifier, message, [probs, conf]) returns class-table, probs, conf
+[[function(classifier, message, [probs, conf]) returns class-table, conf
 classifier is a classier and message is the message to be classified.
 
 probs and conf are also optional; if given, it must be true that
   probs = $P.probs(classifier, message)              and
-  conf  = $P.conf($P.probs(classifier, message))
-
+  conf  = $P.confs($P.probs(classifier, message))
 
 Returns a class table for the class with the highest confidence, along
-with probs and conf as computed or passed in.
+with conf as computed or passed in.
 
 A class table contains this information:
   { class = class name, 
@@ -175,7 +174,7 @@ function best_class(cf, msg, probs, confs)
     debugf('Classified %s as class %s with confidence %.2f%s\n',
            table.concat(cfg.classlist(), '/'), class, pR,
            train and ' (train)' or '')
-  return { class = class, conf = conf, train = train }, probs, confs
+  return { class = class, conf = conf, train = train }, confs
 end
 
 
@@ -211,7 +210,7 @@ it appear to be the output of an OSBF-Lua filter.
 ]]
 
 function learn_msg(msg, class)
-  local function bcc(cf) local bc, _, c = best_class(cf, msg); return bc, c end
+  local function bcc(cf) return best_class(cf, msg) end
   local conf, newconf -- confidence tables before and after training
   local bc, new_bc    -- best classes before and after training
 
@@ -370,7 +369,7 @@ false negatives of the originally learned class.
 
 function unlearn_msg(msg, old_class)
 
-  local function bcc(cf) local bc, _, c = best_class(cf, msg); return bc, c end
+  local function bcc(cf) return best_class(cf, msg) end
   local conf, newconf -- confidence tables before and after training
   local bc, new_bc    -- best classes before and after training
 
@@ -400,7 +399,7 @@ function unlearn_msg(msg, old_class)
       end
     end
     new_bc, newconf = bcc(cf)
-    if new_bc.class ~= old_class then
+    if new_bc.class ~= old_class then -- adjust false positives and negatives
       local db = all_classes[old_class]:open 'rw'
       if db.fn > 0 then db.fn = db.fn - 1 end
       local db = all_classes[new_bc.class]:open 'rw'
