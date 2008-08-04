@@ -1,3 +1,9 @@
+--[[
+OSBF: 
+  train even if a message not in the cache -- insert on training! (for testing)
+  regression test accuracy on trec 2005 and trec 2006 ('full') and
+  also 'fast'
+]]
 
 -- simple command-line client
 

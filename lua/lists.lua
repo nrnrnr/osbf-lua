@@ -7,6 +7,7 @@ module (...)
 
 local util = require(_PACKAGE .. 'util')
 local cfg  = require(_PACKAGE .. 'cfg')
+local output = require(_PACKAGE .. 'output')
 
 __doc = { }
 
