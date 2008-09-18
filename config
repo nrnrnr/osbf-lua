@@ -12,13 +12,25 @@ else
 endif
 PGDIR=/usr
 LUA_LIBS=
-LUABIN=$(shell which lua5.1)
-ifeq (,$(findstring lua5.1,$(firstword $(LUABIN))))
- LUABIN=$(shell which lua)
+
+#
+# Locate lua binary.  On FreeBSD, take highest installed lua version.
+#
+OS=$(shell uname -s)
+ifneq ($(OS), FreeBSD)
+  LUABIN=$(shell which lua5.1)
+  ifeq (,$(findstring lua5.1,$(firstword $(LUABIN))))
+    LUABIN=$(shell which lua)
+  endif
+else
+  VTOP=$(shell ls /usr/local/bin/ | grep lua[[:digit:]] | sort | tail -1)
+  LUABIN=/usr/local/bin/$(VTOP)/lua
 endif
+
 ifeq (,$(findstring lua,$(firstword $(LUABIN))))
  $(error lua executable not found.)
 endif
+
 LUA_VERSION=$(word 2, $(shell $(LUABIN) -v 2>&1))
 # Rethink when Lua 5.2 is out
 ifeq (,$(findstring 5.1,$(LUA_VERSION)))

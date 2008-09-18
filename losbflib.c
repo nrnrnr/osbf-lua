@@ -36,9 +36,9 @@ extern int OPENFUN (lua_State * L);  /* exported to the outside world */
 
 /* utility for us */
 
-static int      lua_isuint32(lua_State *L, int index);
-static uint32_t lua_checkuint32(lua_State *L, int index);
-static uint64_t lua_checkuint64(lua_State *L, int index);
+static int      lua_isuint32(lua_State *L, int idx);
+static uint32_t lua_checkuint32(lua_State *L, int idx);
+static uint64_t lua_checkuint64(lua_State *L, int idx);
 
 /****************************************************************/
 
