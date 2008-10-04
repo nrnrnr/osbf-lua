@@ -1,0 +1,5 @@
+1. Run ./configure to create config.auto
+
+2. make
+
+3. make install (or sudo make install)

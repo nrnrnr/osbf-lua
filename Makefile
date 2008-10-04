@@ -1,8 +1,8 @@
 MODNAME=osbf3
 
-include ./config
+include ./config.auto
 
-DIST_DIR= osbf-$LIB_VERSION
+DIST_DIR= osbf-$(LIB_VERSION)
 TAR_FILE= $(DIST_DIR).tar.gz
 ZIP_FILE= $(DIST_DIR).zip
 LIBNAME= lib$(MODNAME)$(LIB_EXT).$(LIB_VERSION)

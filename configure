@@ -1,0 +1,169 @@
+#!/bin/sh
+
+# Where to install the osbf binary
+BINDIR=/usr/local/bin
+#
+LUAMODULE_DIR=/usr/local/lib/lua/5.1
+# OS dependent suffix for shared library
+LIB_EXT=".so"
+# linker options to create shared library
+# set automatically or by command line
+LIB_OPTION=
+LM=
+
+# Choose the PIC option
+# safest, works on most systems
+PIC=-fPIC
+# probably faster, but may not work on your system
+#PIC=-fpic
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    -help|--help) cat  <<EOF
+Usage: $0 [-bin $BINDIR] [-shared $SHARED_LIB_OPTIONS] [-pic $PICOPT]
+          [-luamodules $DIR] [-lock LOCKFILE|FCNTL_LOCK|NO_LOCK]
+EOF
+    ;;
+    -bin|--bin) BINDIR="$2" ; shift ;;
+    -shared|--shared) LIB_OPTION="$2" ; shift ;;
+    -pic|--pic) PIC="$2" ; shift ;;
+    -lock|--lock) case "$2" in
+             LOCKFIKLE|FCNTL_LOCK|NO_LOCK) LM="$2" ;;
+             *) echo "Unknown locking method $2" 1>&2; exit 1 ;;
+           esac ;;
+    -luamod*|--luamod*) LUAMODULE_DIR="$2" ;;
+  esac
+  shift
+done
+
+
+#################################
+#
+# from here out should be automatic
+
+LIB_VERSION="3.0.0"
+
+[ -d "$LUAMODULE_DIR" ] ||
+   { echo "LUAMODULE_DIR=$LUAMODULE_DIR is not a directory" 1>&2; exit 1; }
+[ -w "$LUAMODULE_DIR" ] ||
+   { echo "Warning: cannot write LUAMODULE_DIR=$LUAMODULE_DIR" 1>&2; }
+
+[ -d "$BINDIR" ] || { echo "BINDIR=$BINDIR is not a directory" 1>&2; exit 1; }
+[ -w "$BINDIR" ] || { echo "Warning: cannot write BINDIR=$BINDIR" 1>&2; }
+
+# places to look for lua header files
+
+INCDIRS="/usr/include /usr/include/lua5.1 /usr/local/include /usr/local/include/lua5.1 /usr/local/lua/include /usr/local/include/lua /usr/include/lua /usr/local/gnu/include"
+
+if pkg-config --cflags lua5.1 > /dev/null 2>/dev/null; then
+  LUA_CFLAGS=`pkg-config --cflags lua5.1`
+else
+  for dir in $INCDIRS; do
+    if [ -r $dir/lua.h -a -r $dir/lauxlib.h ] &&
+       grep 'LUA_VERSION.*5\.1' $dir/lua.h > /dev/null
+    then
+        LUA_CFLAGS="-I$dir"
+        break
+    fi
+  done
+fi
+OS=`uname -s`
+#
+# Locate lua binary.  On FreeBSD, take highest installed lua version.
+#
+case $OS in
+  FreeBSD)
+      VTOP=`ls /usr/local/bin/ | grep 'lua[[:digit:]]' | sort | tail -1`
+      LUABIN=/usr/local/bin/$VTOP/lua
+      if [ ! -x $LUABIN ]; then
+        echo "Cannot find a Lua binary in /usr/local/bin/lua*" 1>&2;
+        exit 1
+      fi
+  ;;
+  *)
+  LUABIN=
+  # N.B. which's exit code is very broken on solaris
+  for bin in lua5.1 lua; do
+      if which $bin >/dev/null 2>&1; then
+        LUABIN="`which $bin`"
+        if [ -n "$LUABIN" -a -x "$LUABIN" ]; then
+            break
+        else
+            LUABIN=
+        fi
+      fi
+  done
+  if [ -z "$LUABIN" ]; then 
+      echo "Cannot find a Lua binary using 'which'" 1>&2;
+      exit 1
+  fi
+esac
+
+case `$LUABIN -e "print(_VERSION)"` in
+  Lua*5.1) ;; # all correct
+  *) echo "Found $LUABIN _VERSION is not 5.1" 1>&2; exit 1 ;;
+esac
+
+
+# if this "autoconf" doesn't work for you, set LIB_OPTION for shared
+# object manually.
+if [ -z "$LIB_OPTION" ]; then
+  case "`ld -V -o /dev/null 2>&1`" in
+    *Solaris*) # Solaris - tested with 2.6, gcc 2.95.3 20010315 and Solaris ld
+               LIB_OPTION="-G -dy"
+               ;;
+    *GNU*) LIB_OPTION="-shared -dy" ;;
+    *) echo "Unidentified ld; use -shared option to `basename $0`" 1>&2;
+       exit 1
+       ;;
+  esac
+fi
+
+
+# Locking method for databases: LOCKFILE, FCNTL_LOCK or NO_LOCK
+if [ -z "$LM" ]; then
+  for i in /usr/lib*/liblockfile*; do
+    if [ -r "$i" ]; then
+      LM=LOCKFILE
+      break
+    fi
+  done
+  [ -n "$LM" ] || LM=FCNTL_LOCK
+fi
+
+case $LM in
+    LOCKFILE) EXTRALIBS="-llockfile" ;;
+    *)        EXTRALIBS= ;;
+esac
+
+d='$'
+cat > config.auto <<EOF
+# Compilation directives
+# turned off warning about returning an aggregate!
+OPTIONS=-Wall $PIC -fomit-frame-pointer -pedantic-errors -W -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings -Wswitch
+CFLAGS= $d(OPTIONS) $LUA_CFLAGS -DLOCK_METHOD=$LM \
+        -DLIB_VERSION=\"$LIB_VERSION\"
+LIBS= $LUA_LIBS $EXTRALIBS -lm
+CC= gcc
+
+PROFLIBS = -ldl 
+
+
+
+LIBDEBUG =  -L/usr/local/lua-5.1.2-dbg/lib -L/usr/lib/debug -L/usr/lib/debug/usr/lib
+CFLAGS += -g -fno-optimize-sibling-calls
+
+PG=
+PGLUALIB = -llua5.1
+
+BINDIR=$BINDIR
+LIB_EXT=$LIB_EXT
+LIB_OPTION=$LIB_OPTION
+LIB_VERSION=$LIB_VERSION
+LUAMODULE_DIR=$LUAMODULE_DIR
+LM=$LM
+PIC=$PIC
+LUA_CFLAGS=$LUA_CFLAGS
+OS=$OS
+LUABIN=$LUABIN
+EOF

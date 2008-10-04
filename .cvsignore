@@ -13,3 +13,5 @@ cachegrind.out.*
 hr*-results
 *.gcda
 *.gcno
+config.auto
+depend

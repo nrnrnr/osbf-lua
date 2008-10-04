@@ -410,7 +410,8 @@ osbf_close_class (CLASS_STRUCT * class, OSBF_HANDLER *h)
           }
         }
 
-        munmap (class->header, class->fsize);
+        munmap ((void *)class->header, class->fsize);
+          /* cast should be redundant but on solaris it is not */
         break;
       case OSBF_COPIED:
         flush_if_needed(class, h);
