@@ -10,6 +10,8 @@ LIB_EXT=".so"
 # set automatically or by command line
 LIB_OPTION=
 LM=
+LUALIBDIR=
+LUALIBNAME=
 
 # Choose the PIC option
 # safest, works on most systems
@@ -20,8 +22,9 @@ PIC=-fPIC
 while [ $# -gt 0 ]; do
   case $1 in
     -help|--help) cat  <<EOF
-Usage: $0 [-bin $BINDIR] [-shared $SHARED_LIB_OPTIONS] [-pic $PICOPT]
-          [-luamodules $DIR] [-lock LOCKFILE|FCNTL_LOCK|NO_LOCK]
+Usage: $0 [-bin BINDIR] [-shared SHARED_LIB_OPTIONS] [-pic PICOPT]
+          [-luamodules DIR] [-lock LOCKFILE|FCNTL_LOCK|NO_LOCK]
+          [-lualibdir DIR] [-lualibname NAME]
 EOF
     ;;
     -bin|--bin) BINDIR="$2" ; shift ;;
@@ -119,6 +122,40 @@ if [ -z "$LIB_OPTION" ]; then
   esac
 fi
 
+# places to look for lua library
+
+LIBDIRS="/usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64"
+if pkg-config --libs lua5.1 > /dev/null 2>/dev/null; then
+  LUA_LIBS=`pkg-config --libs lua5.1`
+else
+  if [ -z "$LUALIBDIR" ]; then
+    for LUALIBDIR in $LIBDIRS; do
+      if [ -z "$LUALIBNAME" ]; then
+         for LUALIBNAME in lua lua5.1; do
+           for suffix in so a; do
+             if [ -r $LUALIBDIR/lib$LUALIBNAME.$suffix ]; then
+               break 3
+             fi
+           done
+         done
+         LUALIBNAME=
+      else
+        for suffix in so a; do
+          if [ -r $LUALIBDIR/lib$LUALIBNAME.$suffix ]; then
+            break 2
+           fi
+        done
+      fi
+    done
+  fi
+
+  if [ ! -r "$LUALIBDIR/lib$LUALIBNAME.$suffix" ]; then
+    echo "Cannot find lua library to link against; use -lualibdir or -lualibname" 1>&2
+    exit 1
+  fi
+
+  LUA_LIBS="-L $LUALIBDIR -l$LUALIBNAME"
+fi
 
 # Locking method for databases: LOCKFILE, FCNTL_LOCK or NO_LOCK
 if [ -z "$LM" ]; then
@@ -143,6 +180,7 @@ cat > config.auto <<EOF
 OPTIONS=-Wall $PIC -fomit-frame-pointer -pedantic-errors -W -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings -Wswitch
 CFLAGS= $d(OPTIONS) $LUA_CFLAGS -DLOCK_METHOD=$LM \
         -DLIB_VERSION=\"$LIB_VERSION\"
+LUA_LIBS=$LUA_LIBS
 LIBS= $LUA_LIBS $EXTRALIBS -lm
 CC= gcc
 
