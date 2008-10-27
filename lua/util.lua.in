@@ -733,7 +733,7 @@ do
       local hostname = 
         host_cmd and io.popen(host_cmd):read('*l') or 'spamfilter'
       local domainname =
-        domain_cmd and io.popen(domain_cmd):read('*l') or 'osbf3.lua'
+        domain_cmd and io.popen(domain_cmd):read('*l') or '@MOD_NAME@.lua'
       cache = hostname .. '.' ..  domainname
     end
     return cache

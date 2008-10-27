@@ -301,7 +301,7 @@ The core module provides access to the C code that does all the good
 stuff.  Here are some example usages:
 
    --------------------------- To create databases
-   local core = require "osbf3.core"
+   local core = require "@MOD_NAME@.core"
    local dblist = { "ham.cfc", "spam.cfc" }
    local num_buckets = 94321
    -- remove previous databases with the same name
@@ -311,7 +311,7 @@ stuff.  Here are some example usages:
    end
 
    --------------------- To classify a message read from stdin
-   local core = require "osbf3.core"
+   local core = require "@MOD_NAME@.core"
    local dbtable = { ham = core.open_class "ham.cfc",
                      spam = core.open_class "spam.cfc" }
    -- read entire message into var "text"
