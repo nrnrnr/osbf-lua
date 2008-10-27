@@ -1,0 +1,19 @@
+losbflib.o: losbflib.c \
+  \
+  osbflib.h \
+  osbferr.h
+osbferrl.o: osbferrl.c \
+  \
+  osbferr.h
+oarray.o: oarray.c oarray.h osbferr.h
+osbf_bayes.o: osbf_bayes.c osbflib.h osbferr.h
+osbf_aux.o: osbf_aux.c osbflib.h osbferr.h
+osbf_disk.o: osbf_disk.c osbflib.h osbferr.h osbf_disk.h
+osbf_csv.o: osbf_csv.c osbflib.h osbferr.h
+osbf_stats.o: osbf_stats.c osbflib.h osbferr.h
+osbf_fmt_5.o: osbf_fmt_5.c osbflib.h osbferr.h osbf_disk.h osbfcvt.h
+osbf_fmt_6.o: osbf_fmt_6.c osbflib.h osbferr.h osbf_disk.h osbfcvt.h
+osbf_fmt_7.o: osbf_fmt_7.c osbflib.h osbferr.h osbf_disk.h osbfcvt.h
+fastmime.o: fastmime.c \
+  \
+  /usr/include/lua5.1/lua.h

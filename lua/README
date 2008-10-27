@@ -27,4 +27,4 @@ Things that are here, and the order in which to read them:
   mail_commands.lua - Ways of invoking OSBF-Lua by sending oneself an
                       email message, which in turn should pass through
                       'osbf filter'.
-  Makefile          - Not yet useful.
+  Makefile.am       - Installs the command-line script and all modules.

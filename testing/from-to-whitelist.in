@@ -1,0 +1,26 @@
+#! @LUA@
+
+local quote_me = '[^%w%+%-%=%@%_%/]' -- easier to complement what doesn't need quotes
+local strfind = string.find
+
+function os.quote(s)
+  if strfind(s, quote_me) or s == '' then
+    return "'" .. string.gsub(s, "'", [['"'"']]) .. "'"
+  else
+    return s
+  end
+end
+
+local match = string.match
+
+local dups = { }
+
+for l in io.stdin:lines() do
+  local from = match(l, '^[Ff][Rr][Oo][Mm]:%s*(.-)$')
+  if from and not dups[from] then
+    dups[from] = true
+    io.stdout:write('@MOD_NAME@ whitelist add from ', os.quote(from), '\n')
+  end
+end
+
+    

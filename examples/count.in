@@ -1,0 +1,21 @@
+#! @LUA@
+
+-- simple example to count training and tests in a log left by train-test
+
+local train = 0
+local test = 0
+
+local t = {
+  dir_classify = function() test  = test  + 1 end,
+  dir_train    = function() train = train + 1 end,
+}
+
+setmetatable(t, { __index = function() return function () end end })
+
+local logfile = assert(arg[1], 'Log file not given!')
+
+local log = assert(loadfile(logfile))
+
+log(t)
+
+io.stdout:write(logfile, ' shows ', train, ' trainings and ', test, ' tests\n')

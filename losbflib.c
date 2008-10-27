@@ -726,7 +726,7 @@ set_info (lua_State * L, int idx)
   lua_setfield (L, idx, "_DESCRIPTION");
   lua_pushliteral (L, "OSBF-Lua");
   lua_setfield (L, idx, "_NAME");
-  lua_pushliteral (L, LIB_VERSION);
+  lua_pushliteral (L, VERSION);
   lua_setfield (L, idx, "_VERSION");
   lua_pushnumber (L, (lua_Number) sizeof(OSBF_HEADER_STRUCT));
   lua_setfield (L, idx, "header_size");

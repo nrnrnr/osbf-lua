@@ -1,0 +1,54 @@
+#! @LUA@
+-- -*- mode: lua -*-
+
+-- self-contained script to check message parsing
+
+local pname = '@MOD_NAME@'
+
+local function submod(x) return require (pname .. '.' .. x) end
+
+local osbf = require (pname)
+local util = submod 'util'
+local commands = submod 'commands'
+local msg = submod 'msg'
+local log = submod 'log'
+local core = submod 'core'
+
+osbf.options.register { long = 'trace', usage = ' # stack trace on error',
+                   help = [[
+  --trace
+      Don't recover from errors; give a stack trace instead
+]] }
+
+osbf.options.register { long = 'print', usage = ' # print on good parse',
+                   help = [[
+  --print
+      print each message and exit on error
+]] }
+
+
+local ok, opts, args = pcall(osbf.options.parse, arg)
+if not ok then
+  util.die(opts, '\n')
+end
+if opts.trace then
+  pcall = function(f, ...) return true, f(...) end
+end
+
+osbf.init(opts)
+
+function check_parse(fname)
+  local f = assert(io.open(fname))
+  local s = f:read '*a'
+  f:close()
+  if s:len() > 0 then
+    msg.of_string_test = msg.of_string_test or msg.of_string
+    local m = msg.of_string_test(s)
+    if opts.print then print(fname, tostring(m)) end
+  end
+end
+
+for _, file in ipairs(args) do
+  local ok, msg = pcall(check_parse, file)
+  if not ok then print(file, msg) end
+end

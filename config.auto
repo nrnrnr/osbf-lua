@@ -1,0 +1,27 @@
+# Compilation directives
+# turned off warning about returning an aggregate!
+OPTIONS=-Wall -fPIC -fomit-frame-pointer -pedantic-errors -W -Wcast-align -Wmissing-prototypes -Wnested-externs -Wshadow -Wwrite-strings -Wswitch
+CFLAGS= $(OPTIONS) -I/usr/include/lua5.1   -DLOCK_METHOD=LOCKFILE         -DLIB_VERSION=\"3.0.0\"
+LIBS=  -llockfile -lm
+CC= gcc
+
+PROFLIBS = -ldl 
+
+
+
+LIBDEBUG =  -L/usr/local/lua-5.1.2-dbg/lib -L/usr/lib/debug -L/usr/lib/debug/usr/lib
+CFLAGS += -g -fno-optimize-sibling-calls
+
+PG=
+PGLUALIB = -llua5.1
+
+BINDIR=/usr/local/bin
+LIB_EXT=.so
+LIB_OPTION=-shared -dy
+LIB_VERSION=3.0.0
+LUAMODULE_DIR=/usr/local/lib/lua/5.1
+LM=LOCKFILE
+PIC=-fPIC
+LUA_CFLAGS=-I/usr/include/lua5.1  
+OS=Linux
+LUABIN=/usr/bin/lua5.1
