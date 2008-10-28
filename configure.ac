@@ -226,8 +226,8 @@ AM_CONDITIONAL(LUA50, [test "$lua_vndot" = "50"])
 
 AC_CONFIG_FILES([Makefile lua/Makefile docs/Makefile])
 AC_CONFIG_FILES([testing/Makefile examples/Makefile])
-AC_CONFIG_FILES([lua/core_doc.lua])
-AC_CONFIG_FILES([lua/util.lua])
+AC_CONFIG_FILES([losbflib.c main.c])
+AC_CONFIG_FILES([lua/core_doc.lua lua/util.lua])
 AC_CONFIG_FILES([lua/${MOD_NAME}:lua/osbf.in])
 AC_CONFIG_FILES([lua/${MOD_NAME}.lua:lua/osbf.lua.in])
 
