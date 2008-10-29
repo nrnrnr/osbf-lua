@@ -717,6 +717,32 @@ function whereis(cmd)
   return nil
 end
 
+-- adapted from code posted on the Lua list:
+--  * Subject: Re: Lua / shell - How to "pipe" commands in os.execute() ?
+--  * From: Asko Kauppi <askok@...>
+--  * Date: Wed, 4 Apr 2007 15:22:45 +0300
+
+__doc.get_popen = [[function(cmd) returns string, 0 or nil, status code.
+Returns the output of the execution of cmd and the status of the execution.
+Trailing spaces are removed from the returned string.
+]]
+
+function get_popen(cmd)
+  if type(cmd) ~= 'string' then return nil, -255 end
+  local str, rc = nil, -255
+  local f = io.popen(cmd .. " ; echo RC=$?")
+  if f then
+    str = f:read('*a')
+    f:close()
+    str, rc = string.match(str, '(.*)RC=(%d+)%s*$')
+    -- remove trailing spaces
+    str = string.gsub(str, '%s*$', '')
+    rc = tonumber(rc) or -99
+    if rc ~= 0 then str = nil end
+  end
+  return str, rc
+end
+
 __doc.local_rightid = [[function() returns string.
 Returns the fully qualified host name. If the domain name is not found
 appends '.osbf.lua' to the host name. If neither the host name nor
@@ -730,10 +756,10 @@ do
     if not cache then
       local domain_cmd = whereis('dnsdomainname') or whereis('domainname')
       local host_cmd  = whereis('hostname')
-      local hostname = 
-        host_cmd and io.popen(host_cmd):read('*l') or 'spamfilter'
+      local hostname =
+        host_cmd and get_popen(host_cmd) or 'spamfilter'
       local domainname =
-        domain_cmd and io.popen(domain_cmd):read('*l') or '@MOD_NAME@.lua'
+        domain_cmd and get_popen(domain_cmd) or '@MOD_NAME@.lua'
       cache = hostname .. '.' ..  domainname
     end
     return cache

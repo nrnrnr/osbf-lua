@@ -123,7 +123,7 @@ static int lock_file_fcntl(int fd, uint32_t start, uint32_t len)
   do {
       r = fcntl(fd, F_SETLK, &fl) < 0;
   } while (r == -1 && (errno == EAGAIN || errno == EACCES) &&
-           max_lock_attempts-- && (1 || sleep(1)));
+           (max_lock_attempts-- > 0) && (sleep(1) || 1));
 
   return r;
 }
