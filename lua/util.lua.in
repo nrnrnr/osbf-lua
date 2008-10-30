@@ -597,19 +597,58 @@ do
 
   __doc['html.qp_to_html'] = [[function(qp) converts qp char to html numeric
 representation: '=%x%x' => '&#%d%d%d;'.]]
-
   function html.qp_to_html(qp)
     return
-     qp and string.format('&#%d;', tonumber('0x' .. qp))
+     qp and ((qp == '20' and ' ') -- allow spliting on spaces
+              or
+            string.format('&#%d;', tonumber('0x' .. qp)))
        or
      nil
   end
 
-  __doc['html.of_iso_8859_1'] = [[function(s) encodes ISO 8859-1 strings into
-html.]]
-  function html.of_iso_8859_1(s)
-    return (s:gsub('=(%x%x)', html.qp_to_html):gsub('_', '&nbsp;'))
+  __doc['html.of_quoted_printable'] = [[function(s) encodes quoted printable strings into html.]]
+  function html.of_quoted_printable(s)
+    return (s:gsub('=(%x%x)', html.qp_to_html):gsub('_', ' '))
   end
+
+  __doc['html.of_iso_8859_1_or_utf8'] = [[function(s) converts iso-8859-1 or UTF-8 encoded strings to html.]]
+  function html.of_iso_8859_1_or_utf8(charset, enc, s)
+    enc = string.upper(enc)
+    charset = string.upper(charset)
+    local r
+    if string.find(charset, '^ISO%-8859%-') then
+      if enc == 'B' then -- base64
+        r, s = pcall(core.b64decode, s)
+        s = r and html.of_ascii(s) or nil
+      elseif enc == 'Q' then   -- quoted-printable
+        s = html.of_ascii(s)
+        s = html.of_quoted_printable(s)
+      end
+    elseif charset == 'UTF-8' then
+      if enc == 'B' then -- base64
+        r, s = pcall(core.b64decode, s)
+        if r then
+          r, s = pcall(core.utf8tohtml, s)
+          if not r then
+            log(s)
+            s = nil
+          end
+        else
+          log(s)
+          s = nil
+        end
+      elseif enc == 'Q' then   -- quoted-printable
+        s = string.gsub(s, '=(%x%x)',
+          function (x) return string.char(tonumber('0x' .. x)) end)
+        r, s = pcall(core.utf8tohtml, s)
+        s = r and s or nil
+      end
+    else
+      return nil
+    end
+    return s
+  end
+
 
   __doc.html_atts = [[function(t) concatenates keys and values in table t
 as a series of html attributes: " att1=v1 att2=v2 ...".

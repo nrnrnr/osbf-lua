@@ -94,7 +94,8 @@ function rfc2822_to_localtime_or_nil(date)
                       day=day, hour=hh, min=mm, sec=ss-tz}
 
   if not ts then
-    util.errorf('Failed to convert [[%s]] to local time', date)
+    --util.errorf('Failed to convert [[%s]] to local time', date)
+    return nil
   end
 
   -- os.time considers the broken-down time as local time, but

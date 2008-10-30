@@ -377,16 +377,11 @@ function html_sfid_rows(sfids, ready) -- declared local above
     local function htmlify(s, n)
       -- strip RFC2822 quotation from s and make sure it contains no word
       -- longer than n characters (by inserting spaces if necessary), then
-      -- escape special characters using html.of_ascii and convert
-      -- iso-8859-1 encoded chars to html with html.of_iso_8859_1. The length
-      -- limit prevents the HTML browser from showing overwide columns.
-      local ns
-      s, ns = s:gsub("=%?[Ii][Ss][Oo]%-8859%-1%?[Qq]%?(.-)%?=", "%1")
+      -- convert iso-8859-1 or utf-8 encoded chars to html with
+      -- html.of_iso_8859_1_or_utf8. The length limit prevents the HTML
+      -- browser from showing overwide columns.
+      s = s:gsub("=%?(.-)%?([BbQq])%?(.-)%?=", util.html.of_iso_8859_1_or_utf8)
       s = s:gsub("(" .. string.rep("%S", n) ..")(%S)", "%1 %2")
-      s = html.of_ascii(s)
-      if ns > 0 then
-        s = util.html.of_iso_8859_1(s)
-      end
       return s
     end
 

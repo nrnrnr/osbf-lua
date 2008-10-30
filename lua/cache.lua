@@ -441,6 +441,10 @@ do
   function cfg.cache_validate.report_order_by(s)
     return s and keyfuns[s] ~= nil
   end
+
+  local function abs(x)
+    return type(x) == 'number' and math.abs(x) or x
+  end 
     
   function sort_sfids(sfids)
     -- some hacking here to avoid recomputing table_of_sfid at every comparison
@@ -448,8 +452,8 @@ do
     local keyfun =
       assert(keyfuns[cfg.cache.report_order_by], 'unknown option to order by')
     local ltfuns =
-      { ascending  = function(s1, s2) return key[s1] < key[s2] end,
-        descending = function(s1, s2) return key[s1] > key[s2] end }
+      { ascending  = function(s1, s2) return abs(key[s1]) < abs(key[s2]) end,
+        descending = function(s1, s2) return abs(key[s1]) > abs(key[s2]) end }
     if not util.same_keys(ltfuns, ltkeys) then
       error('OSBF-Lua has an internal error around report_order')
     end

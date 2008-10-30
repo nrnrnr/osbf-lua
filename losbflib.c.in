@@ -1000,6 +1000,96 @@ static int lua_b64decode(lua_State *L)		/** b64decode(s) */
 
 /**********************************************************/
 
+/* RFC3629 - UTF-8, a transformation format of ISO 10646
+ * 
+ *   Char. number range  |        UTF-8 octet sequence
+ *      (hexadecimal)    |              (binary)
+ *   --------------------+-------------------------------------
+ *   0000 0000-0000 007F | 0xxxxxxx
+ *   0000 0080-0000 07FF | 110xxxxx 10xxxxxx
+ *   0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
+ *   0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+ */
+
+#define HTML_BUFFER_SIZE 2048
+static int lua_utf8tohtml(lua_State *L)
+{
+ size_t l;
+ const char *s=luaL_checklstring(L,1,&l);
+ const char *max_s = s + l;
+ luaL_Buffer b;
+ char buffer[HTML_BUFFER_SIZE+20] = {'\0'};
+ char *p = buffer;
+ char *max_p = p + HTML_BUFFER_SIZE;
+ uint32_t c;
+ unsigned len, i;
+ uint32_t min_values[] = {0x00, 0x100, 0x080, 0x0800, 0x010000};
+ uint32_t max_value = 0x10FFFF;
+
+ luaL_buffinit(L,&b);
+ while ((c=*s)) {
+   for (len=0; c & 0x80; len++)
+     c = c << 1;
+   if (len == 1 || len > 4) { /* max bytes of UTF-8 encoded char */
+     sprintf(buffer, "%02X", (unsigned char)*s);
+     luaL_error(L, "Invalid first byte '0x%s' in UTF-8 char", buffer);
+   } else if (s+len > max_s) {
+     sprintf(buffer, "%02X", (unsigned char)*s);
+     luaL_error(L, "Incomplete UTF-8 char: '0x%s'", buffer);
+   }
+   c = (c & 0xFF) >> len; /* valid bits back to original position */
+   for (s++, i=len; i>1; i--, s++) {
+     if ((*s & 0xC0) == 0x80)
+       c = (c<<6) | (*s & 0x3F);
+     else {
+       sprintf(buffer, "%02X", (unsigned char)*s);
+       luaL_error(L, "Invalid byte '0x%s' in UTF-8 char", buffer);
+     }
+   }
+   if (c < min_values[len])
+     luaL_error(L, "Overlong UTF-8 form: value %d in %d bytes", c, len);
+   else if (c > max_value)
+     luaL_error(L, "Code point out of UTF-8 range: %f", c);
+   /* reserved for surrogate pairs in UTF-16 */
+   if (c >= 0xD800 && c <= 0xDFFF) {
+     sprintf(buffer, "%4X", c);
+     luaL_error(L, "Surrogate pairs are not allowed in UTF-8: U+%s", buffer);
+   }
+
+   if (c < 0x7F && c >= ' ') {
+     switch (c) {
+       case '<':
+         strcpy(p, "&lt;");
+         break;
+       case '>':
+         strcpy(p, "&gt;");
+         break;
+       case '"':
+         strcpy(p, "&quot;");
+         break;
+       case '&':
+         strcpy(p, "&amp;");
+         break;
+       default:
+         *p = c;
+         break;
+     }
+   } else
+     sprintf(p, "&#%d;", c);
+   while (*++p);
+   if (p >= max_p) {
+     luaL_addstring(&b, buffer);
+     buffer[0] = '\0';
+     p = buffer;
+   }
+ }
+ luaL_addstring(&b, buffer);
+ luaL_pushresult(&b);
+ return 1;
+}
+
+/**********************************************************/
+
 static int lua_unsigned2string(lua_State *L) {
   uint32_t n = luaL_checkint(L, 1);
   unsigned char buf[4];
@@ -1170,6 +1260,7 @@ static const struct luaL_reg osbf[] = {
   {"b64encode", lua_b64encode},
   {"b64decode", lua_b64decode},
   {"unsigned2string", lua_unsigned2string},
+  {"utf8tohtml", lua_utf8tohtml},
   {NULL, NULL}
 };
 
