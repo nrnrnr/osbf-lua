@@ -5,11 +5,12 @@ AC_PREREQ(2.61)
 AC_INIT([OSBF-Lua], [3.0.0])
 AM_INIT_AUTOMAKE
 
-#MOD_NAME=osbf3
+MOD_NAME=osbf3
 AC_ARG_ENABLE(osbf-name,
-  [  --enable-osbf-name=[NAME]   set the module name (default = osbf3)],
+  AC_HELP_STRING([[--enable-osbf-name=[[[[NAME]]]]]],
+    [set the module name - default=osbf3]),
   [MOD_NAME=$enableval],
-  [MOD_NAME=osbf3])
+  [MOD_NAME=$MOD_NAME])
 
 MOD_VERSION=3.0.0
 
@@ -49,7 +50,8 @@ AC_CHECK_LIB([m], [floor])
 # Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC
-AC_CHECK_HEADERS([fcntl.h float.h inttypes.h stddef.h stdlib.h string.h unistd.h])
+#AC_CHECK_HEADERS([fcntl.h float.h inttypes.h stddef.h stdlib.h string.h unistd.h])
+AC_CHECK_HEADERS([float.h inttypes.h stddef.h stdlib.h string.h unistd.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -184,25 +186,43 @@ else
     dnl if osbf-site-install is not set, overwrite LUA_INSTALL_CMOD already
     dnl found and install in default dir: $PREFIX/lib/lua/$lua_vdot
     AC_ARG_ENABLE(osbf-site-install,
-      [  --enable-osbf-site-install   by default the lua module is installed
+      AC_HELP_STRING([--enable-osbf-site-install], [by default the lua module is installed
                           under $prefix/lib/lua/$lua_version. If you set this
                           option, the lua modules will be installed wherever
                           your Lua setup thinks it is best.
                           WARNING: if you set this option, existing osbf
-                                   modules, if any, may be overwritten.],
+                                   modules, if any, may be overwritten.]),
       [],
       [LUA_INSTALL_CMOD="$LUA_OSBF_LIBDIR"; LUA_INSTALL_LMOD="$LUA_OSBF_LIBDIR"])
 
-    dnl detect lock method to be used
-    no_lock=1
-    lockfile=2
-    fcntl_lock=3
-    AC_CHECK_HEADER(lockfile.h,
-      [lock_method=$lockfile],
-      [AC_CHECK_HEADER(fcntl.h,
-        [lock_method=$fcntl_lock],
-        [lock_method=$no_lock;
-         AC_MSG_WARN([Neither lockfile.h nor fnctl.h found!])])])
+    dnl detect locking method to be used
+    AC_ARG_ENABLE([lock],
+      [AS_HELP_STRING([--enable-lock[[[[=lockfile|fcntl|no]]]]],
+        [default is to search for liblockfile or fcntl, in this order, and use the first found or abort if none is available. You can force one of them or disable locking.])],
+      [],
+      dnl force search for lock method
+      [enable_lock=yes])
+      
+    no_lock=1; lockfile=2; fcntl_lock=3
+    AS_IF(
+      [test "$enable_lock" = "lockfile"],
+        [AC_CHECK_LIB([liblockfile], [lockfile_create],
+          [lock_method=$lockfile; lock_method_name=liblockfile],
+          [AC_MSG_FAILURE(
+            [--enable-lock=lockfile was given, but test for liblockfile failed])])],
+      [test "$enable_lock" = "fcntl"],
+        [AC_CHECK_FUNC(fcntl,
+          [lock_method=$fcntl_lock; lock_method_name=fcntl],
+          [AC_MSG_FAILURE([--enable-lock=fcntl was given, but test for fcntl failed])])],
+      [test "$enable_lock" = "no"],
+        [lock_method=$no_lock; lock_method_name=none],
+      [test "$enable_lock" = "yes"],
+        [AC_CHECK_HEADER(lockfile.h,
+          [lock_method=$lockfile; lock_method_name=liblockfile],
+          [AC_CHECK_HEADER(fcntl.h,
+            [lock_method=$fcntl_lock; lock_method_name=fcntl],
+            [AC_MSG_FAILURE([Neither lockfile.h nor fnctl.h found!])])])],
+      [AC_MSG_FAILURE([Invalid lock method: "$enable_lock"])])
 
     LUA_DEFINES="-DLUA$lua_vndot -D$LUA_HAVE_COMPAT51 -DLOCK_METHOD=$lock_method"
     AC_SUBST(LUA)
@@ -255,8 +275,10 @@ AC_OUTPUT
 
 echo
 echo "--------------------------------------------------------"
-echo " Lua Binary:          $LUA"
-echo " Lua Version:         $lua_version"
+echo " Module name:         $MOD_NAME"
+echo " Lock method:         $lock_method_name"
+echo " Lua binary:          $LUA"
+echo " Lua version:         $lua_version"
 echo " Lua C-modules dir:   $LUA_INSTALL_CMOD"
 echo "--------------------------------------------------------"
 
