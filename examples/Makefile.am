@@ -1,4 +1,4 @@
-EXTRA_DIST = count.in deltas.in dir-classify.in dir-train.in \
-             hand-labels.in label-by-hand.in low-prob.in msg-strings.in \
-             parse-message.in priors.in README remove-spam-headers.in \
-             test-parser.in train-test
+EXTRA_DIST = count deltas dir-classify dir-train \
+             hand-labels label-by-hand low-prob msg-strings \
+             parse-message priors README remove-spam-headers \
+             test-parser train-test

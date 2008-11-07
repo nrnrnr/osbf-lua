@@ -1,4 +1,4 @@
-#! @LUA@
+#! /usr/bin/lua
 -- -*- mode: lua -*-
 
 -- self-contained script to classify (and conditionally train) on corpora 
@@ -22,7 +22,7 @@ end
 
 ----------------------------------------------------------------
 
-local pname = '@MOD_NAME@'
+local pname = 'osbf3'
 
 local function submod(x) return require (pname .. '.' .. x) end
 

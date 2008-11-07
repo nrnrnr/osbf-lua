@@ -1,11 +1,11 @@
-#! @LUA@
+#! /usr/bin/lua
 -- -*- mode: lua -*-
 
 -- finds low-population messages
 
 ----------------------------------------------------------------
 
-local pname = '@MOD_NAME@'
+local pname = 'osbf3'
 
 local function submod(x) return require (pname .. '.' .. x) end
 

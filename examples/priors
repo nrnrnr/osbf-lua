@@ -1,4 +1,4 @@
-#! @LUA@
+#! /usr/bin/lua
 
 -- This code shows three different estimates of the prior probability
 -- of a message landing in a particular class:
@@ -8,7 +8,7 @@
 -- Assuming every message is trained that should be, the best estimate
 -- of the actual distribution must be taken to be 'Instances'.
 
-local basename = '@MOD_NAME@'
+local basename = 'osbf3'
 
 local osbf = require (basename)
 local function submod(s) return require (basename .. '.' .. s) end

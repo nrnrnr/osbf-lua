@@ -1,7 +1,7 @@
-#! @LUA@
+#! /usr/bin/lua
 -- -*- mode: lua -*-
 
-local pname = '@MOD_NAME@'
+local pname = 'osbf3'
 
 local function submod(x) return require (pname .. '.' .. x) end
 

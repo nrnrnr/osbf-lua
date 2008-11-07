@@ -1,16 +1,16 @@
-#! @LUA@
+#! /usr/bin/lua
 --  -*- mode: lua -*-
 
-local osbf         = require '@MOD_NAME@'
-local command_line = require '@MOD_NAME@.command_line'
-local options      = require '@MOD_NAME@.options'
-local util         = require '@MOD_NAME@.util'
-local commands     = require '@MOD_NAME@.commands'
-local msg          = require '@MOD_NAME@.msg'
-local cfg          = require '@MOD_NAME@.cfg'
-local cache        = require '@MOD_NAME@.cache'
-local roc          = require '@MOD_NAME@.roc'
-local core         = require '@MOD_NAME@.core'
+local osbf         = require 'osbf3'
+local command_line = require 'osbf3.command_line'
+local options      = require 'osbf3.options'
+local util         = require 'osbf3.util'
+local commands     = require 'osbf3.commands'
+local msg          = require 'osbf3.msg'
+local cfg          = require 'osbf3.cfg'
+local cache        = require 'osbf3.cache'
+local roc          = require 'osbf3.roc'
+local core         = require 'osbf3.core'
 
 
 local opts, args  = options.parse(arg)
