@@ -1,0 +1,58 @@
+#! @LUA@
+--  -*- mode: lua -*-
+
+local osbf         = require '@MOD_NAME@'
+local command_line = require '@MOD_NAME@.command_line'
+local options      = require '@MOD_NAME@.options'
+local util         = require '@MOD_NAME@.util'
+local commands     = require '@MOD_NAME@.commands'
+local msg          = require '@MOD_NAME@.msg'
+local cfg          = require '@MOD_NAME@.cfg'
+local cache        = require '@MOD_NAME@.cache'
+local roc          = require '@MOD_NAME@.roc'
+local core         = require '@MOD_NAME@.core'
+
+
+local opts, args  = options.parse(arg)
+
+local function printf(...) return io.stdout:write(string.format(...)) end
+
+local keys = { } --- set of all keys used in any class
+local vectors = util.table_tab { } -- class -> key -> rate
+vectors.origin = { }
+
+osbf.init(opts)
+
+for cname, info in pairs(cfg.classes) do
+  io.stderr:write('Reading ', cname, '...')
+  local c = core.open_class(info.db)
+  local instances = c.classifications - c.false_positives + c.false_negatives
+  local vector = vectors[cname]
+  for i = 1, c.num_buckets do
+    local b = c[i]
+    if b.count > 0 then
+      local key = string.format('%x %x', b.hash1, b.hash2)
+      keys[key] = true
+      vector[key] = b.count / instances
+    end
+  end
+  io.stderr:write(' done!\n')
+end
+
+local nkeys = #util.table_sorted_keys(keys)
+
+local points = util.table_sorted_keys(vectors)
+for _, c1 in ipairs(points) do
+  for _, c2 in ipairs(points) do
+    if c1 ~= c2 then
+      local sumsq = 0.0
+      local v1, v2 = vectors[c1], vectors[c2]
+      for k in pairs(keys) do
+        local delta = (v2[k] or 0) - (v1[k] or 0)
+        sumsq = sumsq + delta * delta
+      end
+      local l2norm = sumsq / nkeys
+      printf('%-13s to %-13s is %8.3f mils\n', c1, c2, l2norm * 1000000)
+    end
+  end
+end

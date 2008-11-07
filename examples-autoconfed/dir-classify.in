@@ -1,0 +1,185 @@
+#! @LUA@
+-- -*- mode: lua -*-
+
+-- self-contained script to classify (and conditionally train) on corpora 
+-- that are in directories labelled by class 
+
+require 'osutil'
+
+
+function table.randomized(l)
+  u = { }
+  local n = #l
+  for i = 1, n do
+    u[i] = l[i]
+  end
+  for i = 1, n do
+    j = math.random(n)
+    u[i], u[j] = u[j], u[i]
+  end
+  return u
+end
+
+----------------------------------------------------------------
+
+local pname = '@MOD_NAME@'
+
+local function submod(x) return require (pname .. '.' .. x) end
+
+local osbf = require (pname)
+local util = submod 'util'
+local commands = submod 'commands'
+local command_line = submod 'command_line'
+local msg = submod 'msg'
+local log = submod 'log'
+local cfg = submod 'cfg'
+local core = submod 'core'
+local roc = submod 'roc'
+
+util.progname = arg[0] or 'dir-classify'
+
+local std = osbf.options.std
+
+osbf.options.register { long = 'roca', type = std.val, usage = '-roca number[%]' }
+osbf.options.register { long = 'seed', type = std.num, usage = '-seed number' }
+
+osbf.options.register { long = 'trace', usage = ' # stack trace on error',
+                   help = [[
+  --trace
+      Don't recover from errors; give a stack trace instead
+]] }
+
+local ok, options, args = pcall(osbf.options.parse, arg)
+local opts = options
+if not ok then
+  util.die(options, '\n')
+end
+if options.trace then
+  pcall = function(f, ...) return true, f(...) end
+end
+local num_buckets =
+  opts.buckets and (assert(bucket_sizes[opts.buckets] or tonumber(opts.buckets)))
+  or 94321
+local test_dir = os.capture 'tempfile -p osbf-' or '/tmp/osbf-lua-classify'
+os.execute('/bin/rm -rf ' .. test_dir)
+os.execute('/bin/mkdir ' .. test_dir)
+
+if opts.seed then math.randomseed(opts.seed) end
+
+local existing_dir = opts.udir
+
+opts.udir = opts.udir or test_dir
+
+osbf.init(options, not existing_dir)
+local email = 'test@test'
+if not existing_dir then
+  if opts.config then
+    os.execute(string.format('cp %s %s/config.lua', os.quote(opts.config), opts.udir))
+  end
+  commands.init(email, num_buckets, 'buckets')
+end
+
+local function lines_of_file(f)
+  local l = { }
+  for line in f:lines() do l[#l+1] = line end
+  return l
+end
+
+local function increment(class)
+  db = core.open_class(cfg.classes[class].db, 'rwh')
+  db.classifications = db.classifications + 1
+end
+
+local classifications = { }
+local learnings = 0
+
+local classes = cfg.classes
+local skipped = { }  -- classes skipped because not in config
+local skipcount = 0  -- # of msgs of those classes
+
+local function train_files(files)
+  for _, file in ipairs(files) do
+    if string.find(file, '^@') then
+      local f = assert(io.open(string.match(file, '^@(.*)$')))
+      train_files(table.randomized(lines_of_file(f)))
+      f:close()
+    elseif file == '-' then
+      train_files(table.randomized(lines_of_file(io.stdin)))
+    else
+      local labelled = string.match(file, '([^/]+)/[^/]+$')
+      assert(labelled, 'could not find class in filename ' .. file)
+      if classes[labelled] then
+        local m = msg.of_file(file)
+        local probs, conf = commands.multiclassify(m.lim.msg)
+        local cfn = { actual = labelled, probs = probs, conf = conf, file = file,
+                      crc32 = core.crc32(msg.to_orig_string(m)) }
+        table.insert(classifications, cfn)
+        local class = util.key_max(conf)
+        increment(class)
+        cfn.train = conf[class] < cfg.classes[class].train_below
+        log.lua('dir_classify', log.dt(cfn))
+        if cfn.train or class ~= labelled then
+          local ok, errmsg = pcall(commands.learn_msg, m, labelled)
+          if ok then
+            learnings = learnings + 1
+          else
+            io.stderr:write(errmsg, '\n')
+          end
+        end
+      else
+        skipped[labelled] = true
+        skipcount = skipcount + 1
+      end
+    end
+  end
+end
+
+local start_time = os.time()
+train_files(table.randomized(args))
+local end_time = os.time()
+
+local nclass = #classifications
+
+local function info(...)
+  return io.stdout:write(string.format(...), '\n')
+end
+
+if skipcount > 1 then
+  info('Skipped %d msgs in these corpora: %s', skipcount,
+       table.concat(util.table_sorted_keys(skipped), ' '))
+end
+
+info('Using %d buckets, %d classifications (%.1f/s) require %d learnings',
+  num_buckets, nclass, (nclass / os.difftime(end_time, start_time)), learnings)
+
+if nclass == 0 then return end
+
+command_line.stats()
+
+local ROCA_fmt = '%9.9s: 1-ROCA%% = %9.6f'
+
+if opts.roca then
+  local pct = tonumber(string.match(opts.roca, '^(%d+)%%$'))
+  local num = tonumber(string.match(opts.roca, '^(%d+)$'))
+  assert(num or pct, 'Bad -roca option: ' .. opts.roca)
+  num = num or math.floor(pct * #classifications / 100.0)
+  for i = 1, num do
+    table.remove(classifications, 1)
+  end
+  io.stdout:write('******* Dropping first ', opts.roca, ' of classifications *****\n')
+end
+
+for _, class in ipairs(cfg.classlist()) do
+  local curve = roc.curve(class, classifications)
+  local above = roc.area_above(curve)
+  info(ROCA_fmt, class, 100 * above)
+  if false then
+    local jgraph = io.open(outfilename .. '-' .. class .. '.j', 'w')
+    jgraph:write('newgraph\n')
+    roc.jgraph(jgraph, curve)
+    jgraph:close()
+  end
+end
+
+local above = roc.area_above_hand_till(cfg.classlist(), classifications)
+info(ROCA_fmt, 'Hand-Till', 100 * above)

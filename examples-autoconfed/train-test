@@ -1,0 +1,56 @@
+#!/bin/sh
+
+# train and then test based on given config
+
+function usage 
+{
+  echo "Usage: `basename $0` [-keep] configfile train-dir test-dir" 1>&2
+}
+
+function die
+{
+   if [ -n "$1" ]; then
+     echo "$1" 1>&2
+   fi
+   usage
+   exit 1
+}
+
+keep=
+
+case $1 in
+  -keep) keep=yes ; shift ;;
+esac
+
+case $# in
+  3) ;;
+  *) die ;;
+esac
+
+config="$1"
+train="$2"
+test="$3"
+
+if   [ ! -r "$config" ]; then die "Config file $config is not readable"
+elif [ ! -d "$train"  ]; then die "Training set $train is not a directory"
+elif [ ! -d "$test"   ]; then die "Test set $test is not a directory"
+fi
+
+dir="`tempfile -p oltt-`"
+rm -rf "$dir"
+mkdir "$dir"
+
+examples="`dirname $0`"
+
+for i in $train/*/*; do echo $i; done | 
+   $examples/dir-train -udir "$dir" -config "$config" -init - || exit 1
+for i in $test/*/*; do echo $i; done | 
+   $examples/dir-classify -udir "$dir" - || exit 1
+
+if [ -z "$keep" ]; then
+  rm -rf "$dir"
+else
+  echo "Keeping $dir" 1>&2
+fi
+
+
