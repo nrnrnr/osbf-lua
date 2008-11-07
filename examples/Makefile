@@ -36,13 +36,7 @@ POST_UNINSTALL = :
 build_triplet = x86_64-unknown-linux-gnu
 host_triplet = x86_64-unknown-linux-gnu
 subdir = examples
-DIST_COMMON = README $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(srcdir)/count.in $(srcdir)/deltas.in \
-	$(srcdir)/dir-classify.in $(srcdir)/dir-train.in \
-	$(srcdir)/hand-labels.in $(srcdir)/label-by-hand.in \
-	$(srcdir)/low-prob.in $(srcdir)/msg-strings.in \
-	$(srcdir)/parse-message.in $(srcdir)/priors.in \
-	$(srcdir)/test-parser.in
+DIST_COMMON = README $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/configure.ac
@@ -50,9 +44,7 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
-CONFIG_CLEAN_FILES = count deltas dir-classify dir-train hand-labels \
-	label-by-hand low-prob msg-strings parse-message priors \
-	test-parser
+CONFIG_CLEAN_FILES =
 SOURCES =
 DIST_SOURCES =
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -214,28 +206,6 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-count: $(top_builddir)/config.status $(srcdir)/count.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-deltas: $(top_builddir)/config.status $(srcdir)/deltas.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-dir-classify: $(top_builddir)/config.status $(srcdir)/dir-classify.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-dir-train: $(top_builddir)/config.status $(srcdir)/dir-train.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-hand-labels: $(top_builddir)/config.status $(srcdir)/hand-labels.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-label-by-hand: $(top_builddir)/config.status $(srcdir)/label-by-hand.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-low-prob: $(top_builddir)/config.status $(srcdir)/low-prob.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-msg-strings: $(top_builddir)/config.status $(srcdir)/msg-strings.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-parse-message: $(top_builddir)/config.status $(srcdir)/parse-message.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-priors: $(top_builddir)/config.status $(srcdir)/priors.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-test-parser: $(top_builddir)/config.status $(srcdir)/test-parser.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 
 mostlyclean-libtool:
 	-rm -f *.lo
