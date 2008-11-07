@@ -3,7 +3,7 @@
 # These files are not mentioned in any other Makefile
 EXTRA_DIST = README 
 
-SUBDIRS = lua docs testing examples examples-autoconf
+SUBDIRS = lua docs testing examples examples-autoconfed
 
 LUA              = @LUA@
 MOD_NAME         = @MOD_NAME@

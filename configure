@@ -25041,27 +25041,27 @@ ac_config_files="$ac_config_files testing/trec.lua"
 ac_config_files="$ac_config_files testing/wtest.lua"
 
 
-ac_config_files="$ac_config_files examples/count"
+ac_config_files="$ac_config_files examples-autoconfed/count"
 
-ac_config_files="$ac_config_files examples/deltas"
+ac_config_files="$ac_config_files examples-autoconfed/deltas"
 
-ac_config_files="$ac_config_files examples/dir-classify"
+ac_config_files="$ac_config_files examples-autoconfed/dir-classify"
 
-ac_config_files="$ac_config_files examples/dir-train"
+ac_config_files="$ac_config_files examples-autoconfed/dir-train"
 
-ac_config_files="$ac_config_files examples/hand-labels"
+ac_config_files="$ac_config_files examples-autoconfed/hand-labels"
 
-ac_config_files="$ac_config_files examples/label-by-hand"
+ac_config_files="$ac_config_files examples-autoconfed/label-by-hand"
 
-ac_config_files="$ac_config_files examples/low-prob"
+ac_config_files="$ac_config_files examples-autoconfed/low-prob"
 
-ac_config_files="$ac_config_files examples/msg-strings"
+ac_config_files="$ac_config_files examples-autoconfed/msg-strings"
 
-ac_config_files="$ac_config_files examples/parse-message"
+ac_config_files="$ac_config_files examples-autoconfed/parse-message"
 
-ac_config_files="$ac_config_files examples/priors"
+ac_config_files="$ac_config_files examples-autoconfed/priors"
 
-ac_config_files="$ac_config_files examples/test-parser"
+ac_config_files="$ac_config_files examples-autoconfed/test-parser"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -25702,17 +25702,17 @@ do
     "testing/trec2") CONFIG_FILES="$CONFIG_FILES testing/trec2" ;;
     "testing/trec.lua") CONFIG_FILES="$CONFIG_FILES testing/trec.lua" ;;
     "testing/wtest.lua") CONFIG_FILES="$CONFIG_FILES testing/wtest.lua" ;;
-    "examples/count") CONFIG_FILES="$CONFIG_FILES examples/count" ;;
-    "examples/deltas") CONFIG_FILES="$CONFIG_FILES examples/deltas" ;;
-    "examples/dir-classify") CONFIG_FILES="$CONFIG_FILES examples/dir-classify" ;;
-    "examples/dir-train") CONFIG_FILES="$CONFIG_FILES examples/dir-train" ;;
-    "examples/hand-labels") CONFIG_FILES="$CONFIG_FILES examples/hand-labels" ;;
-    "examples/label-by-hand") CONFIG_FILES="$CONFIG_FILES examples/label-by-hand" ;;
-    "examples/low-prob") CONFIG_FILES="$CONFIG_FILES examples/low-prob" ;;
-    "examples/msg-strings") CONFIG_FILES="$CONFIG_FILES examples/msg-strings" ;;
-    "examples/parse-message") CONFIG_FILES="$CONFIG_FILES examples/parse-message" ;;
-    "examples/priors") CONFIG_FILES="$CONFIG_FILES examples/priors" ;;
-    "examples/test-parser") CONFIG_FILES="$CONFIG_FILES examples/test-parser" ;;
+    "examples-autoconfed/count") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/count" ;;
+    "examples-autoconfed/deltas") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/deltas" ;;
+    "examples-autoconfed/dir-classify") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/dir-classify" ;;
+    "examples-autoconfed/dir-train") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/dir-train" ;;
+    "examples-autoconfed/hand-labels") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/hand-labels" ;;
+    "examples-autoconfed/label-by-hand") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/label-by-hand" ;;
+    "examples-autoconfed/low-prob") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/low-prob" ;;
+    "examples-autoconfed/msg-strings") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/msg-strings" ;;
+    "examples-autoconfed/parse-message") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/parse-message" ;;
+    "examples-autoconfed/priors") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/priors" ;;
+    "examples-autoconfed/test-parser") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/test-parser" ;;
 
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 echo "$as_me: error: invalid argument: $ac_config_target" >&2;}
@@ -26507,17 +26507,17 @@ done
     "testing/trec2":F) chmod a+x testing/trec2 ;;
     "testing/trec.lua":F) chmod a+x testing/trec.lua ;;
     "testing/wtest.lua":F) chmod a+x testing/wtest.lua ;;
-    "examples/count":F) chmod a+x examples/count ;;
-    "examples/deltas":F) chmod a+x examples/deltas ;;
-    "examples/dir-classify":F) chmod a+x examples/dir-classify ;;
-    "examples/dir-train":F) chmod a+x examples/dir-train ;;
-    "examples/hand-labels":F) chmod a+x examples/hand-labels ;;
-    "examples/label-by-hand":F) chmod a+x examples/label-by-hand ;;
-    "examples/low-prob":F) chmod a+x examples/low-prob ;;
-    "examples/msg-strings":F) chmod a+x examples/msg-strings ;;
-    "examples/parse-message":F) chmod a+x examples/parse-message ;;
-    "examples/priors":F) chmod a+x examples/priors ;;
-    "examples/test-parser":F) chmod a+x examples/test-parser ;;
+    "examples-autoconfed/count":F) chmod a+x examples/count ;;
+    "examples-autoconfed/deltas":F) chmod a+x examples/deltas ;;
+    "examples-autoconfed/dir-classify":F) chmod a+x examples/dir-classify ;;
+    "examples-autoconfed/dir-train":F) chmod a+x examples/dir-train ;;
+    "examples-autoconfed/hand-labels":F) chmod a+x examples/hand-labels ;;
+    "examples-autoconfed/label-by-hand":F) chmod a+x examples/label-by-hand ;;
+    "examples-autoconfed/low-prob":F) chmod a+x examples/low-prob ;;
+    "examples-autoconfed/msg-strings":F) chmod a+x examples/msg-strings ;;
+    "examples-autoconfed/parse-message":F) chmod a+x examples/parse-message ;;
+    "examples-autoconfed/priors":F) chmod a+x examples/priors ;;
+    "examples-autoconfed/test-parser":F) chmod a+x examples/test-parser ;;
 
   esac
 done # for ac_tag
