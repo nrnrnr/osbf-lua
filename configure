@@ -25013,7 +25013,7 @@ fi
 
 ac_config_files="$ac_config_files Makefile lua/Makefile docs/Makefile"
 
-ac_config_files="$ac_config_files testing/Makefile examples-autoconfed/Makefile"
+ac_config_files="$ac_config_files testing/Makefile examples/Makefile examples-autoconfed/Makefile"
 
 ac_config_files="$ac_config_files losbflib.c main.c"
 
@@ -25687,6 +25687,7 @@ do
     "lua/Makefile") CONFIG_FILES="$CONFIG_FILES lua/Makefile" ;;
     "docs/Makefile") CONFIG_FILES="$CONFIG_FILES docs/Makefile" ;;
     "testing/Makefile") CONFIG_FILES="$CONFIG_FILES testing/Makefile" ;;
+    "examples/Makefile") CONFIG_FILES="$CONFIG_FILES examples/Makefile" ;;
     "examples-autoconfed/Makefile") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/Makefile" ;;
     "losbflib.c") CONFIG_FILES="$CONFIG_FILES losbflib.c" ;;
     "main.c") CONFIG_FILES="$CONFIG_FILES main.c" ;;
