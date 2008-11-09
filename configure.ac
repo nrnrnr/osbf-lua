@@ -246,10 +246,12 @@ AM_CONDITIONAL(LUA50, [test "$lua_vndot" = "50"])
 
 AC_CONFIG_FILES([Makefile lua/Makefile docs/Makefile])
 AC_CONFIG_FILES([testing/Makefile  examples/Makefile examples-autoconfed/Makefile])
-AC_CONFIG_FILES([losbflib.c main.c])
-AC_CONFIG_FILES([lua/core_doc.lua lua/util.lua])
-AC_CONFIG_FILES([lua/${MOD_NAME}:lua/osbf.in])
-AC_CONFIG_FILES([lua/${MOD_NAME}.lua:lua/osbf.lua.in])
+AC_CONFIG_FILES([osbf-modname.h])
+
+dnl used only to rename files
+AC_CONFIG_FILES([lua/${MOD_NAME}:lua/osbf])
+AC_CONFIG_FILES([lua/${MOD_NAME}.lua:lua/osbf.lua])
+
 
 AC_CONFIG_FILES([testing/dates], [chmod a+x testing/dates])
 AC_CONFIG_FILES([testing/from-to-whitelist], [chmod a+x testing/from-to-whitelist])

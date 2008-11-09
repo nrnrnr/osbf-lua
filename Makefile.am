@@ -51,13 +51,13 @@ LIBDEBUG = -L/usr/local/lua-5.1.2-dbg/lib -L/usr/lib/debug \
            -L/usr/lib/debug/usr/lib
 PG=
 
-check_PROGRAMS = osbf-lua mem-test
+check_PROGRAMS = osbf-lua #mem-test
 if USE_LOCKFILE
 osbf_lua_LDADD = -llockfile -lreadline -lhistory -lncurses -lm 
-mem_test_LDADD = -llockfile -lreadline -lhistory -lncurses -lm 
+#mem_test_LDADD = -llockfile -lreadline -lhistory -lncurses -lm 
 else
 osbf_lua_LDADD = -lreadline -lhistory -lncurses -lm
-mem_test_LDADD = -lreadline -lhistory -lncurses -lm
+#mem_test_LDADD = -lreadline -lhistory -lncurses -lm
 endif
 osbf_lua_SOURCES = $(coreSOURCES) fastmime.c lua.c main.c
 osbf_lua_CFLAGS = $(LUA_CFLAGS) $(LUA_DEFINES) \
@@ -66,12 +66,12 @@ osbf_lua_CFLAGS = $(LUA_CFLAGS) $(LUA_DEFINES) \
                   -DOPENFUN=luaopen_$(MOD_NAME)_core
 osbf_lua_LDFLAGS = $(LUA_LFLAGS) $(LIBDEBUG) $(PG) $(PROFLIBS)
 
-mem_test_SOURCES = small.c lua.c main.c
-mem_test_CFLAGS = $(LUA_CFLAGS) $(LUA_DEFINES) \
-                  -DMOD_VERSION=\"$(MOD_VERSION)\" -g \
-                  -fno-optimize-sibling-calls \
-                  -DOPENFUN=luaopen_$(MOD_NAME)_core
-mem_test_LDFLAGS = $(LUA_LFLAGS) $(LIBDEBUG) $(PG) $(PROFLIBS)
+#mem_test_SOURCES = small.c lua.c main.c
+#mem_test_CFLAGS = $(LUA_CFLAGS) $(LUA_DEFINES) \
+#                  -DMOD_VERSION=\"$(MOD_VERSION)\" -g \
+#                  -fno-optimize-sibling-calls \
+#                  -DOPENFUN=luaopen_$(MOD_NAME)_core
+#mem_test_LDFLAGS = $(LUA_LFLAGS) $(LIBDEBUG) $(PG) $(PROFLIBS)
 
 msg_test:
 	case `hostname` in \

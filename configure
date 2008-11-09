@@ -25015,13 +25015,13 @@ ac_config_files="$ac_config_files Makefile lua/Makefile docs/Makefile"
 
 ac_config_files="$ac_config_files testing/Makefile examples/Makefile examples-autoconfed/Makefile"
 
-ac_config_files="$ac_config_files losbflib.c main.c"
+ac_config_files="$ac_config_files osbf-modname.h"
 
-ac_config_files="$ac_config_files lua/core_doc.lua lua/util.lua"
 
-ac_config_files="$ac_config_files lua/${MOD_NAME}:lua/osbf.in"
+ac_config_files="$ac_config_files lua/${MOD_NAME}:lua/osbf"
 
-ac_config_files="$ac_config_files lua/${MOD_NAME}.lua:lua/osbf.lua.in"
+ac_config_files="$ac_config_files lua/${MOD_NAME}.lua:lua/osbf.lua"
+
 
 
 ac_config_files="$ac_config_files testing/dates"
@@ -25689,12 +25689,9 @@ do
     "testing/Makefile") CONFIG_FILES="$CONFIG_FILES testing/Makefile" ;;
     "examples/Makefile") CONFIG_FILES="$CONFIG_FILES examples/Makefile" ;;
     "examples-autoconfed/Makefile") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/Makefile" ;;
-    "losbflib.c") CONFIG_FILES="$CONFIG_FILES losbflib.c" ;;
-    "main.c") CONFIG_FILES="$CONFIG_FILES main.c" ;;
-    "lua/core_doc.lua") CONFIG_FILES="$CONFIG_FILES lua/core_doc.lua" ;;
-    "lua/util.lua") CONFIG_FILES="$CONFIG_FILES lua/util.lua" ;;
-    "lua/${MOD_NAME}") CONFIG_FILES="$CONFIG_FILES lua/${MOD_NAME}:lua/osbf.in" ;;
-    "lua/${MOD_NAME}.lua") CONFIG_FILES="$CONFIG_FILES lua/${MOD_NAME}.lua:lua/osbf.lua.in" ;;
+    "osbf-modname.h") CONFIG_FILES="$CONFIG_FILES osbf-modname.h" ;;
+    "lua/${MOD_NAME}") CONFIG_FILES="$CONFIG_FILES lua/${MOD_NAME}:lua/osbf" ;;
+    "lua/${MOD_NAME}.lua") CONFIG_FILES="$CONFIG_FILES lua/${MOD_NAME}.lua:lua/osbf.lua" ;;
     "testing/dates") CONFIG_FILES="$CONFIG_FILES testing/dates" ;;
     "testing/from-to-whitelist") CONFIG_FILES="$CONFIG_FILES testing/from-to-whitelist" ;;
     "testing/plot_learning.lua") CONFIG_FILES="$CONFIG_FILES testing/plot_learning.lua" ;;
