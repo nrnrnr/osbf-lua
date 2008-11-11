@@ -1,6 +1,6 @@
-#! @LUA@
+#! /usr/bin/env lua
 
-local osbf = require '@MOD_NAME@'
+local osbf = require 'osbf3'
 
 print('Local time is offset by ' .. osbf.util.localtime_minus_UTC / 3600 .. ' hours')
 

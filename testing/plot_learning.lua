@@ -1,7 +1,7 @@
-#! @LUA@
+#! /usr/bin/env lua
 
-local options      = require '@MOD_NAME@.options'
-local util         = require '@MOD_NAME@.util'
+local options      = require 'osbf3.options'
+local util         = require 'osbf3.util'
 
 options.register { long = 'window', type = options.std.number,
                    usage = '-window <number>' }

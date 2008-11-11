@@ -1,4 +1,4 @@
-#! @LUA@
+#! /usr/bin/env lua
 -- Calculate 1-ROCAC%, a measure of the quality of the classifier. The lower
 -- the 1-ROCAC%, the better the filter. See "A Study of Supervised Spam
 -- Detection applied to Eight Months of Personal E-Mail", by Gordon Cormack

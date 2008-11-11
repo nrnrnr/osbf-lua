@@ -1,25 +1,14 @@
-#! @LUA@
---  -*- mode: lua -*-
- 
---[[  -- not very useful
-require 'profiler' ; profiler.start()
-do
-  local x = os.exit
-  os.exit = function(n) profiler.stop(); x(n) end
-end
-]]
+#! /usr/bin/env lua
 
-local osbf         = require '@MOD_NAME@'
-local command_line = require '@MOD_NAME@.command_line'
-local options      = require '@MOD_NAME@.options'
-local util         = require '@MOD_NAME@.util'
-local commands     = require '@MOD_NAME@.commands'
-local msg          = require '@MOD_NAME@.msg'
-local cfg          = require '@MOD_NAME@.cfg'
-local cache        = require '@MOD_NAME@.cache'
-local roc          = require '@MOD_NAME@.roc'
-local core         = require '@MOD_NAME@.core'
-
+local osbf         = require 'osbf3'
+local command_line = require 'osbf3.command_line'
+local options      = require 'osbf3.options'
+local util         = require 'osbf3.util'
+local commands     = require 'osbf3.commands'
+local msg          = require 'osbf3.msg'
+local cfg          = require 'osbf3.cfg'
+local cache        = require 'osbf3.cache'
+local core         = require 'osbf3.core'
 
 local md5sum = false -- compute md5 sums of databases
 local md5run = md5sum and os.execute or function() end
@@ -59,11 +48,9 @@ function os.capture(cmd, raw)
 end
 
 
-
-local image = util.image
-
 -- try to avoid collisions on multiple tests
 local test_dir = os.capture 'tempfile -p osbf-' or '/tmp/osbf-lua'
+if test_dir:len() == 0 then test_dir = '/tmp/osbf-lua' end
 os.execute('/bin/rm -rf ' .. test_dir)
 os.execute('/bin/mkdir ' .. test_dir)
 
@@ -84,95 +71,74 @@ cfg.text_limit = 500000
 
 local opcall = pcall
 pcall = function(f, ...) return true, f(...) end
-osbf.command_line.pcall = pcall
-opcall = pcall
 
-local outfilename = opts.o or 'result.lua'
+local outfilename = opts.o or 'result'
 
 local result = outfilename == '-' and io.stdout or assert(io.open(outfilename, 'w'))
 
-local using_cache = false
 
--- valid a_priori strings: LEARNINGS, INSTANCES, CLASSIFICATIONS and  MISTAKES
--- default is LEARNINGS'
-core.config{a_priori = os.getenv 'PRIOR' or 'LEARNINGS'}
+local using_cache = false
 
 local max_lines = opts.max or 5000
 local learnings = 0
 local start_time = os.time()
 local files = { }
-local classifications = { }
+local nclass = 0  -- number of classifications
 if md5sum then os.remove(test_dir .. '/md5sums') end
-result:write 'return {'
+
+-- valid a_priori strings: LEARNINGS, INSTANCES, CLASSIFICATIONS and  MISTAKES
+-- default is LEARNINGS'
+core.config{a_priori = os.getenv 'PRIOR' or 'LEARNINGS'}
+
 for l in assert(io.lines(trecdir .. 'index')) do
   md5run('md5sum ' .. test_dir .. '/*.cfc >> ' .. test_dir .. '/md5sums')
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')
   if debug then io.stderr:write("\nMsg ", file) end 
   table.insert(files, file)
+  --local m = msg.of_file(trecdir .. file)
   local m = msg.of_string(util.file_contents(trecdir .. file))
-  local probs, conf = commands.multiclassify(commands.extract_feature(m))
-  local cfn = { actual = labelled, conf = conf, file = file }
-  table.insert(classifications, cfn)
-  local class = util.key_max(conf)
-  local train = conf[class] < cfg.classes[class].train_below
-  local learned = false
-  if train or class ~= labelled then
-    local ok, errmsg = opcall(commands.learn_msg, m, labelled)
+  -- find best class
+  local bc = commands.classify(m)
+  nclass = nclass + 1
+  local ham_pR = bc.class == 'ham' and bc.pR or (bc.pR > 0 and -bc.pR or bc.pR)
+  if bc.train or bc.class ~= labelled then
+    local sfid = cache.generate_sfid(bc.sfid_tag, ham_pR)
+    cache.store(sfid, msg.to_orig_string(m))
+    local ok, errmsg = opcall(commands.learn, sfid, labelled)
+
+    --local ok, errmsg = opcall(commands.learn_msg, m, labelled)
     if ok then
-      learned = true
       learnings = learnings + 1
     else
       io.stderr:write(errmsg, '\n')
     end
   end
-  cfn.learned = learned
-  result:write(image(cfn, '  '), ',\n')
-  if #classifications >= max_lines then break end
+
+  result:write(string.format("%s judge=%s class=%s train=%s score=%.4f\n",
+                             file, labelled, bc.class, tostring(bc.train), -ham_pR))
+  if nclass >= max_lines then break end
 end
 local end_time = os.time()
-result:write('}\n')
-
-local nclass = #classifications
-
-function info(...)
-  local s = string.format(...)
-  result:write('-- ', s, '\n')
-  io.stderr:write(s, '\n')
-end
-  
-
-info('Using %d buckets, %d classifications (%.1f/s) require %d learnings',
+local info = string.format(
+  'Using %d buckets, %d classifications (%.1f/s) require %d learnings',
   num_buckets, nclass, (nclass / os.difftime(end_time, start_time)), learnings)
-
-local ROCA_fmt = '%9.9s: 1-ROCA%% = %0.6f'
-
-for _, class in ipairs(cfg.classlist()) do
-  local curve = roc.curve(class, classifications)
-  local above = roc.area_above(curve)
-  info(ROCA_fmt, class, 100 * above)
-  local jgraph = io.open(outfilename .. '-' .. class .. '.j', 'w')
-  jgraph:write('newgraph\n')
-  roc.jgraph(jgraph, curve)
-  jgraph:close()
-end
-
-local above = roc.area_above_hand_till(cfg.classlist(), classifications)
-info(ROCA_fmt, 'Hand-Till', 100 * above)
+result:write('# ', info, '\n')
+io.stderr:write(info, '\n')
 
 if opts.ctimes then
   local start_time = os.time()
   for _, file in ipairs(files) do
-    local m = msg.of_string(util.file_contents(trecdir .. file))
+    local m = cache.msg_of_any(trecdir .. file)
     commands.classify(m)
   end
   local end_time = os.time()
   local sec = os.difftime(end_time, start_time)
-  info('Without training, %d classifications (%.1f/s) in %d:%02d',
+  local info = string.format(
+    'Without training, %d classifications (%.1f/s) in %d:%02d',
     nclass, (nclass / sec), math.floor(sec / 60), sec % 60)
+  result:write('# ', info, '\n')
+  io.stderr:write(info, '\n')
 end
-
-
-
 
 if result ~= io.stdout then
   result:close()
@@ -182,4 +148,3 @@ if not opts.keep then
   os.execute('/bin/rm -rf ' .. test_dir)
 end
 
-os.exit(0)

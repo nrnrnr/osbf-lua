@@ -1,10 +1,10 @@
-#! @LUA@
+#! /usr/bin/lua
 
-local osbf = require '@MOD_NAME@'
+local osbf = require 'osbf3'
 
 osbf.init({ udir = '.' }, true) --- ignore missing log or cache dirs
 
-local util = require '@MOD_NAME@.util'
+local util = require 'osbf3.util'
 
 if not arg[1] then
   io.write("Usage: ", arg[0], " <path-trec-index>\n")
