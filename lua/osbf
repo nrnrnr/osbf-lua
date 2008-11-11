@@ -1,0 +1,67 @@
+#! /usr/bin/lua
+--[[
+OSBF: 
+  train even if a message not in the cache -- insert on training! (for testing)
+  regression test accuracy on trec 2005 and trec 2006 ('full') and
+  also 'fast'
+]]
+
+-- simple command-line client
+
+local modname = string.match(arg[0], '.*/(.+)')
+
+local osbf = require (modname)
+require (modname .. '.command_line')
+require (modname .. '.options')
+require (modname .. '.util')
+require (modname .. '.output')
+
+osbf.util.progname = arg[0] or 'osbf'
+
+local function die(...)
+  io.stderr:write(...)
+  os.exit(1)
+end
+
+osbf.options.register { long = 'trace', usage = ' # stack trace on error',
+                   help = [[
+  --trace
+      Don't recover from errors; give a stack trace instead
+]] }
+
+osbf.options.register { long = 'profile',
+                      usage = ' # profile to ' .. modname .. '.lprof',
+                      help = [[
+  --profile
+      Write a LuaProfiler profile to lprof.out
+]] }
+
+local ok, options, args = pcall(osbf.options.parse, arg)
+if not ok then
+  die(arg[0], ': ', options, '\n')
+end
+
+if options.profile then
+  require 'profiler'
+  profiler.start (modname .. '.lprof')
+end
+
+-- we dare not override the global pcall, because that's used
+-- as an exception handler for trying to parse subject-line commands
+if options.trace then
+  osbf.command_line.pcall = function(f, ...) return true, f(...) end
+end
+
+local pcall = osbf.command_line.pcall
+
+local ok, msg = pcall(osbf.init, options, args[1] == 'init')
+if not ok then
+  die(arg[0], ' failed during initialization: ', msg, '\n')
+end
+
+osbf.command_line.run(unpack(args))
+if options.profile then
+  profiler.stop()
+end
+osbf.output.exit(0)
+
