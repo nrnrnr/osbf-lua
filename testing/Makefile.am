@@ -1,5 +1,5 @@
-EXTRA_DIST = cache.md5.ok databases.md5.ok dates.in from-to-whitelist.in \
-             plot_learning.lua.in README regression.sh result.md5.ok \
-             roc.lua.in trec06-whitelist-add.sh.in trec2.in trec.lua.in \
-             wtest.lua.in
+EXTRA_DIST = cache.md5.ok databases.md5.ok dates from-to-whitelist \
+             plot_learning.lua README regression.sh result.md5.ok \
+             roc.lua trec06-whitelist-add.sh trec2 trec.lua \
+             wtest.lua
 
