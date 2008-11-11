@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 
 -- simple example to count training and tests in a log left by train-test
 

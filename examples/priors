@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 
 -- This code shows three different estimates of the prior probability
 -- of a message landing in a particular class:

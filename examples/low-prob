@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 -- -*- mode: lua -*-
 
 -- finds low-population messages

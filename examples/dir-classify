@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 -- -*- mode: lua -*-
 
 -- self-contained script to classify (and conditionally train) on corpora 
