@@ -1,0 +1,6 @@
+#ifndef OSBF_MODNAME
+#define OSBF_MODNAME @MOD_NAME@
+#endif
+
+#define QUOTEQUOTE(s) #s
+#define QUOTE(s) QUOTEQUOTE(s)
