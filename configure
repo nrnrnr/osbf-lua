@@ -25023,24 +25023,6 @@ ac_config_files="$ac_config_files lua/${MOD_NAME}:lua/osbf"
 ac_config_files="$ac_config_files lua/${MOD_NAME}.lua:lua/osbf.lua"
 
 
-
-ac_config_files="$ac_config_files testing/dates"
-
-ac_config_files="$ac_config_files testing/from-to-whitelist"
-
-ac_config_files="$ac_config_files testing/plot_learning.lua"
-
-ac_config_files="$ac_config_files testing/roc.lua"
-
-ac_config_files="$ac_config_files testing/trec06-whitelist-add.sh"
-
-ac_config_files="$ac_config_files testing/trec2"
-
-ac_config_files="$ac_config_files testing/trec.lua"
-
-ac_config_files="$ac_config_files testing/wtest.lua"
-
-
 ac_config_files="$ac_config_files examples-autoconfed/count"
 
 ac_config_files="$ac_config_files examples-autoconfed/deltas"
@@ -25692,14 +25674,6 @@ do
     "osbf-modname.h") CONFIG_FILES="$CONFIG_FILES osbf-modname.h" ;;
     "lua/${MOD_NAME}") CONFIG_FILES="$CONFIG_FILES lua/${MOD_NAME}:lua/osbf" ;;
     "lua/${MOD_NAME}.lua") CONFIG_FILES="$CONFIG_FILES lua/${MOD_NAME}.lua:lua/osbf.lua" ;;
-    "testing/dates") CONFIG_FILES="$CONFIG_FILES testing/dates" ;;
-    "testing/from-to-whitelist") CONFIG_FILES="$CONFIG_FILES testing/from-to-whitelist" ;;
-    "testing/plot_learning.lua") CONFIG_FILES="$CONFIG_FILES testing/plot_learning.lua" ;;
-    "testing/roc.lua") CONFIG_FILES="$CONFIG_FILES testing/roc.lua" ;;
-    "testing/trec06-whitelist-add.sh") CONFIG_FILES="$CONFIG_FILES testing/trec06-whitelist-add.sh" ;;
-    "testing/trec2") CONFIG_FILES="$CONFIG_FILES testing/trec2" ;;
-    "testing/trec.lua") CONFIG_FILES="$CONFIG_FILES testing/trec.lua" ;;
-    "testing/wtest.lua") CONFIG_FILES="$CONFIG_FILES testing/wtest.lua" ;;
     "examples-autoconfed/count") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/count" ;;
     "examples-autoconfed/deltas") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/deltas" ;;
     "examples-autoconfed/dir-classify") CONFIG_FILES="$CONFIG_FILES examples-autoconfed/dir-classify" ;;
@@ -26497,14 +26471,6 @@ echo "$as_me: error: cannot create directory $as_dir" >&2;}
   done
 done
  ;;
-    "testing/dates":F) chmod a+x testing/dates ;;
-    "testing/from-to-whitelist":F) chmod a+x testing/from-to-whitelist ;;
-    "testing/plot_learning.lua":F) chmod a+x testing/plot_learning.lua ;;
-    "testing/roc.lua":F) chmod a+x testing/roc.lua ;;
-    "testing/trec06-whitelist-add.sh":F) chmod a+x testing/trec06-whitelist-add.sh ;;
-    "testing/trec2":F) chmod a+x testing/trec2 ;;
-    "testing/trec.lua":F) chmod a+x testing/trec.lua ;;
-    "testing/wtest.lua":F) chmod a+x testing/wtest.lua ;;
     "examples-autoconfed/count":F) chmod a+x examples/count ;;
     "examples-autoconfed/deltas":F) chmod a+x examples/deltas ;;
     "examples-autoconfed/dir-classify":F) chmod a+x examples/dir-classify ;;

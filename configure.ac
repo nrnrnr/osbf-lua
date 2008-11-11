@@ -252,16 +252,6 @@ dnl used only to rename files
 AC_CONFIG_FILES([lua/${MOD_NAME}:lua/osbf])
 AC_CONFIG_FILES([lua/${MOD_NAME}.lua:lua/osbf.lua])
 
-
-AC_CONFIG_FILES([testing/dates], [chmod a+x testing/dates])
-AC_CONFIG_FILES([testing/from-to-whitelist], [chmod a+x testing/from-to-whitelist])
-AC_CONFIG_FILES([testing/plot_learning.lua], [chmod a+x testing/plot_learning.lua])
-AC_CONFIG_FILES([testing/roc.lua], [chmod a+x testing/roc.lua])
-AC_CONFIG_FILES([testing/trec06-whitelist-add.sh], [chmod a+x testing/trec06-whitelist-add.sh])
-AC_CONFIG_FILES([testing/trec2], [chmod a+x testing/trec2])
-AC_CONFIG_FILES([testing/trec.lua], [chmod a+x testing/trec.lua])
-AC_CONFIG_FILES([testing/wtest.lua], [chmod a+x testing/wtest.lua])
-
 AC_CONFIG_FILES([examples-autoconfed/count], [chmod a+x examples/count])
 AC_CONFIG_FILES([examples-autoconfed/deltas], [chmod a+x examples/deltas])
 AC_CONFIG_FILES([examples-autoconfed/dir-classify], [chmod a+x examples/dir-classify])

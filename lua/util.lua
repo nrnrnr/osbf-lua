@@ -798,7 +798,7 @@ do
       local hostname =
         host_cmd and get_popen(host_cmd) or 'spamfilter'
       local domainname =
-        domain_cmd and get_popen(domain_cmd) or '@MOD_NAME@.lua'
+        domain_cmd and get_popen(domain_cmd) or _PACKAGE .. 'lua'
       cache = hostname .. '.' ..  domainname
     end
     return cache
