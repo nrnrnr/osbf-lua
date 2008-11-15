@@ -381,7 +381,14 @@ function html_sfid_rows(sfids, ready) -- declared local above
       -- html.of_iso_8859_1_or_utf8. The length limit prevents the HTML
       -- browser from showing overwide columns.
       s = s:gsub("=%?(.-)%?([BbQq])%?(.-)%?=", util.html.of_iso_8859_1_or_utf8)
+    do
+      local h, i = {}, 0
+      -- do not break html sequences '&...;'
+      s = s:gsub("&[^;]+;", function (c) h[#h+1] = c return '\1' end)
       s = s:gsub("(" .. string.rep("%S", n) ..")(%S)", "%1 %2")
+      s = s:gsub('\1', function(c) i = i+1 return h[i] end )
+end
+
       return s
     end
 
