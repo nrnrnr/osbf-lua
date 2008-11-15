@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 --[[
 OSBF: 
   train even if a message not in the cache -- insert on training! (for testing)
