@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "osbflib.h"
+#include "osbfcvt.h"
 
 void
 osbf_dump (const CLASS_STRUCT *class, const char *csvfile, OSBF_HANDLER *h)
@@ -55,11 +56,12 @@ osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h)
   OSBF_BUCKET_STRUCT *buckets;
   uint32_t i;
   uint32_t garbage; /* placeholder for flags in legacy formats */
+  OSBF_UNIVERSAL_HEADER uheader;
 
   memset(&class, 0, sizeof(class));
+  memset(&uheader, 0, sizeof(uheader));
   class.classname = osbf_malloc(strlen(cfcfile)+1, h, "class name");
   strcpy(class.classname, cfcfile);
-  class.header = osbf_calloc(1, sizeof(*class.header), h, "header");
   class.state = OSBF_COPIED;
   class.bflags = NULL;
   class.fd = -1;
@@ -71,18 +73,21 @@ osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h)
   UNLESS_CLEANUP_RAISE(
      4 == fscanf (fp_csv,
 		  "%" SCNu32 ";%" SCNu32 "\n%" SCNu32 ";%" SCNu32 "\n",
-                  &class.header->db_version, &garbage,
-		  &class.header->num_buckets, &class.header->learnings),
+                  &uheader.db_version, &garbage,
+		  &uheader.num_buckets, &uheader.learnings),
      fclose (fp_csv),
      (h, "csv file %s doesn't have a valid header", csvfile));
 
   class.buckets = buckets =
-    osbf_malloc(class.header->num_buckets * sizeof(*class.buckets), h, "buckets");
-  for (i = 0; i < class.header->num_buckets; i++) {
+    osbf_malloc(uheader.num_buckets * sizeof(*class.buckets), h, "buckets");
+  for (i = 0; i < uheader.num_buckets; i++) {
     UNLESS_CLEANUP_RAISE(read_bucket(buckets+i, fp_csv), 
-          (fclose(fp_csv), free(class.header), free(class.buckets), 1),
+          (fclose(fp_csv), free(class.buckets), 1),
           (h, "Problem reading csv file %s", csvfile));
   }
+  class.header = osbf_calloc(1, sizeof(*class.header), h, "header");
+  osbf_native_header_of_universal(class.header, &uheader);
+
   UNLESS_CLEANUP_RAISE(feof(fp_csv),
         (fclose(fp_csv), free(class.header), free(class.buckets), 1),
         (h, "Leftover text at end of csv file %s", csvfile));
