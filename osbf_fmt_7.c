@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include "osbflib.h"
 #include "osbf_disk.h"
@@ -66,12 +67,14 @@ static int i_recognize_image(void *p) {
 
 static off_t expected_size(void *p) {
   MY_DISK_IMAGE *image = p;
+  assert(i_recognize_image(p));
   uint32_t num_buckets =
     image->magic == OSBF_LITTLE ? image->num_buckets : swap(image->num_buckets);
   return sizeof(*image) + sizeof(MY_BUCKET_STRUCT) * num_buckets;
 }
 
 off_t osbf_native_image_size  (CLASS_STRUCT *class) {
+  assert(i_recognize_image(class->header));
   return expected_size(class->header);
 }
 
@@ -107,6 +110,9 @@ void osbf_native_write_class(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
     osbf_raise(h, "Version %d format asked to write version %d database as native\n",
                MY_FORMAT.unique_id, class->header->db_version);
 
+  if (!i_recognize_image(class->header))
+    osbf_raise(h, "Tried to write class without suitable magic number in header");
+
   if (DEBUG) {
     unsigned j;
     fprintf(stderr, "Writing native class with header");
@@ -137,6 +143,9 @@ void osbf_native_write_header(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
   if (class->header->db_version != MY_FORMAT.unique_id)
     osbf_raise(h, "Version %d format asked to write version %d database as native\n",
                MY_FORMAT.unique_id, class->header->db_version);
+
+  if (!i_recognize_image(class->header))
+    osbf_raise(h, "Tried to write class without suitable magic number in header");
 
   if (DEBUG) {
     unsigned j;
