@@ -76,6 +76,7 @@ static int parsemime(lua_State *L) {
                             /* if not NULL, identifies compliance workaround used */
   unsigned char *badchar;   /* temporary pointer to bad character in header name */
   int body_present;         /* nonzero if headers end with double EOL */
+  body_present = 0;         /* the compiler is not sure this is always initialize */
 
   /* create tables and put indices in hindex, tindex, resindex */
   lua_newtable(L);
