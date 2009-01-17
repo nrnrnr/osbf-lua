@@ -62,6 +62,7 @@ endif
 osbf_lua_SOURCES = $(coreSOURCES) fastmime.c lua.c main.c
 osbf_lua_CFLAGS = $(LUA_CFLAGS) $(LUA_DEFINES) \
                   -DMOD_VERSION=\"$(MOD_VERSION)\" -g \
+		  -Wall -Werror \
                   -fno-optimize-sibling-calls \
                   -DOPENFUN=luaopen_$(MOD_NAME)_core
 osbf_lua_LDFLAGS = $(LUA_LFLAGS) $(LIBDEBUG) $(PG) $(PROFLIBS)
