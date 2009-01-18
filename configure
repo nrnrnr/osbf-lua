@@ -25011,6 +25011,8 @@ else
 fi
 
 
+ac_config_files="$ac_config_files mkconfig"
+
 ac_config_files="$ac_config_files Makefile lua/Makefile docs/Makefile"
 
 ac_config_files="$ac_config_files testing/Makefile examples/Makefile examples-autoconfed/Makefile"
@@ -25665,6 +25667,7 @@ do
   case $ac_config_target in
     "config.h") CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
+    "mkconfig") CONFIG_FILES="$CONFIG_FILES mkconfig" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "lua/Makefile") CONFIG_FILES="$CONFIG_FILES lua/Makefile" ;;
     "docs/Makefile") CONFIG_FILES="$CONFIG_FILES docs/Makefile" ;;

@@ -32,6 +32,7 @@ config.status
 libtool
 osbf-modname.h
 
+mkconfig
 
 examples-autoconfed/count
 examples-autoconfed/deltas

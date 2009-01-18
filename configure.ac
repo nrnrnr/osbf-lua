@@ -244,6 +244,7 @@ AM_CONDITIONAL(LUA_SITE_LINSTALL,
       [test "$LUA_INSTALL_LMOD" != "$LUA_OSBF_LIBDIR"])
 AM_CONDITIONAL(LUA50, [test "$lua_vndot" = "50"])
 
+AC_CONFIG_FILES([mkconfig])
 AC_CONFIG_FILES([Makefile lua/Makefile docs/Makefile])
 AC_CONFIG_FILES([testing/Makefile  examples/Makefile examples-autoconfed/Makefile])
 AC_CONFIG_FILES([osbf-modname.h])
