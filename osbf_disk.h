@@ -97,6 +97,8 @@ typedef struct osbf_format {
                             functions will work. */
   off_t (*expected_size)(void *image);
                          /* the size the format expects the image to be */
+  /* in the unions below, a native format contains a find function;
+     a non-native format contains a copy function */
   union {
     osbf_copy_header_fn copy;
     osbf_find_header_fn find;
