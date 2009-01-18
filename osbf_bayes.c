@@ -285,13 +285,8 @@ void osbf_bayes_train(const unsigned char *p_text,      /* pointer to text */
 
         h1 = hashpipe[0] * hctable1[0] +
             hashpipe[window_idx] * hctable1[window_idx];
-#ifdef CRM114_COMPATIBILITY
         h2 = hashpipe[0] * hctable2[0] +
-            hashpipe[window_idx] * hctable2[window_idx - 1];
-#else
-        h2 = hashpipe[0] * hctable2[0] +
-            hashpipe[window_idx] * hctable2[window_idx];
-#endif
+            hashpipe[window_idx] * hctable2[H2_COMPAT_INDEX(window_idx)];
         hindex = h1 % class->header->num_buckets;
 
 #if (DEBUG > 2)
@@ -574,13 +569,8 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
       for (window_idx = 1; window_idx < OSB_BAYES_WINDOW_LEN; window_idx++) {
         h1 = hashpipe[0] * hctable1[0] +
             hashpipe[window_idx] * hctable1[window_idx];
-#ifdef CRM114_COMPATIBILITY
         h2 = hashpipe[0] * hctable2[0] +
-            hashpipe[window_idx] * hctable2[window_idx - 1];
-#else
-        h2 = hashpipe[0] * hctable2[0] +
-            hashpipe[window_idx] * hctable2[window_idx];
-#endif
+            hashpipe[window_idx] * hctable2[H2_COMPAT_INDEX(window_idx)];
 
         hindex = h1;
 
