@@ -9,16 +9,19 @@ do
 end
 ]]
 
-local osbf         = require 'osbf3'
-local command_line = require 'osbf3.command_line'
-local options      = require 'osbf3.options'
-local util         = require 'osbf3.util'
-local commands     = require 'osbf3.commands'
-local msg          = require 'osbf3.msg'
-local cfg          = require 'osbf3.cfg'
-local cache        = require 'osbf3.cache'
-local roc          = require 'osbf3.roc'
-local core         = require 'osbf3.core'
+local modname = dofile 'modname.lua'
+local function getmod(m) return require (modname .. '.' .. m) end
+
+local osbf         = require (modname)
+local command_line = getmod 'command_line'
+local options      = getmod 'options'
+local util         = getmod 'util'
+local commands     = getmod 'commands'
+local msg          = getmod 'msg'
+local cfg          = getmod 'cfg'
+local cache        = getmod 'cache'
+local roc          = getmod 'roc'
+local core         = getmod 'core'
 
 
 local md5sum = false -- compute md5 sums of databases
