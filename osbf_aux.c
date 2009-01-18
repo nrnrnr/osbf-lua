@@ -16,6 +16,7 @@
 #include <errno.h>
 
 #include "osbflib.h"
+#include "osbfcompat.h"  /* for CRM 114 compatibility */
 
 #ifndef DEBUG_packchain
 #define DEBUG_packchain 0
@@ -511,11 +512,7 @@ uint32_t
 strnhash (unsigned char *str, uint32_t len)
 {
   uint32_t i;
-#ifdef CRM114_COMPATIBILITY
-  int32_t hval;			/* signed int for CRM114 compatibility */
-#else
-  uint32_t hval;
-#endif
+  hval_t hval;
   uint32_t tmp;
 
   /* initialize hval */
