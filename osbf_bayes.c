@@ -22,6 +22,7 @@
 
 /*  OSBF structures */
 #include "osbflib.h"
+#include "osbfcompat.h"
 
 struct token_search {
   unsigned char *ptok;

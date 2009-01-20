@@ -914,7 +914,7 @@ static int lua_crc32(lua_State *L) {
 static const char b64code[]=
 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-static void b64encode(luaL_Buffer *b, uint c1, uint c2, uint c3, int n)
+static void b64encode(luaL_Buffer *b, unsigned char c1, unsigned char c2, unsigned char c3, int n)
 {
  uint32_t tuple=c3+256UL*(c2+256UL*c1);
  int i;
