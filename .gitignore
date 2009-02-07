@@ -3,6 +3,8 @@ lua/osbf3
 lua/osbf3.lua
 lua/osbf3test
 lua/osbf3test.lua
+lua/osbftest
+lua/osbftest.lua
 
 
 libosbf.so.*
