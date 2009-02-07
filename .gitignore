@@ -1,3 +1,10 @@
+# something is bogus here, but NR knows not what
+lua/osbf3
+lua/osbf3.lua
+lua/osbf3test
+lua/osbf3test.lua
+
+
 libosbf.so.*
 libosbf3.so.*
 lib.so.?.?.?
