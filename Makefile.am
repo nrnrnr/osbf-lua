@@ -28,7 +28,7 @@ fastmimedir=$(LUA_INSTALL_CMOD)
 coreSOURCES = losbflib.c oarray.c oarray.h osbf_aux.c osbf_bayes.c \
               osbf_csv.c osbfcvt.h osbf_disk.c osbf_disk.h osbferr.h \
               osbferrl.c osbf_fmt_5.c osbf_fmt_6.c osbf_fmt_7.c \
-              osbflib.h osbf_stats.c
+              osbflib.h osbf_stats.c osbfcompat.h
 
 osbf_LTLIBRARIES = core.la
 core_la_SOURCES = $(coreSOURCES)
