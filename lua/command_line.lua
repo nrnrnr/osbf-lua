@@ -644,7 +644,7 @@ _M.filter = function(...)
     local s = io.stdin:read '*a'
     local ok, m = _G.pcall(msg.of_string, s)
     local ok2, err
-      if ok then ok2, err = _G.pcall(filter_one, m) end -- cannot use 'and' here
+    if ok then ok2, err = _G.pcall(filter_one, m) end -- cannot use 'and' here
     if ok then
       if not ok2 then
         filter.add_osbf_header(m, 'Error', err or 'unknown error')
