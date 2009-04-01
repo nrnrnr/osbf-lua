@@ -444,12 +444,13 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
   total_a_priori = 0;
   for (pclass = classes; pclass < class_lim; pclass++) {
     CLASS_STRUCT *class = *pclass;
+    int ci = pclass - classes; /* class index */
     osbf_raise_unless(class->state != OSBF_CLOSED, h,
-                      "class number %d is closed", pclass - classes);
+                      "class number %d is closed", ci);
 
     memset(class->bflags, 0,
            class->header->num_buckets * sizeof(unsigned char));
-    ptt[pclass - classes] = class->learnings = class->header->learnings;
+    ptt[ci] = class->learnings = class->header->learnings;
     /*  avoid division by 0 */
     if (class->learnings == 0)
       class->learnings++;
@@ -465,11 +466,11 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
 #endif
     switch (a_priori) {
     case LEARNINGS:
-      a_priori_counter[pclass - classes] = class->header->learnings;
+      a_priori_counter[ci] = class->header->learnings;
       break;
     case INSTANCES:
       if (class->header->db_version >= OSBF_DB_FP_FN_VERSION)
-        a_priori_counter[pclass - classes] =
+        a_priori_counter[ci] =
             class->header->classifications +
             class->header->false_negatives -
             class->header->false_positives;
@@ -479,10 +480,10 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
                    class->header->db_version);
       break;
     case CLASSIFICATIONS:
-      a_priori_counter[pclass - classes] = class->header->classifications;
+      a_priori_counter[ci] = class->header->classifications;
       break;
     case MISTAKES:
-      a_priori_counter[pclass - classes] = class->header->false_negatives;
+      a_priori_counter[ci] = class->header->false_negatives;
       break;
     default:
       osbf_raise(h, "Given a-priori option (%d) is out of range [%d, %d]",
@@ -491,9 +492,9 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
     }
 
     /* avoid division by zero */
-    if (a_priori_counter[pclass - classes] < 1)
-      a_priori_counter[pclass - classes] = 1;
-    total_a_priori += a_priori_counter[pclass - classes];
+    if (a_priori_counter[ci] < 1)
+      a_priori_counter[ci] = 1;
+    total_a_priori += a_priori_counter[ci];
   }
 
 
@@ -510,14 +511,14 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
 
   for (pclass = classes; pclass < class_lim; pclass++) {
     CLASS_STRUCT *class = *pclass;
+    int ci = pclass - classes; /* class index */
     /*  initialize our arrays for N .cfc files */
     class->hits = 0.0;          /* absolute hit counts */
     class->totalhits = 0;       /* absolute hit counts */
     class->uniquefeatures = 0;  /* features counted per class */
     class->missedfeatures = 0;  /* missed features per class */
     /* estimate class a-priori probability */
-    ptc[pclass - classes] =
-        a_priori_counter[pclass - classes] / total_a_priori;
+    ptc[ci] = a_priori_counter[ci] / total_a_priori;
 
 #if 0
     {
@@ -589,6 +590,7 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
         already_seen = 0;
         for (pclass = classes; pclass < class_lim; pclass++) {
           CLASS_STRUCT *class = *pclass;
+          int ci = pclass - classes; /* class index */
           uint32_t lh, lh0;
           double p_feat = 0;
 
@@ -614,11 +616,11 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
 
             /* set i_{min,max}_p to classes with {minimum,maxmum} P(F) */
             if (p_feat <= min_local_p) {
-              i_min_p = pclass - classes;
+              i_min_p = ci;
               min_local_p = p_feat;
             }
             if (p_feat >= max_local_p) {
-              i_max_p = pclass - classes;
+              i_max_p = ci;
               max_local_p = p_feat;
             }
           } else if (!VALID_BUCKET(class, lh)
@@ -638,7 +640,7 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
              * all classes and will be ignored as well. So, only
              * found features are marked as seen.
              */
-            i_min_p = pclass - classes;
+            i_min_p = ci;
             min_local_p = p_feat = 0;
             /* for statistics only (for now...) */
             class->missedfeatures += 1;
