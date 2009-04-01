@@ -269,14 +269,13 @@ void osbf_bayes_train(const unsigned char *p_text,      /* pointer to text */
       hashpipe[i] = hashpipe[i - 1];
     hashpipe[0] = ts.hash;
 
-#if (DEBUG > 2)
-    {
+    if (DEBUG > 2) {
+      int h;
       fprintf(stderr, "  Hashpipe contents: ");
       for (h = 0; h < OSB_BAYES_WINDOW_LEN; h++)
         fprintf(stderr, " %" PRIu32, hashpipe[h]);
       fprintf(stderr, "\n");
     }
-#endif
 
     {
       uint32_t hindex, bindex;
@@ -290,11 +289,10 @@ void osbf_bayes_train(const unsigned char *p_text,      /* pointer to text */
             hashpipe[window_idx] * hctable2[H2_COMPAT_INDEX(window_idx)];
         hindex = h1 % class->header->num_buckets;
 
-#if (DEBUG > 2)
-        fprintf(stderr,
-                "Polynomial %" PRIu32 " has h1:%" PRIu32 "  h2: %"
-                PRIu32 "\n", window_idx, h1, h2);
-#endif
+        if (DEBUG > 2)
+          fprintf(stderr,
+                  "Polynomial %" PRIu32 " has h1:%" PRIu32 "  h2: %"
+                  PRIu32 "\n", window_idx, h1, h2);
 
         bindex = FAST_FIND_BUCKET(class, h1, h2);
         if (bindex < class->header->num_buckets) {
@@ -364,8 +362,7 @@ void osbf_bayes_train(const unsigned char *p_text,      /* pointer to text */
     }
   }
 
-#if 0
-  {
+  if (0) {
     unsigned n = 40;
     unsigned j;
     fprintf(stderr, "### %u nonzero buckets after training =", n);
@@ -377,7 +374,7 @@ void osbf_bayes_train(const unsigned char *p_text,      /* pointer to text */
       }
     fprintf(stderr, "\n");
   }
-#endif
+
 
 }
 
@@ -576,10 +573,9 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
 
         hindex = h1;
 
-#if (DEBUG > 2)
-        fprintf(stderr, "Polynomial %" PRIu32 " has h1:%i" PRIu32 "  h2: %"
-                PRIu32 "\n", window_idx, h1, h2);
-#endif
+        if (DEBUG > 2)
+          fprintf(stderr, "Polynomial %" PRIu32 " has h1:%i" PRIu32 "  h2: %"
+                  PRIu32 "\n", window_idx, h1, h2);
 
         htf = 0;                /* number of classes in which this feature is hit */
         totalfeatures++;
@@ -808,13 +804,13 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
                K3 / ((classes[i_max_p]->hits + classes[i_min_p]->hits) *
                      feature_weight[window_idx]));
 
-#if (DEBUG > 1)
-          fprintf
-              (stderr,
-               "CF: %.4f, max_hits = %3" PRIu32 ", min_hits = %3" PRIu32
-               ", " "weight: %5.1f\n", confidence_factor, hits_max_p,
-               hits_min_p, feature_weight[window_idx]);
-#endif
+          if (DEBUG > 1) {
+            fprintf
+                (stderr,
+                 "CF: %.4f, max_hits = %3" PRIu32 ", min_hits = %3" PRIu32
+                 ", " "weight: %5.1f\n", confidence_factor, hits_max_p,
+                 hits_min_p, feature_weight[window_idx]);
+          }
         }
 
         /* calculate the numerators - P(F|C) * P(C) */
@@ -886,13 +882,11 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
       ptc[class_idx] = ptc[class_idx] / renorm;
   }
 
-#if (DEBUG > 0)
-  {
+  if (DEBUG > 0) {
     for (class_idx = 0; class_idx < num_classes; class_idx++)
       fprintf(stderr,
               "Probability of match for file %" PRIu32 ": %f\n",
               class_idx, ptc[class_idx]);
   }
-#endif
 
 }
