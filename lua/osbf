@@ -54,7 +54,7 @@ end
 
 local pcall = osbf.command_line.pcall
 
-local ok, msg = pcall(osbf.init, options, args[1] == 'init')
+local ok, msg = pcall(osbf.init, options, args[1] == 'init' or args[1] == 'help')
 if not ok then
   die(arg[0], ' failed during initialization: ', msg, '\n')
 end
