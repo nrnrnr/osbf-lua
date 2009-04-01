@@ -6,6 +6,7 @@ lua/osbf3test.lua
 lua/osbftest
 lua/osbftest.lua
 
+testing/trec06p
 
 libosbf.so.*
 libosbf3.so.*
@@ -15,9 +16,11 @@ osbf-lua
 mem-test
 *.gcov
 *.o
+*.so
 o*osbf*.c
 *classify-time*
 cachegrind.out.*
+callgrind.out.*
 *.prof
 hr*-results
 *.gcda
@@ -42,6 +45,12 @@ libtool
 osbf-modname.h
 
 mkconfig
+mk.sharedlib
+
+testing/result.lua
+testing/*-*.j
+
+
 
 examples-autoconfed/count
 examples-autoconfed/deltas
