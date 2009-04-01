@@ -404,7 +404,7 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
   double renorm = 0.0;
   uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1];
 
-  double a_priori_prob;         /* inverse of the number of classes: 1/num_classes */
+  double zero_knowledge_prob;   /* inverse of the number of classes: 1/num_classes */
   uint32_t total_learnings = 0;
   uint32_t total_extra_learnings = 0;
   uint32_t totalfeatures;       /* total features */
@@ -495,8 +495,11 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
   }
 
 
-  /* a-priori, zero-knowledge, class probability */
-  a_priori_prob = 1.0 / (double) num_classes;
+  /* zero-knowledge probability: each class equally likely */
+  zero_knowledge_prob = 1.0 / (double) num_classes;
+     /* once a probability for a feature F is computed, 
+        the *delta* from the zero-knowledge
+        probability is adjusted downward by a confidence factor */
 
   exponent = pow(total_learnings*3, 0.2);
   if (exponent < 5) {
@@ -827,23 +830,23 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
                     classes[class_idx]->classname);
 
           ptc[class_idx] = ptc[class_idx] *
-              (a_priori_prob + confidence_factor *
+              (zero_knowledge_prob + confidence_factor *
                (classes[class_idx]->hits / classes[class_idx]->learnings -
-                a_priori_prob));
+                zero_knowledge_prob));
 
           if (ptc[class_idx] < OSBF_SMALLP)
             ptc[class_idx] = OSBF_SMALLP;
           renorm += ptc[class_idx];
-#if (DEBUG > 1)
-          fprintf(stderr, "CF: %.4f, classes[k]->totalhits: %" PRIu32 ", "
-                  "missedfeatures[k]: %" PRIu32
-                  ", uniquefeatures[k]: %" PRIu32 ", "
-                  "totalfeatures: %" PRIu32 ", weight: %5.1f\n",
-                  confidence_factor, classes[class_idx]->totalhits,
-                  classes[class_idx]->missedfeatures,
-                  classes[class_idx]->uniquefeatures, totalfeatures,
-                  feature_weight[window_idx]);
-#endif
+          if (DEBUG > 1) {
+            fprintf(stderr, "CF: %.4f, classes[k]->totalhits: %" PRIu32 ", "
+                    "missedfeatures[k]: %" PRIu32
+                    ", uniquefeatures[k]: %" PRIu32 ", "
+                    "totalfeatures: %" PRIu32 ", weight: %5.1f\n",
+                    confidence_factor, classes[class_idx]->totalhits,
+                    classes[class_idx]->missedfeatures,
+                    classes[class_idx]->uniquefeatures, totalfeatures,
+                    feature_weight[window_idx]);
+          }
 
         }
 
@@ -851,7 +854,7 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
         for (class_idx = 0; class_idx < num_classes; class_idx++)
           ptc[class_idx] = ptc[class_idx] / renorm;
 
-#if (DEBUG > 2)
+     if (DEBUG > 2)
         {
           for (class_idx = 0; class_idx < num_classes; class_idx++) {
             fprintf(stderr,
@@ -863,7 +866,6 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
                     classes[class_idx]->hits, ptc[class_idx]);
           }
         }
-#endif
       }
     }
   }
