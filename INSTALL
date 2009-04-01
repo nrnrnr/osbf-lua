@@ -1,7 +1,7 @@
 Build dependencies include Lua 5.1, libtool, automake 1.9, and Fidelis
 only knows what else.
 
-   0. Run automake-1.9 because right now the build system is wack
+   0. Run ./bootstrap
 
    1. Run ./configure to create config.auto
 
