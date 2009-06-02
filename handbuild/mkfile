@@ -72,15 +72,20 @@ osbf-lua: $OBJS lua.o main.o # a binary that valgrind understands
 mem-test: small.o lua.o main.o
 	$CC $CFLAGS  -o mem-test main.o small.o lua.o $LIBDEBUG $PGLUALIB $PG $DL_LIBS $REPL_LIBS $LIBS 
 
-install:V: $LIBNAME fastmime.$DLEXT
+install:V: install-c install-lua install-bin
+install-c:V: $LIBNAME fastmime.$DLEXT
 	mkdir -p $LUA_INSTALL_CMOD/$MODNAME
 	cp $LIBNAME $LUA_INSTALL_CMOD/$MODNAME/core.$DLEXT
 	cp fastmime.$DLEXT $LUA_INSTALL_CMOD/fastmime.$DLEXT
+install-lua:V:
+	mkdir -p $LUA_INSTALL_CMOD/$MODNAME
 	mkdir -p $LUA_INSTALL_LMOD/$MODNAME
 	cp $LUASRCDIR/*.lua $LUA_INSTALL_LMOD/$MODNAME
 	# cp and rm may work where mv will not (directory permissions)
 	cp $LUA_INSTALL_LMOD/$MODNAME/osbf.lua $LUA_INSTALL_LMOD/$MODNAME.lua
 	rm $LUA_INSTALL_LMOD/$MODNAME/osbf.lua
+
+install-bin:V:
 	echo "#! $LUABIN" > $BINDIR/$BIN_NAME
 	sed '/^#!/d' $LUASRCDIR/osbf |
 	  lua -e "x=string.gsub(io.read('*a'),'osbf','$MODNAME') io.write(x)" \
@@ -93,7 +98,7 @@ uninstall:V:
 	rm -rf $BINDIR/$BIN_NAME
 
 test:V: install
-	$LUABIN -l$MODNAME -l$MODNAME.command_line ./print-contents $MODNAME
+	$LUABIN -l$MODNAME -l$MODNAME.command_line ../print-contents $MODNAME
 	$LUABIN -l$MODNAME -l$MODNAME.roc < /dev/null
 	$LUABIN -l$MODNAME -l$MODNAME.mlearn < /dev/null
 	$LUABIN ../test-headers $MODNAME $MAILFILE
