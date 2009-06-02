@@ -8,7 +8,7 @@ OSBF:
 
 -- simple command-line client
 
-local modname = string.match(arg[0], '.*/(.+)')
+local modname = assert(MODNAME) -- replaced by install script
 
 local osbf = require (modname)
 require (modname .. '.command_line')

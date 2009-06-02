@@ -88,7 +88,7 @@ install-lua:V:
 install-bin:V:
 	echo "#! $LUABIN" > $BINDIR/$BIN_NAME
 	sed '/^#!/d' $LUASRCDIR/osbf |
-	  lua -e "x=string.gsub(io.read('*a'),'osbf','$MODNAME') io.write(x)" \
+	  lua -e "x=string.gsub(io.read('*a'),'MODNAME','[[$MODNAME]]') io.write(x)" \
               >> $BINDIR/$BIN_NAME
 	chmod +x $BINDIR/$BIN_NAME
 
