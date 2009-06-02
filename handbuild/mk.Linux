@@ -2,7 +2,7 @@
 
 CC               = gcc
 DLEXT            = so
-LUABIN           = lua5.1
+LUABIN           = /usr/bin/lua5.1
 #
 # lock methods: NONE, LOCKFILE, FCNTL
 #    1 - no locking
