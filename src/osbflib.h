@@ -386,3 +386,6 @@ void *osbf_calloc(size_t nmemb, size_t size, OSBF_HANDLER *h, const char *what);
 #ifdef DMALLOC
 #include "dmalloc.h"
 #endif
+
+#define QUOTEQUOTE(s) #s
+#define QUOTE(s) QUOTEQUOTE(s)

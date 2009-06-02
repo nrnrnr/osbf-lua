@@ -29,7 +29,6 @@
 #define DEBUG 0
 
 #include "osbflib.h"
-#include "osbf-modname.h"
 
 extern int OPENFUN (lua_State * L);  /* exported to the outside world */
 

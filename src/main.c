@@ -2,7 +2,7 @@
 
 #include "lauxlib.h"
 #include "lualib.h"
-#include "osbf-modname.h"
+#include "osbflib.h"
 
 extern int lua_interp(int argc, char **argv, void (*)(lua_State*));
 extern int OPENFUN(lua_State *);
