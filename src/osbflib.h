@@ -40,7 +40,6 @@
 #include <sys/types.h>
 
 #include "osbferr.h"
-#include "config.h"
 
 enum db_version { OSBF_DB_BASIC_VERSION = 0, OSBF_DB_2007_11_VERSION = 5,
                   OSBF_DB_FP_FN_VERSION = 6, OSBF_DB_MAGIC_VERSION = 7 };
