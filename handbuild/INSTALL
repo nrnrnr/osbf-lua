@@ -1,0 +1,10 @@
+run
+
+  cp mk.config.defaults mk.config 
+
+and then edit to taste
+
+then 
+
+  mk
+  mk install
