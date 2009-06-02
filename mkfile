@@ -22,7 +22,7 @@ CFLAGS2 = -DLUA_USE_LINUX
 
 XCFLAGS=-g
 
-CFLAGS=$CFLAGS1 $CFLAGS2 $LUA_CFLAGS
+CFLAGS= -Wall -Werror -std=c99 -pedantic $CFLAGS1 $CFLAGS2 $LUA_CFLAGS
 
 %.o: %.c
 	$CC $CFLAGS $XCFLAGS -c -o $target $stem.c
