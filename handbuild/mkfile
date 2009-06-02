@@ -7,6 +7,7 @@
 #     automatically.
 
 OS=`uname`  # could be more complicated, but let's not worry yet
+ARCH=`uname -m || echo unknown`
 
 <mk.config
 <mk.$OS
