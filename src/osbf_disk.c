@@ -20,23 +20,11 @@
 
 #include "osbflib.h"
 #include "osbf_disk.h"
+#include "osbf_lockfile.h"
 
 #define DEBUG 0
-
-#define NO_LOCK      1
-#define LOCKFILE     2
-#define FCNTL_LOCK   3
-
-/* default LOCKFILE */
-#ifndef LOCK_METHOD
-  #define LOCK_METHOD  LOCKFILE
-#endif
-
-#if LOCK_METHOD == LOCKFILE
-  #include <lockfile.h>
-#endif
-
 #define USE_LOCKING 1
+
 
 /* fail if two formats claim the same unique id or if the number
    of native formats is unacceptable */
@@ -66,117 +54,6 @@ static void check_format_uniqueness(OSBF_HANDLER *h) {
   already_checked = 1;
 }
                                    
-
-
-/*****************************************************************/
-
-#if LOCK_METHOD == LOCKFILE
-static int make_linkname(const char *classname, char *linkname, int size);
-static int make_linkname(const char *classname, char *linkname, int size) {
-  int len = strlen(classname);
-
-  if (len+4 > size-1)
-    return -1;
-
-  strncpy(linkname, classname, size);
-  strncat(linkname, ".lock", size-len);
-  return 0;
-}
-
-static int lock_file_lockfile(const char *filename)
-{
-  int max_lock_attempts = 20;
-  char linkname[512]; /* temporary, for tests */
-
-  if (make_linkname(filename, linkname, sizeof(linkname)) != 0)
-    return -1;
-  return  lockfile_create(linkname, max_lock_attempts, 0);
-}
-
-static int unlock_file_lockfile(const char *filename)
-{
-  char linkname[512]; /* temporary, for tests */
-
-  if (filename != NULL) {
-    if (make_linkname(filename, linkname, sizeof(linkname)) != 0)
-      return -1;
-    return lockfile_remove(linkname);
-  } else {
-    fprintf(stderr, "Warning: Trying to unlock NULL file\n");
-    return 0;
-  }
-}
-#endif
-
-#if LOCK_METHOD == FCNTL_LOCK
-static int lock_file_fcntl(int fd, uint32_t start, uint32_t len)
-{
-  int max_lock_attempts = 20;
-  int r;
-  struct flock fl;
-
-  fl.l_type = F_WRLCK;          /* write lock */
-  fl.l_whence = SEEK_SET;
-  fl.l_start = start;
-  fl.l_len = len;
-
-  do {
-      r = fcntl(fd, F_SETLK, &fl);
-  } while (r == -1 && (errno == EAGAIN || errno == EACCES) &&
-           (max_lock_attempts-- > 0) && (sleep(1) || 1));
-
-  return r;
-}
-
-static int unlock_file_fcntl(int fd, uint32_t start, uint32_t len)
-{
-  struct flock fl;
-
-  fl.l_type = F_UNLCK;
-  fl.l_whence = SEEK_SET;
-  fl.l_start = start;
-  fl.l_len = len;
-  if (fcntl (fd, F_SETLK, &fl) == -1)
-    return -1;
-  else
-    return 0;
-}
-#endif
-
-int osbf_lock_class(CLASS_STRUCT *class, uint32_t start, uint32_t len)
-{
-#if   LOCK_METHOD == LOCKFILE
-  start = len = start;  /* keep compiler quiet */
-  return lock_file_lockfile(class->classname);
-#elif LOCK_METHOD == FCNTL_LOCK
-  return lock_file_fcntl(class->fd, start, len);
-#elif LOCK_METHOD == NO_LOCK
-  class = class;
-  start = len = start;  /* keep compiler quiet */
-  return 0;
-#else
-  #error("Lock method undefined: must be LOCKFILE, FCNTL_LOCK or NO_LOCK");
-#endif
-}
-
-/*****************************************************************/
-
-int
-osbf_unlock_class (CLASS_STRUCT *class, uint32_t start, uint32_t len)
-{
-#if   LOCK_METHOD == LOCKFILE
-  start = len = start;  /* keep compiler quiet */
-  return unlock_file_lockfile(class->classname);
-#elif LOCK_METHOD == FCNTL_LOCK
-  return unlock_file_fcntl(class->fd, start, len);
-#elif LOCK_METHOD == NO_LOCK
-  class = class; /* keep compiler quiet */
-  start = len = start;  /* keep compiler quiet */
-  return 0;
-#else
-  #error("Unlock method undefined: must be LOCKFILE, FCNTL_LOCK or NO_LOCK");
-#endif
-}
 
 
 /*****************************************************************/
