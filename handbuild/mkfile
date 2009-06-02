@@ -1,105 +1,107 @@
-<mkconfig
-<mk.sharedlib
+# We have two sets of configuration
+#   - mk.config contains items chosen by the user, such
+#     as where we should install.  By default it simply
+#     uses mk.config.defaults
+#   - mk.$OS contains items that depend on the operating system 
+#     platform.  We hope one day that mk.$OS will be generated
+#     automatically.
+
+OS=`uname`  # could be more complicated, but let's not worry yet
+
+<mk.config
+<mk.$OS
 
 
 MODNAME=$MOD_NAME
 LIBNAME=$MODNAME.so
-BINNAME=osbf3  # probably should come from config
 
-MAILFILE=`./mailfile`
+MAILFILE=`../mailfile`  # pathname to a sample mail file (for testing)
 
-HFILES= oarray.h osbf_disk.h osbfcvt.h osbferr.h osbflib.h
-SRCS= losbflib.c osbferrl.c oarray.c \
+##########################################################
+#
+# list of the sources and their locations
+
+HBASES= oarray.h osbf_disk.h osbfcvt.h osbferr.h osbflib.h
+SRCBASES= losbflib.c osbferrl.c oarray.c \
       osbf_bayes.c osbf_aux.c osbf_disk.c osbf_csv.c osbf_stats.c \
       osbf_fmt_5.c osbf_fmt_6.c osbf_fmt_7.c fastmime.c
-OBJS= losbflib.o osbferrl.o oarray.o \
-      osbf_bayes.o osbf_aux.o osbf_disk.o osbf_csv.o osbf_stats.o \
-      osbf_fmt_5.o osbf_fmt_6.o osbf_fmt_7.o fastmime.o
+
+LOCKNAME=`echo $LOCK_METHOD | tr A-Z a-z`
+LOCKOBJ=osbf_lf_$LOCKNAME.o
+
+OBJS=${SRCBASES:%.c=%.o} $LOCKOBJ
 XOBJS= osbferrs.o
 
-CFLAGS1 = -DOPENFUN=luaopen_${MODNAME}_core
-CFLAGS2 = -DLUA_USE_LINUX
+CSRCDIR=../src
+SRCS=${SRCBASES:%=$CSRCDIR/%}
+HFILES=${HBASES:%=$CSRCDIR/%}
+LUASRCDIR=../lua
 
+CFLAGS1 = -DOPENFUN=luaopen_${MODNAME}_core
 XCFLAGS=-g
 
-CFLAGS= -Wall -Werror -std=c99 -pedantic $CFLAGS1 $CFLAGS2 $LUA_CFLAGS
+# -I. below is for config.h
+CFLAGS= -Wall -Wextra -Werror -std=c99 -pedantic \
+        -I$CSRCDIR -I. $CFLAGS1 $LUA_CFLAGS $LUA_DEFINES \
+	-DOSBF_MODNAME=$MODNAME -DVERSION='"'$MOD_VERSION'"'
 
-%.o: %.c
-	$CC $CFLAGS $XCFLAGS -c -o $target $stem.c
 
+&.o: $CSRCDIR/&.c
+	$CC $CFLAGS $XCFLAGS -c -o $target $CSRCDIR/$stem.c
+
+all:V: lib osbf-lua
 lib:V: $LIBNAME fastmime.so
 
-$OBJS $XOBJS: mkconfig mk.sharedlib
+$OBJS $XOBJS: mk.config mk.$OS
 
 LIBS=$LUA_LFLAGS $LOCKLIBS -lm
 
 $LIBNAME: $OBJS $XOBJS
-	$CC $CFLAGS $LIB_OPTION -o $LIBNAME $OBJS $LIBS
+	$CC $CFLAGS $LD_SHARED_LIB -o $LIBNAME $OBJS $LIBS
 
 fastmime.so: fastmime.o
-	$CC $CFLAGS $LIB_OPTION -o fastmime.so fastmime.o
+	$CC $CFLAGS $LD_SHARED_LIB -o fastmime.so fastmime.o
 
-osbf-lua: $OBJS lua.o main.o
-	$CC $CFLAGS  -o osbf-lua main.o $OBJS lua.o $LIBDEBUG $PGLUALIB $PG -ldl -lreadline -lhistory -lncurses $LIBS 
+osbf-lua: $OBJS lua.o main.o # a binary that valgrind understands
+	$CC $CFLAGS  -o osbf-lua main.o $OBJS lua.o \
+            $LIBDEBUG $PGLUALIB $PG $DL_LIBS $REPL_LIBS $LIBS 
 
 mem-test: small.o lua.o main.o
-	$CC $CFLAGS  -o mem-test main.o small.o lua.o $LIBDEBUG $PGLUALIB $PG -ldl -lreadline -lhistory -lncurses $LIBS 
+	$CC $CFLAGS  -o mem-test main.o small.o lua.o $LIBDEBUG $PGLUALIB $PG $DL_LIBS $REPL_LIBS $LIBS 
 
-install: $LIBNAME fastmime.so
-	mkdir -p $LUACMODULE_DIR/$MODNAME
-	cp $LIBNAME $LUACMODULE_DIR/$MODNAME/core.so
-	cp fastmime.so $LUACMODULE_DIR/fastmime.so
-	mkdir -p $LUALMODULE_DIR/$MODNAME
-	cp lua/*.lua $LUALMODULE_DIR/$MODNAME
+install:V: $LIBNAME fastmime.so
+	mkdir -p $LUA_INSTALL_CMOD/$MODNAME
+	cp $LIBNAME $LUA_INSTALL_CMOD/$MODNAME/core.so
+	cp fastmime.so $LUA_INSTALL_CMOD/fastmime.so
+	mkdir -p $LUA_INSTALL_LMOD/$MODNAME
+	cp $LUASRCDIR/*.lua $LUA_INSTALL_LMOD/$MODNAME
 	# cp and rm may work where mv will not (directory permissions)
-	cp $LUALMODULE_DIR/$MODNAME/osbf.lua $LUALMODULE_DIR/$MODNAME.lua
-	rm $LUALMODULE_DIR/$MODNAME/osbf.lua
-	echo "#! $LUABIN" > $BINDIR/$BINNAME
-	sed '/^#!/d' lua/osbf |
+	cp $LUA_INSTALL_LMOD/$MODNAME/osbf.lua $LUA_INSTALL_LMOD/$MODNAME.lua
+	rm $LUA_INSTALL_LMOD/$MODNAME/osbf.lua
+	echo "#! $LUABIN" > $BINDIR/$BIN_NAME
+	sed '/^#!/d' $LUASRCDIR/osbf |
 	  lua -e "x=string.gsub(io.read('*a'),'osbf','$MODNAME') io.write(x)" \
-              >> $BINDIR/$BINNAME
-	chmod +x $BINDIR/$BINNAME
+              >> $BINDIR/$BIN_NAME
+	chmod +x $BINDIR/$BIN_NAME
 
-uninstall: 
-	rm -rf $LUALMODULE_DIR/$MODNAME $LUALMODULE_DIR/$MODNAME.lua
-	rm -rf $LUACMODULE_DIR/$MODNAME $LUACMODULE_DIR/$MODNAME.lua
-	rm -rf $BINDIR/$BINNAME
+uninstall:V:
+	rm -rf $LUA_INSTALL_LMOD/$MODNAME $LUA_INSTALL_LMOD/$MODNAME.lua
+	rm -rf $LUA_INSTALL_CMOD/$MODNAME $LUA_INSTALL_CMOD/$MODNAME.lua
+	rm -rf $BINDIR/$BIN_NAME
 
-test: install
+test:V: install
 	$LUABIN -l$MODNAME -l$MODNAME.command_line ./print-contents $MODNAME
 	$LUABIN -l$MODNAME -l$MODNAME.roc < /dev/null
 	$LUABIN -l$MODNAME -l$MODNAME.mlearn < /dev/null
-	$LUABIN ./test-headers $MODNAME $MAILFILE
+	$LUABIN ../test-headers $MODNAME $MAILFILE
 	$LUABIN -l$MODNAME -e "m = $MODNAME.cache.msg_of_any '$MAILFILE'; print(m)" -i
 
-clean:
+clean:V:
 	rm -f $LIBNAME $OBJS *.so *~
 	rm -f *.o *.gcda *.gcno
 
 
-depend: $SRCS $HFILES strip-lua-headers
-	gcc $CFLAGS -MM $SRCS | lua strip-lua-headers $LUA_CFLAGS > $target
+depend: $SRCS $HFILES ../strip-lua-headers
+	gcc $CFLAGS -MM $SRCS | lua ../strip-lua-headers $LUA_CFLAGS > $target
 
 <depend
-
-mk%: mk%.in config.status
-	./config.status $target
-
-mk.sharedlib:Q: config.status
-	# if this "autoconf" doesn't work for you, set LIB_OPTION for shared
-	# object manually.
-	case "`ld -V -o /dev/null 2>&1`" in
-           *Solaris*) 
-             # Solaris - tested with 2.6, gcc 2.95.3 20010315 and Solaris ld
-             echo "LIB_OPTION= -G -dy"
-             ;;
-           *GNU*) 
-             echo "LIB_OPTION= -shared -dy"
-             ;;
-           *)
-             echo "LIB_OPTION= -error -this-compile-must-fail"
-             echo "Cannot determined shared library option" 1>&2
-             exit 1
-             ;;
-        esac > $target
-	cat $target

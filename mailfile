@@ -1,6 +1,6 @@
 #!/bin/sh
 
 case `hostname` in
-  labrador*)  echo /home/nr/Mail/fidelis-assis/44 ;;
-  *) echo sample.msg ;;
+  lakeland*)  echo /home/nr/Mail/fidelis-assis/44 ;;
+  *) echo "`dirname $0`"/sample.msg ;;
 esac
