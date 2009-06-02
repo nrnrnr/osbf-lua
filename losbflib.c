@@ -1218,6 +1218,13 @@ static int lua_classfields(lua_State *L) {
   }
 }
 
+static int lua_hash(lua_State *L) {
+  size_t n;
+  const char *s = luaL_checklstring(L, 1, &n);
+  lua_pushnumber(L, (lua_Number) strnhash((const unsigned char *)s, n));
+  return 1;
+}
+
 static int lua_set_classfields(lua_State *L) {
   const char *key = luaL_checkstring(L,  2);
   (void)check_class(L, 1);
@@ -1262,6 +1269,7 @@ static const struct luaL_reg osbf[] = {
   {"b64decode", lua_b64decode},
   {"unsigned2string", lua_unsigned2string},
   {"utf8tohtml", lua_utf8tohtml},
+  {"hash", lua_hash},
   {NULL, NULL}
 };
 
