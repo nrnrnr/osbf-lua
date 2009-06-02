@@ -13,7 +13,7 @@ OS=`uname`  # could be more complicated, but let's not worry yet
 
 
 MODNAME=$MOD_NAME
-LIBNAME=$MODNAME.so
+LIBNAME=$MODNAME.$DLEXT
 
 MAILFILE=`../mailfile`  # pathname to a sample mail file (for testing)
 
@@ -49,8 +49,11 @@ CFLAGS= -Wall -Wextra -Werror -std=c99 -pedantic \
 &.o: $CSRCDIR/&.c
 	$CC $CFLAGS $XCFLAGS -c -o $target $CSRCDIR/$stem.c
 
+
 all:V: lib osbf-lua
-lib:V: $LIBNAME fastmime.so
+lib:V: $LIBNAME fastmime.$DLEXT
+clobber:V: clean
+	rm -f osbf-lua $LIBNAME fastmime.$DLEXT
 
 $OBJS $XOBJS: mk.config mk.$OS
 
@@ -59,8 +62,8 @@ LIBS=$LUA_LFLAGS $LOCKLIBS -lm
 $LIBNAME: $OBJS $XOBJS
 	$CC $CFLAGS $LD_SHARED_LIB -o $LIBNAME $OBJS $LIBS
 
-fastmime.so: fastmime.o
-	$CC $CFLAGS $LD_SHARED_LIB -o fastmime.so fastmime.o
+fastmime.$DLEXT: fastmime.o
+	$CC $CFLAGS $LD_SHARED_LIB -o fastmime.$DLEXT fastmime.o
 
 osbf-lua: $OBJS lua.o main.o # a binary that valgrind understands
 	$CC $CFLAGS  -o osbf-lua main.o $OBJS lua.o \
@@ -69,10 +72,10 @@ osbf-lua: $OBJS lua.o main.o # a binary that valgrind understands
 mem-test: small.o lua.o main.o
 	$CC $CFLAGS  -o mem-test main.o small.o lua.o $LIBDEBUG $PGLUALIB $PG $DL_LIBS $REPL_LIBS $LIBS 
 
-install:V: $LIBNAME fastmime.so
+install:V: $LIBNAME fastmime.$DLEXT
 	mkdir -p $LUA_INSTALL_CMOD/$MODNAME
-	cp $LIBNAME $LUA_INSTALL_CMOD/$MODNAME/core.so
-	cp fastmime.so $LUA_INSTALL_CMOD/fastmime.so
+	cp $LIBNAME $LUA_INSTALL_CMOD/$MODNAME/core.$DLEXT
+	cp fastmime.$DLEXT $LUA_INSTALL_CMOD/fastmime.$DLEXT
 	mkdir -p $LUA_INSTALL_LMOD/$MODNAME
 	cp $LUASRCDIR/*.lua $LUA_INSTALL_LMOD/$MODNAME
 	# cp and rm may work where mv will not (directory permissions)
@@ -97,7 +100,7 @@ test:V: install
 	$LUABIN -l$MODNAME -e "m = $MODNAME.cache.msg_of_any '$MAILFILE'; print(m)" -i
 
 clean:V:
-	rm -f $LIBNAME $OBJS *.so *~
+	rm -f $LIBNAME $OBJS *.$DLEXT *~
 	rm -f *.o *.gcda *.gcno
 
 

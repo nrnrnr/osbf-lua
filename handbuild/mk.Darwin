@@ -1,6 +1,7 @@
 # one day this should be generated automatically
 
 CC               = gcc
+DLEXT            = dylib
 LUABIN           = lua
 #
 # lock methods: NONE, LOCKFILE, FCNTL
