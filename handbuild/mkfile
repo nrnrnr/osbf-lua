@@ -27,7 +27,7 @@ SRCBASES= losbflib.c osbferrl.c oarray.c \
       osbf_bayes.c osbf_aux.c osbf_disk.c osbf_csv.c osbf_stats.c \
       osbf_fmt_5.c osbf_fmt_6.c osbf_fmt_7.c fastmime.c
 
-LOCKNAME=`echo $LOCK_METHOD | tr A-Z a-z`
+LOCKNAME=`echo $LOCK_METHOD | tr '[:upper:]' '[:lower:]'`
 LOCKOBJ=osbf_lf_$LOCKNAME.o
 
 OBJS=${SRCBASES:%.c=%.o} $LOCKOBJ
