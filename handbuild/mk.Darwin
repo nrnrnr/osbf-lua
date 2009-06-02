@@ -1,0 +1,19 @@
+# one day this should be generated automatically
+
+CC               = gcc
+LUABIN           = lua
+#
+# lock methods: NONE, LOCKFILE, FCNTL
+#    1 - no locking
+#    2 - lockfile
+#    3 - fcntl_lock
+
+LOCK_METHOD      = NONE
+LUA_DEFINES      = -DLUA_USE_MACOSX
+LUA_CFLAGS       = -I/usr/local/include/lua
+LUA_LFLAGS       = -L/usr/local/lib -llua
+LOCKLIBS         = -llockfile
+REPL_LIBS        = 
+DL_LIBS          = -ldl                            # dynamically link code
+LD_SHARED_LIB    = -dylib                     # create dynamically linkable code
+
