@@ -42,10 +42,6 @@ config.status
 *.la
 *.lo
 libtool
-osbf-modname.h
-
-mkconfig
-mk.sharedlib
 
 testing/result.lua
 testing/*-*.j
