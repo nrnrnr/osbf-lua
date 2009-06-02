@@ -509,7 +509,7 @@ osbf_insert_bucket (CLASS_STRUCT * class,
 /*****************************************************************/
 
 uint32_t
-strnhash (unsigned char *str, uint32_t len)
+strnhash (const unsigned char *str, uint32_t len)
 {
   uint32_t i;
   hval_t hval;

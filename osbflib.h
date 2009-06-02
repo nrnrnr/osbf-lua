@@ -365,7 +365,7 @@ extern int osbf_unlock_class (CLASS_STRUCT *class, uint32_t start, uint32_t len)
 extern off_t check_file (const char *file);
   /* Check if a file exists. Return its length if yes and < 0 if no */
 
-uint32_t strnhash (unsigned char *str, uint32_t len);
+uint32_t strnhash (const unsigned char *str, uint32_t len);
 
 extern void
 osbf_increment_false_positives (const char *cfcfile, int delta, OSBF_HANDLER *h);
