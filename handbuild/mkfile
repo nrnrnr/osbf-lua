@@ -48,17 +48,15 @@ CFLAGS= -Wall -Wextra -Werror -std=c99 -pedantic \
 	-DOSBF_MODNAME=$MODNAME -DVERSION='"'$MOD_VERSION'"'
 
 
-$B/&.o: $CSRCDIR/&.c $B $B/depend
+$B/&.o: $CSRCDIR/&.c $B/depend
 	$CC $CFLAGS $XCFLAGS -c -o $target $CSRCDIR/$stem.c
 
 
 all:V: lib $B/osbf-lua
 lib:V: $B/$LIBNAME $B/fastmime.$DLEXT
+distclean:V: clobber
 clobber:V: clean
 	rm -rf $B
-
-$B:
-	mkdir $B
 
 $OBJS $XOBJS: mk.config mk.$OS
 
@@ -117,7 +115,11 @@ clean:V:
 
 depend:V: $B/depend
 
-$B/depend: $B $SRCS $HFILES ../strip-lua-headers
-	gcc $CFLAGS -MM $SRCS | lua ../strip-lua-headers $LUA_CFLAGS > $target
+$B/depend: $SRCS $HFILES ../strip-lua-headers
+	mkdir -p $B
+	for c in $SRCS
+	do
+	  gcc $CFLAGS -MM -MT "$B/`basename $c .c`.o" $c
+	done | lua ../strip-lua-headers $LUA_CFLAGS > $target
 
 <$B/depend
