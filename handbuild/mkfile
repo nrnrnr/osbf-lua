@@ -8,6 +8,7 @@
 
 OS=`uname`  # could be more complicated, but let's not worry yet
 ARCH=`uname -m || echo unknown`
+B=BUILD-$OS-$ARCH   # build directory
 
 <mk.config
 <mk.$OS
@@ -30,8 +31,8 @@ SRCBASES= losbflib.c osbferrl.c oarray.c \
 LOCKNAME=`echo $LOCK_METHOD | tr '[:upper:]' '[:lower:]'`
 LOCKOBJ=osbf_lf_$LOCKNAME.o
 
-OBJS=${SRCBASES:%.c=%.o} $LOCKOBJ
-XOBJS= osbferrs.o
+OBJS=${SRCBASES:%.c=$B/%.o} ${LOCKOBJ:%.o=$B/%.o}
+XOBJS=$B/osbferrs.o
 
 CSRCDIR=../src
 SRCS=${SRCBASES:%=$CSRCDIR/%}
@@ -47,39 +48,42 @@ CFLAGS= -Wall -Wextra -Werror -std=c99 -pedantic \
 	-DOSBF_MODNAME=$MODNAME -DVERSION='"'$MOD_VERSION'"'
 
 
-&.o: $CSRCDIR/&.c
+$B/&.o: $CSRCDIR/&.c $B $B/depend
 	$CC $CFLAGS $XCFLAGS -c -o $target $CSRCDIR/$stem.c
 
 
-all:V: lib osbf-lua
-lib:V: $LIBNAME fastmime.$DLEXT
+all:V: lib $B/osbf-lua
+lib:V: $B/$LIBNAME $B/fastmime.$DLEXT
 clobber:V: clean
-	rm -f osbf-lua $LIBNAME fastmime.$DLEXT
+	rm -rf $B
+
+$B:
+	mkdir $B
 
 $OBJS $XOBJS: mk.config mk.$OS
 
 LIBS=$LUA_LFLAGS $LOCKLIBS -lm
 
-$LIBNAME: $OBJS $XOBJS
-	$CC $CFLAGS $LD_SHARED_LIB -o $LIBNAME $OBJS $LIBS
+$B/$LIBNAME: $OBJS $XOBJS
+	$CC $CFLAGS $LD_SHARED_LIB -o $target $OBJS $LIBS
 
-fastmime.$DLEXT: fastmime.o
-	$CC $CFLAGS $LD_SHARED_LIB -o fastmime.$DLEXT fastmime.o
+$B/fastmime.$DLEXT: $B/fastmime.o
+	$CC $CFLAGS $LD_SHARED_LIB -o $target $B/fastmime.o
 
-osbf-lua: $OBJS lua.o main.o # a binary that valgrind understands
-	$CC $CFLAGS  -o osbf-lua main.o $OBJS lua.o \
+$B/osbf-lua: $OBJS $B/lua.o $B/main.o # a binary that valgrind understands
+	$CC $CFLAGS  -o $target $B/main.o $OBJS $B/lua.o \
             $LIBDEBUG $PGLUALIB $PG $DL_LIBS $REPL_LIBS $LIBS 
 
-mem-test: small.o lua.o main.o
-	$CC $CFLAGS  -o mem-test main.o small.o lua.o $LIBDEBUG $PGLUALIB $PG $DL_LIBS $REPL_LIBS $LIBS 
+$B/mem-test: $B/small.o $B/lua.o $B/main.o
+	$CC $CFLAGS  -o $target $prereq $LIBDEBUG $PGLUALIB $PG \
+	    $DL_LIBS $REPL_LIBS $LIBS 
 
 install:V: install-c install-lua install-bin
-install-c:V: $LIBNAME fastmime.$DLEXT
+install-c:V: $B/$LIBNAME $B/fastmime.$DLEXT
 	mkdir -p $LUA_INSTALL_CMOD/$MODNAME
-	cp $LIBNAME $LUA_INSTALL_CMOD/$MODNAME/core.$DLEXT
-	cp fastmime.$DLEXT $LUA_INSTALL_CMOD/fastmime.$DLEXT
+	cp $B/$LIBNAME $LUA_INSTALL_CMOD/$MODNAME/core.$DLEXT
+	cp $B/fastmime.$DLEXT $LUA_INSTALL_CMOD/fastmime.$DLEXT
 install-lua:V:
-	mkdir -p $LUA_INSTALL_CMOD/$MODNAME
 	mkdir -p $LUA_INSTALL_LMOD/$MODNAME
 	cp $LUASRCDIR/*.lua $LUA_INSTALL_LMOD/$MODNAME
 	# cp and rm may work where mv will not (directory permissions)
@@ -87,6 +91,7 @@ install-lua:V:
 	rm $LUA_INSTALL_LMOD/$MODNAME/osbf.lua
 
 install-bin:V:
+	mkdir -p $BINDIR
 	echo "#! $LUABIN" > $BINDIR/$BIN_NAME
 	sed '/^#!/d' $LUASRCDIR/osbf |
 	  lua -e "x=string.gsub(io.read('*a'),'MODNAME','[[$MODNAME]]') io.write(x)" \
@@ -107,10 +112,12 @@ test:V: install
 
 clean:V:
 	rm -f $LIBNAME $OBJS *.$DLEXT *~
-	rm -f *.o *.gcda *.gcno
+	rm -f $B/*.o *.gcda *.gcno
 
 
-depend: $SRCS $HFILES ../strip-lua-headers
+depend:V: $B/depend
+
+$B/depend: $B $SRCS $HFILES ../strip-lua-headers
 	gcc $CFLAGS -MM $SRCS | lua ../strip-lua-headers $LUA_CFLAGS > $target
 
-<depend
+<$B/depend
