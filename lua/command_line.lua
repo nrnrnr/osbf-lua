@@ -720,6 +720,8 @@ Additional options include
   -rightid      string
 rightid is the rigth part of the spam filter id (sfid). if not specified,
 the fully qualified host name is used.
+  -use_subdirs  boolean
+use_subdirs divides the cache into subdirectories DD/HH
 And four options for setting the size of databases.
   -dbsize       size
   -totalsize    size
@@ -736,8 +738,9 @@ do
   local translate = { dbsize = 'bytes', totalsize = 'totalbytes' }
 
   function init(...)
-    local v = options.std.val
-    local opts = {lang = v, dbsize = v, totalsize = v, buckets = v, totalbuckets = v, rightid = v}
+    local b, v = options.std.bool, options.std.val
+    local opts = {lang = v, dbsize = v, totalsize = v, buckets = v, totalbuckets = v,
+                  use_subdirs = b, rightid = v}
     local opts, args = options.parse({...}, opts)
     if #args ~= 1 then usage() end
     local email = args[1]
@@ -777,12 +780,12 @@ do
     end
      
     nb = commands.init(email, buckets or bytes, translate[units] or units,
-                       rightid, opts.lang)
+                       rightid, opts.lang, opts.use_subdirs)
     output.writeln('Created directories and databases using a total of ', 
       util.human_of_bytes(nb))
   end
 
-  table.insert(usage_lines, 'init [-dbsize <size> | -totalsize <size> | -buckets <number> | -totalbuckets <number>] [-rightid=<domain-name>] [-lang=<locale>] <user-email>')
+  table.insert(usage_lines, 'init [-dbsize <size> | -totalsize <size> | -buckets <number> | -totalbuckets <number>] [-rightid=<domain-name>] [-lang=<locale>] [-use_subdir] <user-email>')
 end
 
 

@@ -79,7 +79,7 @@ end
 
 local default_rightid = util.local_rightid()
 
-__doc.init = ([[function(email, size, units, [rightid, lang])
+__doc.init = ([[function(email, size, units, [rightid, lang, use_subdirs])
 The init command creates directories and databases and the default config.
 'size' is the a size, which is interpreted according to 'units', which must
 be one of these values:
@@ -91,6 +91,8 @@ email is the address for subject-line commands.
 rightid (optional) is the right part of the Spam Filter ID;
   it defaults to $rightid
 lang (optional) is a string with the language for cfg.cache.report_locale 
+use_subdirs (optional) divides the cache into subdirectories DD/HH, if true;
+  it defaults to false 
 ]]) : gsub('%$rightid', default_rightid)
 
 do
@@ -101,7 +103,7 @@ do
   local divide = { totalbuckets = true, totalbytes = true }
 
 
-  function init(email, size, units, rightid, lang)
+  function init(email, size, units, rightid, lang, use_subdirs)
     local to_buckets = assert(to_buckets[units], 'bad units passed to commands.init')
     assert(type(size) == 'number', 'bad size (not a number) passed to commands.init')
     rightid = rightid or default_rightid
@@ -111,7 +113,7 @@ do
 
     local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
     util.tablemap(util.mkdir, ds)
-    if cfg.cache.use_subdirs then
+    if use_subdirs or cfg.cache.use_subdirs then
       cache.make_cache_subdirs(dirs.cache)
     end
 
@@ -140,6 +142,9 @@ do
       -- sets report_locale
       if lang then
         x = x:gsub('(report_locale%s*=%s*)[^\r\n]*', string.format('%%1%q,', lang))
+      end
+      if use_subdirs then
+        x = x:gsub('(use_subdirs%s*=%s*)false', '%1true')
       end
       u:write(x)
       f:close()

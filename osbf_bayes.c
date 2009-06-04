@@ -793,19 +793,20 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
           /* calculate confidence factor (CF) */
           if (flags & NO_EDDC)  /* || min_local_p > 0 ) */
             confidence_factor = 1 - OSBF_DBL_MIN;
-          else
+          else {
             cfx =
                 0.8 + (classes[i_min_p]->header->learnings +
                        classes[i_max_p]->header->learnings) / 20.0;
-          if (cfx > 1)
-            cfx = 1;
-          confidence_factor = cfx *
-              pow(((double)diff_hits * diff_hits - K1 /
-                   (classes[i_max_p]->hits + classes[i_min_p]->hits)) /
-                  ((double)sum_hits * sum_hits), 2) /
-              (1.0 +
-               K3 / ((classes[i_max_p]->hits + classes[i_min_p]->hits) *
-                     feature_weight[window_idx]));
+            if (cfx > 1)
+              cfx = 1;
+            confidence_factor = cfx *
+                pow(((double)diff_hits * diff_hits - K1 /
+                     (classes[i_max_p]->hits + classes[i_min_p]->hits)) /
+                    ((double)sum_hits * sum_hits), 2) /
+                (1.0 +
+                 K3 / ((classes[i_max_p]->hits + classes[i_min_p]->hits) *
+                       feature_weight[window_idx]));
+            }
 
           if (DEBUG > 1) {
             fprintf

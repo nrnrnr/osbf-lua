@@ -247,7 +247,8 @@ or if subdirectories are not used, returns the empty string.]]
 function subdir(sfid)
   local t = table_of_sfid(sfid) -- guarantees we have a sfid even if t not used
   if cfg.cache.use_subdirs then
-    return table.concat { t.day, slash, t.hour, slash }
+    return table.concat { ('%02d'):format(t.time.day), slash,
+                          ('%02d'):format(t.time.hour), slash }
   else
     return ''
   end
@@ -263,8 +264,10 @@ if dir is given.
 function make_cache_subdirs(dir)
   dir = dir or cfg.dirs.cache
   for day = 1, 31 do
+    local subdir = table.concat { dir, slash, ('%02d'):format(day) }
+    util.mkdir(subdir)
     for hour = 0, 23 do
-      local subdir = table.concat { dir, slash, day, slash, hour }
+      subdir = table.concat { subdir, slash, ('%02d'):format(hour) }
       util.mkdir(subdir)
     end
   end
@@ -467,19 +470,27 @@ end
 
 __doc.yield_two_days_sfids = [[function() yields sfids in cache in the
 order specified by cfg.cache.report_order.
-If subdir is in use, yields only sfids from last two days.]]
+If subdir is in use, yields only sfids from last 48 hours.]]
 
 local function yield_two_days_sfids()
-  local sfid_subdirs = 
-    cfg.cache.use_subdirs and
-    {os.date("%d/%H/", os.time()- 24*3600), os.date("%d/%H/", os.time())}
-                -- yesterday and today
-    or {""}
+  local sfid_subdirs = {}
+  if cfg.cache.use_subdirs then
+    local end_time = os.time()
+    local start_time = end_time - 48*3600
+    -- yesterday and today
+    for t = start_time, end_time, 3600 do
+      table.insert(sfid_subdirs, os.date('%d/%H/', t))
+    end
+  else
+    sfid_subdirs = {""}
+  end
 
-  local sfids = {} -- first insert, then sort by time or confidence
+  --- shouldn't sfids be sorted by time or something?
+  local sfids = {}
   for _, subdir in ipairs(sfid_subdirs) do
     for f in core.dir(cfg.dirs.cache .. subdir) do
-      if string.find(f, "^sfid%-") then
+      --if string.find(f, "^sfid%-") then
+      if is_sfid(f) then
         table.insert(sfids, f)
       end
     end
@@ -532,7 +543,8 @@ function expiry_candidates(seconds)
   if cfg.cache.use_subdirs then
     for day = 1, 31 do
       for hour = 0, 23 do
-        add_dir(table.concat {cache, slash, day, slash, hour})
+        add_dir(table.concat {cache, slash, ('%02d'):format(day),
+                              slash, ('%02d'):format(hour)})
       end
     end
   else    
