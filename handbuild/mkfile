@@ -66,7 +66,7 @@ $B/$LIBNAME: $OBJS $XOBJS
 	$CC $CFLAGS $LD_SHARED_LIB -o $target $OBJS $LIBS
 
 $B/fastmime.$DLEXT: $B/fastmime.o
-	$CC $CFLAGS $LD_SHARED_LIB -o $target $B/fastmime.o
+	$CC $CFLAGS $LD_SHARED_LIB -o $target $B/fastmime.o $LIBS
 
 $B/osbf-lua: $OBJS $B/lua.o $B/main.o # a binary that valgrind understands
 	$CC $CFLAGS  -o $target $B/main.o $OBJS $B/lua.o \

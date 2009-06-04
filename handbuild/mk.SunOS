@@ -13,5 +13,6 @@ LUA_LFLAGS       = -L/usr/local/lib -llua
 LOCKLIBS         = 
 REPL_LIBS        = 
 DL_LIBS          = -ldl                            # dynamically link code
-LD_SHARED_LIB    = -G -dy                     # create dynamically linkable code
+LD_SHARED_LIB    = -shared -dy                     # create dynamically linkable code
+SHARED_LIBS      = $LUA_LFLAGS
 
