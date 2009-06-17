@@ -58,6 +58,9 @@ distclean:V: clobber
 clobber:V: clean
 	rm -rf $B
 
+modname:VQ:
+	echo "$MODNAME"
+
 $OBJS $XOBJS: mk.config mk.$OS
 
 LIBS=$LUA_LFLAGS $LOCKLIBS -lm
