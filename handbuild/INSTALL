@@ -3,6 +3,9 @@ For default installation, run
   ./configure
   mk
 
+If you get warnings about directories not writable, but you intend to
+install as root (e.g., with sudo), you can ignore the warnings.
+
 To adjust module names and installation directories
 
   cp mk.config.defaults mk.config 
