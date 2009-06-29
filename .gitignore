@@ -71,4 +71,4 @@ osbf-lua-*.tar.gz
 aclocal.m4
 config.guess
 config.sub
-configure
+autobuild/configure
