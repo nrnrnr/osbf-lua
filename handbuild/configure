@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 TEMPFILE="`which tempfile 2>/dev/null`"
 
@@ -216,6 +216,8 @@ fi
 [ -d "$BINDIR" ] || fail "BINDIR=$BINDIR is not a directory"
 [ -w "$BINDIR" ] || warning "cannot write BINDIR=$BINDIR"
 
+log "BINDIR=$BINDIR"
+
 ################################################################
 #
 # places to look for lua header files
@@ -235,6 +237,10 @@ else
   done
 fi
 
+log "LUA_CFLAGS=$LUA_CFLAGS"
+
+
+
 ################################################################
 #
 # ld options for shared libraries
@@ -250,6 +256,8 @@ case $OS in
      esac
      ;;
 esac
+
+log "LD_SHARED_LIB=$LD_SHARED_LIB"
 
 ################################################################
 #
