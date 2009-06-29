@@ -118,20 +118,29 @@ log "LUABIN=$LUABIN"
 
 
 cat > $SCRIPT <<'EOF'
+local function isdir(path)
+  local f = io.open(path .. '/.')
+  if f then f:close(); return true else return false end
+end
+
 for path in package.cpath:gmatch '[^;]+' do
   if path:find '^/' and path:find '/%?%.%a+$' then
     local dir, ext = path:match '^(.*)/%?%.(%a+)$'
     assert(dir and ext)
-    io.write('DLEXT=', ext, '; LUA_INSTALL_CMOD=', dir, '\n')
-    break
+    if isdir(dir) then
+      io.write('DLEXT=', ext, '; LUA_INSTALL_CMOD=', dir, '\n')
+      break
+    end
   end
 end
 
 for path in package.path:gmatch '[^;]+' do
   if path:find '^/' and path:find '/%?%.lua$' then
     local dir = path:match '^(.*)/%?%.lua$'
-    io.write('LUA_INSTALL_LMOD=', dir, '\n')
-    break
+    if isdir(dir) then
+      io.write('LUA_INSTALL_LMOD=', dir, '\n')
+      break
+    end
   end
 end
 EOF
