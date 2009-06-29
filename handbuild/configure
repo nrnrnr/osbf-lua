@@ -192,7 +192,8 @@ if [ -r mk.config ]; then
   . $SCRIPT
 else
   INCLUDE_MK_CONFIG=''
-  sed 's/ *= */=/' mk.config.defaults | grep -v LUA_INSTALL > $SCRIPT
+  sed 's/ *= */=/' mk.config.defaults | 
+  grep -v LUA_INSTALL | grep -vw BINDIR > $SCRIPT
   . $SCRIPT
 fi
 
