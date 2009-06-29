@@ -280,7 +280,7 @@ else
 
   [ -n "$LUALIBDIR" ] || fail "Cannot find lua library to link against"
 
-  LUA_LFLAGS="-L $LUALIBDIR -l$LUALIBNAME"
+  LUA_LFLAGS="-L$LUALIBDIR -l$LUALIBNAME"
 fi
 log "LUA_LFLAGS=$LUA_LFLAGS"
 
