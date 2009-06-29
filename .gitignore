@@ -6,6 +6,11 @@ lua/osbf3test.lua
 lua/osbftest
 lua/osbftest.lua
 
+handbuild/BUILD*
+handbuild/mk.*-*
+handbuild/mk.config
+handbuild/configure.log
+
 testing/trec06p
 
 libosbf.so.*

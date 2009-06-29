@@ -1,10 +1,19 @@
-run
+For default installation, run
+
+  ./configure
+  mk
+
+To adjust module names and installation directories
 
   cp mk.config.defaults mk.config 
-
-and then edit to taste
-
-then 
-
+  emacs mk.config # edit to tast
+  ./configure
   mk
+
+Finally
+
   mk install
+
+or 
+
+  sudo mk install
