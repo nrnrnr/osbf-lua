@@ -249,7 +249,7 @@ log "LUA_CFLAGS=$LUA_CFLAGS"
 # ld options for shared libraries
 
 case $OS in
-  Darwin) LD_SHARED_LIB="-dylib" ;;
+  Darwin) LD_SHARED_LIB="-bundle -undefined dynamic_lookup" ;;
   *) case "`ld -V -o /dev/null 2>&1`" in
        *Solaris*) # Solaris - tested with 2.6, gcc 2.95.3 20010315 and Solaris ld
                   LD_SHARED_LIB="-G -dy"
