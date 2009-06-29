@@ -138,9 +138,12 @@ local function score(path)
   local n = 0
   if isdir(path) then
     n = n + 1
-    if canwrite(path) then n = n + 2 end
-    if path:find '^/usr' then n = n + 1 end
+    if canwrite(path) then n = n + 8 end
+    if path:find '^/usr' then n = n + 3 end
+    if path:find '/lib/' then n = n + 2 end
+    if path:find '/lib$' then n = n + 1 end
   end
+  -- io.stderr:write(n, ' points for path ', path, '\n')
   return n
 end
 
@@ -208,7 +211,7 @@ fi
    warning "cannot write LUA_INSTALL_LMOD=$LUA_INSTALL_LMOD"
 
 if [ -z "$BINDIR" ]; then
-  for dir in /usr/local/bin $HOME/bin; do
+  for dir in /usr/local/bin /usr/unsup/nr/bin $HOME/bin; do
     [ -d "$dir" -a -w "$dir" ] && { BINDIR="$dir"; break; }
   done
 fi
