@@ -1,7 +1,0 @@
-MOD_NAME         = osbf3      # what should the lua module be called
-BIN_NAME         = osbf3      # what should the main binary script be called
-BINDIR           = /usr/local/bin  # where to install the binary script
-MOD_VERSION      = 3.0.0
-LUA_INSTALL_CMOD = /usr/local/lib/lua/5.1  # where to install C modules for Lua
-LUA_INSTALL_LMOD = /usr/local/lib/lua/5.1  # where to install Lua modules
-
