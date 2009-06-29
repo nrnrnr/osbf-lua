@@ -1,26 +1,5 @@
 assert(arg[0]) -- only works in a script
 
-local scriptname = arg[0]
-
---[[   none of this jazz is needed
-do
-  local skip = { }
-  for _, v in ipairs { 'valgrind', 'lua', 'osbf-lua', 'lua5.1' } do
-    skip[v] = true
-  end
-  local i = 0
-  while arg[i] and skip[arg[i]:gsub('.*/', '')] do
-    io.stderr:write('Skipping argument ', arg[i], '\n')
-    i = i + 1
-  end
-  if arg[i] then
-    scriptname = arg[i]
-  else
-    error "Cannot identify pathname of the script being executed"
-  end
-end
-]]
-
 local function dirname(s)
   s = s:gsub('/$', '')
   local s, n = s:gsub('/[^/]*$', '')
