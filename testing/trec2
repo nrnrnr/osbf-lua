@@ -9,7 +9,15 @@ do
 end
 ]]
 
-local modname = dofile 'modname.lua'
+local function dirname(s)
+  s = s:gsub('/$', '')
+  local s, n = s:gsub('/[^/]*$', '')
+  if n == 1 then return s else return '.' end
+end
+
+assert(arg[0])
+
+local modname = dofile(dirname(arg[0]) .. '/modname.lua')
 local function getmod(m) return require (modname .. '.' .. m) end
 
 local osbf         = require (modname)
