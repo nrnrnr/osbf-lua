@@ -118,34 +118,68 @@ log "LUABIN=$LUABIN"
 
 
 cat > $SCRIPT <<'EOF'
+-- scoring system: prefer /usr/local/ if it is writable
 local function isdir(path)
   local f = io.open(path .. '/.')
   if f then f:close(); return true else return false end
 end
 
+local function canwrite(path)
+  local f = io.popen(string.format("[ -w '%s' ] && echo yes || echo no", path))
+  if f then
+    local answer = f:read()
+    f:close()
+    return answer:find 'yes' ~= nil
+  end
+end
+
+local function score(path)
+  -- directory 1, writable 2, under /usr +1
+  local n = 0
+  if isdir(path) then
+    n = n + 1
+    if canwrite(path) then n = n + 2 end
+    if path:find '^/usr' then n = n + 1 end
+  end
+  return n
+end
+
+
+local cmod, dlext, thescore = nil, nil, 0
+
 for path in package.cpath:gmatch '[^;]+' do
   if path:find '^/' and path:find '/%?%.%a+$' then
     local dir, ext = path:match '^(.*)/%?%.(%a+)$'
     assert(dir and ext)
-    if isdir(dir) then
-      io.write('DLEXT=', ext, '; LUA_INSTALL_CMOD=', dir, '\n')
-      break
+    if score(dir) > thescore then
+      cmod, dlext, thescore = dir, ext, score(dir)
     end
   end
 end
 
+local lmod
+
+thescore = 0
 for path in package.path:gmatch '[^;]+' do
   if path:find '^/' and path:find '/%?%.lua$' then
     local dir = path:match '^(.*)/%?%.lua$'
-    if isdir(dir) then
-      io.write('LUA_INSTALL_LMOD=', dir, '\n')
-      break
+    assert(dir)
+    if score(dir) > thescore then
+      lmod, thescore = dir, score(dir)
     end
   end
 end
+
+local function show(name, val)
+  if val then io.write(name, '=', val, '\n') end
+end
+
+show('DLEXT', dlext)
+show('LUA_INSTALL_CMOD', cmod)
+show('LUA_INSTALL_LMOD', lmod)
 EOF
 
-eval `(unset LUA_CPATH; unset LUA_PATH; $LUABIN $SCRIPT)`
+eval `$LUABIN $SCRIPT $$ || { cat -n $SCRIPT 1>&2; }`
 log DLEXT=$DLEXT
 log LUA_INSTALL_CMOD="$LUA_INSTALL_CMOD"
 log LUA_INSTALL_LMOD="$LUA_INSTALL_LMOD"
