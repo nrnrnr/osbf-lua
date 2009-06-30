@@ -328,6 +328,14 @@ log "LUACONF=$LUACONF"
 
 ################################################################
 
+case $OS in
+  *BSD*) DL_LIBS= ;;
+  *) DL_LIBS=-ldl ;;
+esac
+
+################################################################
+
+
 echo "$INCLUDE_MK_CONFIG" > $MKCONFIG
 if [ -z "$INCLUDE_MK_CONFIG" ]; then
 
@@ -361,7 +369,7 @@ LUA_CFLAGS       = $LUA_CFLAGS
 LUA_LFLAGS       = $LUA_LFLAGS
 LOCKLIBS         = $LOCKLIBS
 REPL_LIBS        = $REPL_LIBS
-DL_LIBS          = -ldl                     # dynamically link code
+DL_LIBS          = $DL_LIBS                     # dynamically link code
 LD_SHARED_LIB    = $LD_SHARED_LIB           # create dynamically linkable code
 EOF
 
