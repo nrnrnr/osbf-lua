@@ -54,6 +54,7 @@ testing/*-*.j
 
 
 
+examples-autoconfed/Makefile
 examples-autoconfed/count
 examples-autoconfed/deltas
 examples-autoconfed/dir-classify
