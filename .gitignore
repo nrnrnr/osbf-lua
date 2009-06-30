@@ -37,7 +37,8 @@ stamp-h1
 .deps/
 .libs/
 *~
-Makefile
+autobuild/Makefile
+testing/Makefile
 Makefile.in
 TAGS
 autom4te.cache/
