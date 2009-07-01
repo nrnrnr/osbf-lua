@@ -2,6 +2,7 @@
 
 local luadir = string.gsub(arg[1] or '-I/usr/include/lua/5.1', '^-I', '')
 local luapat = string.gsub(luadir, '%W', '%%%1') .. '/%S+%s'
+local final_luapat = string.gsub(luadir, '%W', '%%%1') .. '/%S+$'
 for l in io.lines() do
-  io.write(string.gsub(l, luapat, ''), '\n')
+  io.write(l:gsub(luapat, ''):gsub(final_luapat, ''), '\n')
 end
