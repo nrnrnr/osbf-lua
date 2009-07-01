@@ -68,12 +68,15 @@ function warning {
   echo "Warning: $*" | tee -a $LOG 1>&2
 }
 
+function warn_writable {
+  [ -n "$sudo" -o -w "$2" ] || warning "cannot write $1=$2"
+}
+
+
 log "# creating config file $MKCONFIG"
 
 
 ################################################################
-
-LIBDIRS="/usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64"
 
 function lib_dir {
   typeset quiet
@@ -81,7 +84,7 @@ function lib_dir {
     -quiet) quiet=1 ; shift ;;
   esac
 
-  for dir in $LIBDIRS; do
+  for dir in $LIBSEARCH; do
     for ext in so a; do
       if [ -r "$dir/lib$1.$ext" ]; then
         [ -z "$quiet" ] && echo "$dir"
@@ -153,12 +156,15 @@ log "LUABIN=$LUABIN"
 
 cat > $SCRIPT <<'EOF'
 -- scoring system: prefer /usr/local/ if it is writable
+local sudo = arg[1] == 'true'
+
 local function isdir(path)
   local f = io.open(path .. '/.')
   if f then f:close(); return true else return false end
 end
 
 local function canwrite(path)
+  if sudo then return true end
   local f = io.popen(string.format("[ -w '%s' ] && echo yes || echo no", path))
   if f then
     local answer = f:read()
