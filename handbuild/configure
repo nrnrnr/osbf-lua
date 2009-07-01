@@ -391,7 +391,9 @@ cat <<'EOF' > $MKCONFIG
 #
 # in order not to confuse GNU Make, no assignment is ever
 # followed by a comment on the same line
-
+#
+# in order not to confuse mk, comments start in column 1
+#
 EOF
 
 echo "$INCLUDE_MK_CONFIG" >> $MKCONFIG
@@ -407,17 +409,17 @@ EOF
 fi
 
 cat >> $MKCONFIG <<EOF
+# CC is the local C compiler
 CC     = $CC       
-    # CC is the local C compiler
+# DLEXT is the extension used by Lua to load C modules
 DLEXT  = $DLEXT
-    # DLEXT is the extension used by Lua to load C modules
+# LUABIN is the path to the Lua binary
 LUABIN = $LUABIN
-    # LUABIN is the path to the Lua binary
 
+# LUA_INSTALL_CMOD is where $LUABIN looks for C modules
 LUA_INSTALL_CMOD = $LUA_INSTALL_CMOD
-    # where $LUABIN looks for C modules
+# LUA_INSTALL_LMOD is where $LUABIN looks for Lua modules
 LUA_INSTALL_LMOD = $LUA_INSTALL_LMOD
-    # where $LUABIN looks for Lua modules
 
 
 #
@@ -432,10 +434,12 @@ LUA_CFLAGS       = $LUA_CFLAGS
 LUA_LFLAGS       = $LUA_LFLAGS
 LOCKLIBS         = $LOCKLIBS
 REPL_LIBS        = $REPL_LIBS
+
 DL_LIBS          = $DL_LIBS
-   # libraries needed to be able to call dlopen()
+# libraries needed to be able to call dlopen()
+
 LD_SHARED_LIB    = $LD_SHARED_LIB           
-   # options needed to create dynamically linkable code
+# options needed to create dynamically linkable code
 EOF
 
 
