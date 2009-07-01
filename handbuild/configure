@@ -385,7 +385,16 @@ esac
 ################################################################
 
 
-echo "$INCLUDE_MK_CONFIG" > $MKCONFIG
+cat <<'EOF' > $MKCONFIG
+# this file is generated automatically by ./configure
+# it can by used both by Andrew Hume's mk and by GNU Make
+#
+# in order not to confuse GNU Make, no assignment is ever
+# followed by a comment on the same line
+
+EOF
+
+echo "$INCLUDE_MK_CONFIG" >> $MKCONFIG
 if [ -z "$INCLUDE_MK_CONFIG" ]; then
 
 cat >> $MKCONFIG <<EOF
@@ -398,12 +407,17 @@ EOF
 fi
 
 cat >> $MKCONFIG <<EOF
-CC     = $CC       # the local C compiler
-DLEXT  = $DLEXT    # extension used by Lua to load C modules
-LUABIN = $LUABIN   # path to the Lua binary
+CC     = $CC       
+    # CC is the local C compiler
+DLEXT  = $DLEXT
+    # DLEXT is the extension used by Lua to load C modules
+LUABIN = $LUABIN
+    # LUABIN is the path to the Lua binary
 
-LUA_INSTALL_CMOD = $LUA_INSTALL_CMOD   # where $LUABIN looks for C modules
-LUA_INSTALL_LMOD = $LUA_INSTALL_LMOD   # where $LUABIN looks for Lua modules
+LUA_INSTALL_CMOD = $LUA_INSTALL_CMOD
+    # where $LUABIN looks for C modules
+LUA_INSTALL_LMOD = $LUA_INSTALL_LMOD
+    # where $LUABIN looks for Lua modules
 
 
 #
@@ -418,8 +432,10 @@ LUA_CFLAGS       = $LUA_CFLAGS
 LUA_LFLAGS       = $LUA_LFLAGS
 LOCKLIBS         = $LOCKLIBS
 REPL_LIBS        = $REPL_LIBS
-DL_LIBS          = $DL_LIBS                     # dynamically link code
-LD_SHARED_LIB    = $LD_SHARED_LIB           # create dynamically linkable code
+DL_LIBS          = $DL_LIBS
+   # libraries needed to be able to call dlopen()
+LD_SHARED_LIB    = $LD_SHARED_LIB           
+   # options needed to create dynamically linkable code
 EOF
 
 
