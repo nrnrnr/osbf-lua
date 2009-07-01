@@ -60,9 +60,7 @@ end
 local num_buckets =
   opts.buckets and (assert(bucket_sizes[opts.buckets] or tonumber(opts.buckets)))
   or 94321
-local test_dir = os.capture 'tempfile -p osbf-' or '/tmp/osbf-lua-classify'
-os.execute('/bin/rm -rf ' .. test_dir)
-os.execute('/bin/mkdir ' .. test_dir)
+local test_dir = os.capture 'mktemp -d'
 
 if opts.seed then math.randomseed(opts.seed) end
 

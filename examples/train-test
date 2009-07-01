@@ -36,9 +36,7 @@ elif [ ! -d "$train"  ]; then die "Training set $train is not a directory"
 elif [ ! -d "$test"   ]; then die "Test set $test is not a directory"
 fi
 
-dir="`tempfile -p oltt-`"
-rm -rf "$dir"
-mkdir "$dir"
+dir="`mktemp -d`"
 
 examples="`dirname $0`"
 
