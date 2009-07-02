@@ -55,7 +55,15 @@ if not trecdir then
   print('Usage: trec.lua [-ctimes] [-buckets <number>|small|large] [-max <n>] [-keep] [-o outfile] <trec_index_dir>')
   os.exit(1)
 end
-trecdir = util.append_slash(trecdir)
+local zipfile
+do 
+  if trecdir:find '%.zip$' then
+    require 'zip'
+    zipfile = assert(zip.open(trecdir))
+  else
+    trecdir = util.append_slash(trecdir)
+  end
+end
 
 function os.capture(cmd, raw)
   local f, msg = io.popen(cmd, 'r')
@@ -118,12 +126,31 @@ local files = { }
 local classifications = { }
 if md5sum then os.remove(test_dir .. '/md5sums') end
 result:write 'return {'
-for l in assert(io.lines(trecdir .. 'index')) do
+
+local index_lines = zipfile and assert(zipfile:open('full/index')):lines()
+                            or  io.lines(trecdir .. 'index')
+
+local function zipfile_contents(relative)
+  assert(relative:find '^%.%./')
+  relative = relative:gsub('^%.%./', '')
+  local f = assert(zipfile:open(relative))
+  local contents = f:read '*a'
+  f:close()
+  return contents
+end
+
+local function filesys_contents(relative)
+  return util.file_contents(trecdir .. relative)
+end
+
+local file_contents = zipfile and zipfile_contents or filesys_contents
+
+for l in assert(index_lines) do
   md5run('md5sum ' .. test_dir .. '/*.cfc >> ' .. test_dir .. '/md5sums')
   local labelled, file = string.match(l, '^(%w+)%s+(.*)')
   if debug then io.stderr:write("\nMsg ", file) end 
   table.insert(files, file)
-  local m = msg.of_string(util.file_contents(trecdir .. file))
+  local m = msg.of_string(file_contents(file))
   local probs, conf = commands.multiclassify(commands.extract_feature(m))
   local cfn = { actual = labelled, conf = conf, file = file }
   table.insert(classifications, cfn)
