@@ -1,8 +1,49 @@
 #!/bin/bash
 
+function usage {
+  cat <<EOF 1>&2
+Usage: `basename $0` [--help] [--sudo]
+
+Options:
+    --help   # this help message
+    --sudo   # will install with sudo; assume write permissions
+EOF
+  exit 0
+}
+
+sudo=
+
+case $1 in
+   --help|-help) usage ;;
+   --sudo|-sudo) sudo=true ; shift ;;
+   -*) usage ;;
+   ?) usage ;;
+esac
+
+
+################################################################
+# 
+# places to search for things
+
+
+LIBSEARCH="/usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64"
+CCSEARCH="gcc cc"
+LUANAMESEARCH="lua5.1 lua"
+INCSEARCH="/usr/include /usr/include/lua5.1 /usr/local/include /usr/local/include/lua5.1 /usr/local/lua/include /usr/local/include/lua /usr/include/lua /usr/local/gnu/include"
+
+
+
+
+################################################################
+#
+# create a temporary file to hold scripts run during configuration
+
+MKTEMP="`which mktemp 2>/dev/null`"
 TEMPFILE="`which tempfile 2>/dev/null`"
 
-if [ -x "$TEMPFILE" ]; then
+if [ -x "$MKTEMP" ]; then
+  SCRIPT="`mktemp`"
+elif [ -x "$TEMPFILE" ]; then
   SCRIPT="`tempfile`"
 else
   SCRIPT=/tmp/lua$$ # unsafe but portable
@@ -32,12 +73,22 @@ function warning {
   echo "Warning: $*" | tee -a $LOG 1>&2
 }
 
+function warn_writable {
+  [ -n "$sudo" -o -w "$2" ] || warning "cannot write $1=$2"
+}
+
+function looking-for {
+  echo -n "Looking for $*... "
+}
+
+function found { 
+  echo "$*"
+}
+
 log "# creating config file $MKCONFIG"
 
 
 ################################################################
-
-LIBDIRS="/usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64"
 
 function lib_dir {
   typeset quiet
@@ -45,7 +96,7 @@ function lib_dir {
     -quiet) quiet=1 ; shift ;;
   esac
 
-  for dir in $LIBDIRS; do
+  for dir in $LIBSEARCH; do
     for ext in so a; do
       if [ -r "$dir/lib$1.$ext" ]; then
         [ -z "$quiet" ] && echo "$dir"
@@ -63,22 +114,26 @@ function has_lib {
 
 ################################################################
 
-COMPILERS="gcc cc"
+looking-for C compiler
 
-for CC in $COMPILERS
+for CC in $CCSEARCH
 do
   [ -x "`which $CC 2>/dev/null`" ] && break
 done
 [ -x "`which $CC 2>/dev/null`" ] || 
-  fail "Cannot find executable C compiler (tried $COMPILERS)"
+  fail "Cannot find executable C compiler (tried $CCSEARCH)"
 
 log "CC=$CC"
+found "$CC"
+
 
 ################################################################
-
 #
 # Locate lua binary.  On FreeBSD, take highest installed lua version.
 #
+
+looking-for Lua binary
+
 LUABIN=
 
 case $OS in
@@ -94,7 +149,7 @@ esac
 if [ ! -x "$LUABIN" ]
 then
   # N.B. which's exit code is very broken on solaris
-  for bin in lua5.1 lua; do
+  for bin in $LUANAMESEARCH; do
       if which $bin >/dev/null 2>&1; then
         LUABIN="`which $bin`"
         if [ -n "$LUABIN" -a -x "$LUABIN" ]; then
@@ -114,17 +169,24 @@ esac
 
 log "LUABIN=$LUABIN"
 
+found "$LUABIN"
+
 ################################################################
+
+looking-for Lua module installation directories
 
 
 cat > $SCRIPT <<'EOF'
 -- scoring system: prefer /usr/local/ if it is writable
+local sudo = arg[1] == 'true'
+
 local function isdir(path)
   local f = io.open(path .. '/.')
   if f then f:close(); return true else return false end
 end
 
 local function canwrite(path)
+  if sudo then return true end
   local f = io.popen(string.format("[ -w '%s' ] && echo yes || echo no", path))
   if f then
     local answer = f:read()
@@ -182,7 +244,7 @@ show('LUA_INSTALL_CMOD', cmod)
 show('LUA_INSTALL_LMOD', lmod)
 EOF
 
-eval `$LUABIN $SCRIPT $$ || { cat -n $SCRIPT 1>&2; }`
+eval `$LUABIN $SCRIPT "$sudo" || { cat -n $SCRIPT 1>&2; }`
 log DLEXT=$DLEXT
 log LUA_INSTALL_CMOD="$LUA_INSTALL_CMOD"
 log LUA_INSTALL_LMOD="$LUA_INSTALL_LMOD"
@@ -202,18 +264,35 @@ fi
 
 [ -d "$LUA_INSTALL_CMOD" ] || 
    fail "LUA_INSTALL_CMOD=$LUA_INSTALL_CMOD is not a directory"
-[ -w "$LUA_INSTALL_CMOD" ] ||
-   warning "cannot write LUA_INSTALL_CMOD=$LUA_INSTALL_CMOD"
+warn_writable LUA_INSTALL_CMOD "$LUA_INSTALL_CMOD"
 
 [ -d "$LUA_INSTALL_LMOD" ] ||
    fail "LUA_INSTALL_LMOD=$LUA_INSTALL_LMOD is not a directory"
-[ -w "$LUA_INSTALL_LMOD" ] ||
-   warning "cannot write LUA_INSTALL_LMOD=$LUA_INSTALL_LMOD"
+warn_writable LUA_INSTALL_LMOD "$LUA_INSTALL_LMOD"
+
+found "results:"
+echo "  LUA_INSTALL_CMOD=$LUA_INSTALL_CMOD" 
+echo "  LUA_INSTALL_LMOD=$LUA_INSTALL_LMOD" 
+echo "  DLEXT=$DLEXT"
+
+looking-for Binary installation directory
 
 if [ -z "$BINDIR" ]; then
   for dir in /usr/local/bin /usr/unsup/nr/bin $HOME/bin; do
-    [ -d "$dir" -a -w "$dir" ] && { BINDIR="$dir"; break; }
+    [ -d "$dir" -a '(' -n "$sudo" -o -w "$dir" ")" ] && { BINDIR="$dir"; break; }
   done
+fi
+
+if [ -z "$BINDIR" ]; then
+  xxx="$IFS"
+  IFS=":"
+  for dir in $PATH; do
+    case $dir in
+      /*) [ -d "$dir" -a '(' -n "$sudo" -o -w "$dir" ")" ] && { BINDIR="$dir"; break; }
+          ;;
+    esac
+  done
+  IFS="$xxx"
 fi
 
 [ -d "$BINDIR" ] || fail "BINDIR=$BINDIR is not a directory"
@@ -221,16 +300,18 @@ fi
 
 log "BINDIR=$BINDIR"
 
+found "$BINDIR"
+
 ################################################################
 #
-# places to look for lua header files
+# find CFLAGS to pick up lua header files
 
-INCDIRS="/usr/include /usr/include/lua5.1 /usr/local/include /usr/local/include/lua5.1 /usr/local/lua/include /usr/local/include/lua /usr/include/lua /usr/local/gnu/include"
+looking-for CC flags for Lua clients
 
 if pkg-config --cflags lua5.1 > /dev/null 2>/dev/null; then
   LUA_CFLAGS=`pkg-config --cflags lua5.1`
 else
-  for dir in $INCDIRS; do
+  for dir in $INCSEARCH; do
     if [ -r $dir/lua.h -a -r $dir/lauxlib.h ] &&
        grep 'LUA_VERSION.*5\.1' $dir/lua.h > /dev/null
     then
@@ -242,11 +323,14 @@ fi
 
 log "LUA_CFLAGS=$LUA_CFLAGS"
 
+found "$LUA_CFLAGS"
 
 
 ################################################################
 #
 # ld options for shared libraries
+
+looking-for ld options to create shared libraries
 
 case $OS in
   Darwin) LD_SHARED_LIB="-bundle -undefined dynamic_lookup" ;;
@@ -262,15 +346,19 @@ esac
 
 log "LD_SHARED_LIB=$LD_SHARED_LIB"
 
+found "$LD_SHARED_LIB"
+
 ################################################################
 #
 # places to look for lua library
+
+looking-for ld options to link against Lua
 
 if pkg-config --libs lua5.1 > /dev/null 2>/dev/null; then
   LUA_LFLAGS=`pkg-config --libs lua5.1`
 else
   if [ -z "$LUALIBDIR" ]; then
-    for LUALIBNAME in lua lua5.1; do
+    for LUALIBNAME in $LUANAMESEARCH; do
       if has_lib $LUALIBNAME; then
         LUALIBDIR=`lib_dir $LUALIBNAME`
         break
@@ -284,14 +372,18 @@ else
 fi
 log "LUA_LFLAGS=$LUA_LFLAGS"
 
+found "LUA_LFLAGS=$LUA_LFLAGS"
+
 ################################################################
 #
 # Locking method for databases: LOCKFILE, FCNTL or NONE
 
+looking-for file-locking method
+
 if [ -z "$LOCK_METHOD" ]; then
   if [ -r /usr/include/lockfile.h ] && has_lib lockfile; then
     LOCK_METHOD=LOCKFILE
-    LOCKLIBS="-L `lib_dir lockfile` -llockfile"
+    LOCKLIBS="-L`lib_dir lockfile` -llockfile"
   else
     LOCKLIBS=
   fi
@@ -307,8 +399,13 @@ fi
 log "LOCK_METHOD=$LOCK_METHOD"
 log "LOCKLIBS=$LOCKLIBS"
 
+what="$LOCK_METHOD"
+[ -n "$LOCKLIBS" ] && what="$what (ld options $LOCKLIBS)"
+found "$what"
 
 ################################################################
+
+looking-for compile-time Lua configuration
 
 LUACONF=
 case $OS in
@@ -326,17 +423,35 @@ esac
 
 log "LUACONF=$LUACONF"
 
+found "$LUACONF"
+
 ################################################################
+
+looking-for libraries needed for "dlopen()"
 
 case $OS in
   *BSD*) DL_LIBS= ;;
   *) DL_LIBS=-ldl ;;
 esac
 
+found "$DL_LIBS"
+
 ################################################################
 
+echo -n "Writing $MKCONFIG... "
 
-echo "$INCLUDE_MK_CONFIG" > $MKCONFIG
+cat <<'EOF' > $MKCONFIG
+# this file is generated automatically by ./configure
+# it can by used both by Andrew Hume's mk and by GNU Make
+#
+# in order not to confuse GNU Make, no assignment is ever
+# followed by a comment on the same line
+#
+# in order not to confuse mk, comments start in column 1
+#
+EOF
+
+echo "$INCLUDE_MK_CONFIG" >> $MKCONFIG
 if [ -z "$INCLUDE_MK_CONFIG" ]; then
 
 cat >> $MKCONFIG <<EOF
@@ -349,12 +464,17 @@ EOF
 fi
 
 cat >> $MKCONFIG <<EOF
-CC     = $CC       # the local C compiler
-DLEXT  = $DLEXT    # extension used by Lua to load C modules
-LUABIN = $LUABIN   # path to the Lua binary
+# CC is the local C compiler
+CC     = $CC       
+# DLEXT is the extension used by Lua to load C modules
+DLEXT  = $DLEXT
+# LUABIN is the path to the Lua binary
+LUABIN = $LUABIN
 
-LUA_INSTALL_CMOD = $LUA_INSTALL_CMOD   # where $LUABIN looks for C modules
-LUA_INSTALL_LMOD = $LUA_INSTALL_LMOD   # where $LUABIN looks for Lua modules
+# LUA_INSTALL_CMOD is where $LUABIN looks for C modules
+LUA_INSTALL_CMOD = $LUA_INSTALL_CMOD
+# LUA_INSTALL_LMOD is where $LUABIN looks for Lua modules
+LUA_INSTALL_LMOD = $LUA_INSTALL_LMOD
 
 
 #
@@ -369,9 +489,15 @@ LUA_CFLAGS       = $LUA_CFLAGS
 LUA_LFLAGS       = $LUA_LFLAGS
 LOCKLIBS         = $LOCKLIBS
 REPL_LIBS        = $REPL_LIBS
-DL_LIBS          = $DL_LIBS                     # dynamically link code
-LD_SHARED_LIB    = $LD_SHARED_LIB           # create dynamically linkable code
+
+DL_LIBS          = $DL_LIBS
+# libraries needed to be able to call dlopen()
+
+LD_SHARED_LIB    = $LD_SHARED_LIB           
+# options needed to create dynamically linkable code
 EOF
 
+
+echo done
 
 rm -f $SCRIPT
