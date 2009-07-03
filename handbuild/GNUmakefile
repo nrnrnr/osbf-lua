@@ -107,7 +107,7 @@ install-bin:
 	mkdir -p $(BINDIR)
 	echo "#! $(LUABIN)" > $(BINDIR)/$(BIN_NAME)
 	sed '/^#!/d' $(LUASRCDIR)/osbf | \
-	  lua -e "x=string.gsub(io.read('*a'),'MODNAME','[[$(MODNAME)]]') io.write(x)" \
+	  $(LUABIN) -e "x=string.gsub(io.read('*a'),'MODNAME','[[$(MODNAME)]]') io.write(x)" \
 	  >> $(BINDIR)/$(BIN_NAME)
 	chmod +x $(BINDIR)/$(BIN_NAME)
 
@@ -137,6 +137,6 @@ $B/depend: $(SRCS) $(HFILES) ../strip-lua-headers
 	mkdir -p $B
 	for c in $(SRCS); do \
 	  gcc $(CFLAGS) -MM -MT "$B/`basename $$c .c`.o" $$c ; \
-	done | lua ../strip-lua-headers $(LUA_CFLAGS) > $@
+	done | $(LUA_BIN) ../strip-lua-headers $(LUA_CFLAGS) > $@
 
 include $B/depend
