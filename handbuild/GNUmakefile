@@ -131,12 +131,13 @@ clean: mostlyclean
 	rm -rf $B
 
 
+.PHONY: depend
 depend: $B/depend
 
 $B/depend: $(SRCS) $(HFILES) ../strip-lua-headers
 	mkdir -p $B
 	for c in $(SRCS); do \
 	  gcc $(CFLAGS) -MM -MT "$B/`basename $$c .c`.o" $$c ; \
-	done | $(LUA_BIN) ../strip-lua-headers $(LUA_CFLAGS) > $@
+	done | $(LUABIN) ../strip-lua-headers $(LUA_CFLAGS) > $@
 
 include $B/depend
