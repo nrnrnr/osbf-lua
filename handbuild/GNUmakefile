@@ -131,6 +131,7 @@ clean: mostlyclean
 	rm -rf $B
 
 
+.PHONY: depend
 depend: $B/depend
 
 $B/depend: $(SRCS) $(HFILES) ../strip-lua-headers
