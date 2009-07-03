@@ -60,6 +60,7 @@ LOG="configure.log"
 echo "DATE='`date`'" > $LOG
 
 function fail {
+  echo
   echo "$*" | tee -a $LOG 1>&2
   rm -f $MKCONFIG $SCRIPT
   exit 1
@@ -74,7 +75,10 @@ function warning {
 }
 
 function warn_writable {
-  [ -n "$sudo" -o -w "$2" ] || warning "cannot write $1=$2"
+  case $# in
+    2) [ -n "$sudo" -o -w "$2" ] || warning "cannot write $1=$2" ;;
+    *) fail "Fault in `basename $0`; warn_writable got $# arguments" ;;
+  esac
 }
 
 function looking-for {
@@ -296,7 +300,7 @@ if [ -z "$BINDIR" ]; then
 fi
 
 [ -d "$BINDIR" ] || fail "BINDIR=$BINDIR is not a directory"
-warn_writable "$BINDIR"
+warn_writable BINDIR "$BINDIR"
 
 log "BINDIR=$BINDIR"
 
