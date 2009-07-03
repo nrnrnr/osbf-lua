@@ -296,7 +296,7 @@ if [ -z "$BINDIR" ]; then
 fi
 
 [ -d "$BINDIR" ] || fail "BINDIR=$BINDIR is not a directory"
-[ -w "$BINDIR" ] || warning "cannot write BINDIR=$BINDIR"
+warn_writable "$BINDIR"
 
 log "BINDIR=$BINDIR"
 
@@ -388,7 +388,7 @@ if [ -z "$LOCK_METHOD" ]; then
     LOCKLIBS=
   fi
 
-  FCNTL="/usr/include/fcntl.h /usr/include/sys/fcntl.h"
+  FCNTL="/usr/include/fcntl.h /usr/include/*/fcntl.h"
   if [ -z "$LOCK_METHOD" ] && grep -w F_SETLK $FCNTL >/dev/null 2>/dev/null; then
     LOCK_METHOD=FCNTL
   fi
