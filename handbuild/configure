@@ -296,7 +296,7 @@ if [ -z "$BINDIR" ]; then
 fi
 
 [ -d "$BINDIR" ] || fail "BINDIR=$BINDIR is not a directory"
-[ -w "$BINDIR" ] || warning "cannot write BINDIR=$BINDIR"
+warn_writable "$BINDIR"
 
 log "BINDIR=$BINDIR"
 
