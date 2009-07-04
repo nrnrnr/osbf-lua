@@ -9,7 +9,15 @@
 OS:=$(strip $(shell uname))
    # could be more complicated, but let's not worry yet
 ARCH:=$(strip $(shell uname -m || echo unknown))
-B:=$(strip BUILD-$(OS)-$(ARCH))
+
+XCFLAGS=-g
+  # This variable is meant to be changed on the command line to 
+  # enable stuff like -fprofile-arcs or -pg and so on.
+  # The value of this variable affects the build directory.
+
+BSUFFIX:=$(strip $(shell echo $(XCFLAGS) | tr -d ' '))
+B:=$(strip BUILD-$(OS)-$(ARCH))$(BSUFFIX)
+
    # build directory
 PLATFORM := mk.$(OS)-$(ARCH)
 
@@ -43,7 +51,6 @@ HFILES=$(HBASES:%=$(CSRCDIR)/%)
 LUASRCDIR=../lua
 
 CFLAGS1 = -DOPENFUN=luaopen_$(MODNAME)_core
-XCFLAGS=-g
 
 # -I. below is for config.h
 CFLAGS= -Wall -Wextra -Werror -std=c99 -pedantic -fPIC \
@@ -125,10 +132,10 @@ test: install
 
 mostlyclean:
 	rm -f $(LIBNAME) $(OBJS) *.$(DLEXT) *~
-	rm -f $B/*.o *.gcda *.gcno
+	rm -f $B/*.o *.gcda *.gcno *.gcov
 
 clean: mostlyclean
-	rm -rf $B
+	rm -rf BUILD-*
 
 
 .PHONY: depend
