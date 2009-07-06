@@ -256,11 +256,11 @@ log LUA_INSTALL_LMOD="$LUA_INSTALL_LMOD"
 ################################################################
 
 if [ -r mk.config ]; then
-  INCLUDE_MK_CONFIG='<mk.config'
+  INCLUDE_MK_CONFIG=yes
   sed 's/ *= */=/' mk.config > $SCRIPT
   . $SCRIPT
 else
-  INCLUDE_MK_CONFIG=''
+  INCLUDE_MK_CONFIG=
   sed 's/ *= */=/' mk.config.defaults | 
   grep -v LUA_INSTALL | grep -vw BINDIR > $SCRIPT
   . $SCRIPT
@@ -455,15 +455,18 @@ cat <<'EOF' > $MKCONFIG
 #
 EOF
 
-echo "$INCLUDE_MK_CONFIG" >> $MKCONFIG
 if [ -z "$INCLUDE_MK_CONFIG" ]; then
 
-cat >> $MKCONFIG <<EOF
+cat > $MKCONFIG <<EOF
 MOD_NAME         = $MOD_NAME
 BIN_NAME         = $BIN_NAME
 BINDIR           = $BINDIR
 MOD_VERSION      = 3.0.0
 EOF
+
+else
+
+  sed 's/[ 	]*#.*//' mk.config > $MKCONFIG
 
 fi
 
