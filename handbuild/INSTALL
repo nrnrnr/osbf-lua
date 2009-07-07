@@ -1,22 +1,47 @@
-For default installation, run
+OSBF-Lua version 3.0 is configured partly by hand and partly
+automatically, although fully automatic configuration may work on some
+platforms.  It has been tested on FreeBSD, 32-bit Debian Linux, 64-bit
+Red Hat Linux, Mac OSX, and Solaris running gcc.
+
+Automatic Configuration and Install
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+For an attempt at fully automatic installation, run
 
   ./configure
-  mk
+  make
+  make install
 
-If you get warnings about directories not writable, but you intend to
-install as root (e.g., with sudo), you can ignore the warnings.
+If you intend to install as root, instead run
 
-To adjust module names and installation directories
+  ./configure --sudo
+  make
+  sudo make install
+
+If the configuration fails, try the manual method below.
+
+
+Manual Configuration
+~~~~~~~~~~~~~~~~~~~~
+Adjust module names and installation directories by making a file mk.config:
 
   cp mk.config.defaults mk.config 
   emacs mk.config # edit to tast
+
+Then as above either
+
+  ./configure
+  make
+  make install
+
+or
+
+  ./configure --sudo
+  make
+  sudo make install
+
   ./configure
   mk
 
-Finally
 
-  mk install
+Please report bugs or problems to nr@cs.tufts.edu.
 
-or 
-
-  sudo mk install
