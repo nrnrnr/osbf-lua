@@ -299,6 +299,13 @@ if [ -z "$BINDIR" ]; then
   IFS="$xxx"
 fi
 
+[ -z "$BINDIR" ] && 
+fail 'The configure script could not find a suitable installation directory.
+Please edit a mk.config file and run configure again, or else try
+  ./configure --sudo
+  make
+  sudo make install'
+
 [ -d "$BINDIR" ] || fail "BINDIR=$BINDIR is not a directory"
 warn_writable BINDIR "$BINDIR"
 
