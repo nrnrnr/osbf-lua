@@ -39,6 +39,7 @@
 #include <inttypes.h>
 #include <sys/types.h>
 
+#include "osbf_intcompat.h"   // needed on some platforms for uint64_t
 #include "osbferr.h"
 
 enum db_version { OSBF_DB_BASIC_VERSION = 0, OSBF_DB_2007_11_VERSION = 5,
