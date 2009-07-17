@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+echo -n "checking for 64-bit unsigned integer type... " 1>&2
+uint64=
+
+dir=`mktemp -d`
+c="$dir/test.c"
+exe="$dir/text"
+
+for type in 'uint64_t' 'unsigned int' 'unsigned long int' \
+	 'unsigned long long int' 'unsigned short int' 'unsigned char'
+do
+cat >$c <<EOF
+#include <inttypes.h>
+int
+main ()
+{
+static int test_array [1 - 2 * !(($type) -1 >> (64 - 1) == 1)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+EOF
+  rm -f $exe
+  gcc -std=c99 -o "$exe" "$c" 2>/dev/null
+  status=$?
+  case $? in 
+    0) uint64="$type" ; break ;;
+  esac
+done
+
+rm -rf $dir
+
+case $uint64 in
+  uint64_t) echo "#include <inttypes.h>" ;;
+  ?*)       cat <<EOF
+#include <inttypes.h>
+typedef $type uint64_t
+EOF
+     ;;
+  *) cat <<EOF
+#error configuration script `basename $0` could not define uint64_t
+EOF
+     echo "FAILED!" 1>&2
+     exit 1
+     ;;
+esac
+
+echo "$type" 1>&2
+
+
