@@ -3,7 +3,7 @@
 echo -n "checking for 64-bit unsigned integer type... " 1>&2
 uint64=
 
-dir=`mktemp -d`
+dir=`mktemp -d 2>/dev/null || ( mkdir /tmp/lc$$; echo /tmp/lc$$)`
 c="$dir/test.c"
 exe="$dir/text"
 
@@ -25,7 +25,7 @@ EOF
   rm -f $exe
   gcc -std=c99 -o "$exe" "$c" 2>/dev/null
   status=$?
-  case $? in 
+  case $status in 
     0) uint64="$type" ; break ;;
   esac
 done
