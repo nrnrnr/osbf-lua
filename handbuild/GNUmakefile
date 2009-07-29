@@ -9,7 +9,15 @@
 OS:=$(strip $(shell uname))
    # could be more complicated, but let's not worry yet
 ARCH:=$(strip $(shell uname -m || echo unknown))
-B:=$(strip BUILD-$(OS)-$(ARCH))
+
+XCFLAGS=-g
+  # This variable is meant to be changed on the command line to 
+  # enable stuff like -fprofile-arcs or -pg and so on.
+  # The value of this variable affects the build directory.
+
+BSUFFIX:=$(strip $(shell echo $(XCFLAGS) | tr -d ' '))
+B:=$(strip BUILD-$(OS)-$(ARCH))$(BSUFFIX)
+
    # build directory
 PLATFORM := mk.$(OS)-$(ARCH)
 
@@ -43,7 +51,6 @@ HFILES=$(HBASES:%=$(CSRCDIR)/%)
 LUASRCDIR=../lua
 
 CFLAGS1 = -DOPENFUN=luaopen_$(MODNAME)_core
-XCFLAGS=-g
 
 # -I. below is for config.h
 CFLAGS= -Wall -Wextra -Werror -std=c99 -pedantic -fPIC \
@@ -107,7 +114,7 @@ install-bin:
 	mkdir -p $(BINDIR)
 	echo "#! $(LUABIN)" > $(BINDIR)/$(BIN_NAME)
 	sed '/^#!/d' $(LUASRCDIR)/osbf | \
-	  lua -e "x=string.gsub(io.read('*a'),'MODNAME','[[$(MODNAME)]]') io.write(x)" \
+	  $(LUABIN) -e "x=string.gsub(io.read('*a'),'MODNAME','[[$(MODNAME)]]') io.write(x)" \
 	  >> $(BINDIR)/$(BIN_NAME)
 	chmod +x $(BINDIR)/$(BIN_NAME)
 
@@ -125,18 +132,19 @@ test: install
 
 mostlyclean:
 	rm -f $(LIBNAME) $(OBJS) *.$(DLEXT) *~
-	rm -f $B/*.o *.gcda *.gcno
+	rm -f $B/*.o *.gcda *.gcno *.gcov
 
 clean: mostlyclean
-	rm -rf $B
+	rm -rf BUILD-*
 
 
+.PHONY: depend
 depend: $B/depend
 
 $B/depend: $(SRCS) $(HFILES) ../strip-lua-headers
 	mkdir -p $B
 	for c in $(SRCS); do \
 	  gcc $(CFLAGS) -MM -MT "$B/`basename $$c .c`.o" $$c ; \
-	done | lua ../strip-lua-headers $(LUA_CFLAGS) > $@
+	done | $(LUABIN) ../strip-lua-headers $(LUA_CFLAGS) > $@
 
 include $B/depend
