@@ -606,7 +606,7 @@ local function exec_subject_line_command(cmd, m)
   if cmd[1] == 'batch_train' then
     return batch_train(m) -- prevents execution of 'run' below
   elseif cmd[1] == 'train_form' or cmd[1] == 'cache-report' then
-    cmd = {'cache-report', '-send', m.to }
+    cmd = {'cache-report', '-send'}
   end
   run(unpack(cmd))
   output.flush()
@@ -720,6 +720,8 @@ Additional options include
   -rightid      string
 rightid is the rigth part of the spam filter id (sfid). if not specified,
 the fully qualified host name is used.
+  -use_subdirs  boolean
+use_subdirs divides the cache into subdirectories DD/HH
 And four options for setting the size of databases.
   -dbsize       size
   -totalsize    size
@@ -736,8 +738,9 @@ do
   local translate = { dbsize = 'bytes', totalsize = 'totalbytes' }
 
   function init(...)
-    local v = options.std.val
-    local opts = {lang = v, dbsize = v, totalsize = v, buckets = v, totalbuckets = v, rightid = v}
+    local b, v = options.std.bool, options.std.val
+    local opts = {lang = v, dbsize = v, totalsize = v, buckets = v, totalbuckets = v,
+                  use_subdirs = b, rightid = v}
     local opts, args = options.parse({...}, opts)
     if #args ~= 1 then usage() end
     local email = args[1]
@@ -777,12 +780,12 @@ do
     end
      
     nb = commands.init(email, buckets or bytes, translate[units] or units,
-                       rightid, opts.lang)
+                       rightid, opts.lang, opts.use_subdirs)
     output.writeln('Created directories and databases using a total of ', 
       util.human_of_bytes(nb))
   end
 
-  table.insert(usage_lines, 'init [-dbsize <size> | -totalsize <size> | -buckets <number> | -totalbuckets <number>] [-rightid=<domain-name>] [-lang=<locale>] <user-email>')
+  table.insert(usage_lines, 'init [-dbsize <size> | -totalsize <size> | -buckets <number> | -totalbuckets <number>] [-rightid=<domain-name>] [-lang=<locale>] [-use_subdir] <user-email>')
 end
 
 
@@ -804,7 +807,7 @@ function resize(class, newsize, ...)
   else
     local dbname = cfg.classes[class].db
     local stats = core.stats(core.open_class(dbname))
-    local tmpname = util.validate(os.tmpname())
+    local tmpname = util.validate(util.tmpname(dbname))
     -- XXX non atomic...
     os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force?)
     local real_bytes = commands.create_single_db(tmpname, nb)
@@ -832,8 +835,8 @@ function dump(class, csvfile, ...)
     util.die('Unknown class to dump: "', class,
              '".\nValid classes are: ', table.concat(cfg.classlist(), ', '))
   else
-    local tmpname = util.validate(os.tmpname())
     local dbname = cfg.classes[class].db
+    local tmpname = util.validate(util.tmpname(dbname))
     core.dump(dbname, tmpname)
     util.validate(os.rename(tmpname, csvfile))
     class = util.capitalize(class)
@@ -857,9 +860,8 @@ function restore(class, csvfile, ...)
     util.die('Unknown class to restore: "', class,
              '".\nValid classes are: ', table.concat(cfg.classlist(), ', '))
   else
-    local tmpname = util.validate(os.tmpname())
     local dbname = cfg.classes[class].db
-    --os.remove(tmpname) -- core.create_db doesn't overwite files (add flag to force?)
+    local tmpname = util.validate(util.tmpname(dbname))
     core.restore(tmpname, csvfile)
     util.validate(os.rename(tmpname, dbname))
     class = util.capitalize(class)
@@ -899,35 +901,48 @@ table.insert(usage_lines, 'internals [-short] [<module>|<module>.<function>]')
 
 ----------------------------------------------------------------
 
-
-
-----------------------------------------------------------------
-
-__doc['cache-report'] = [[function(email, temail)
+__doc['cache-report'] = [[function(command_address, report_address)
 Writes cache-report email message on standard output.
+command_address => Optional. Address where the training commands will be sent to.
+                 Normally it's the user's email. Defaults to cfg.command_address.
+report_address => Optional. Address where the cache report will be sent to.
+                 Normally it's the user's email. Defaults to cfg.report_address,
+                 if present, or cfg.command_address.
 Valid options: -lang => specifies the language of the report.
+               -send => send email message instead of writing to
+                        standard output.
+               -quiet => quiet operation, useful for crontab.
 If -lang is not specified, user's config locale is used. If not
 specified in user's config, the server's locale is used.
 If the informed locale is not known, posix is used.]]
 
 do
-  local opts = {lang = options.std.val, send = options.std.bool}
+  local opts = {lang = options.std.val, send = options.std.bool,
+                quiet = options.std.bool}
   _M['cache-report'] =
     function(...)
       local opts, args = options.parse({...}, opts)
-      local email, temail = args[1], args[2]
-      email = email or cfg.command_address
-      --if not email or args[3] then usage() end
+      local command_address, report_address = args[1], args[2]
+      command_address = command_address
+                      or cfg.command_address ~= '' and cfg.command_address
+      report_address = report_address
+                     or cfg.report_address ~= '' and cfg.report_address
+                     or cfg.command_address
+      if not report_address or not command_address then
+        error("Either report_address or command_address is missing in user's config.")
+      end
       if opts.send then
         filter.send_message(
-          commands.generate_training_message(email, temail, opts.lang))
-        output.writeln('Training form sent.')
+          commands.generate_training_message(report_address, command_address, opts.lang))
+        if not opts.quiet then
+          output.writeln('Training form sent to ' .. report_address, '.')
+        end
       else
-        commands.write_training_message(email, temail, opts.lang)
+        commands.write_training_message(report_address, command_address, opts.lang)
       end
     end
 end
-table.insert(usage_lines, 'cache-report [-lang=<locale>] <user-email> [<training-email>]')
+table.insert(usage_lines, 'cache-report [-lang=<locale>] [-send] [-quiet] [<user-email> [<report-email>]]')
 
 -----------------------------------------------------------------
 

@@ -119,5 +119,8 @@ return {
   -- Address to send command-messages to
   command_address = "",
 
+  -- Address to send report-messages to
+  report_address = "",
+
 }
 

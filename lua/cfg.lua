@@ -93,6 +93,10 @@ message to be sent.
   sent to. Normally, this is set to user's email address.
 ]],
 
+  report_address = [[Email address where report-messages should be
+  sent to. Normally, this is set to user's email address.
+]],
+
   cache = ([[
 Table of properties of the message cache.  
 If omitted, no cache is used; if true, use a cache with default properties.

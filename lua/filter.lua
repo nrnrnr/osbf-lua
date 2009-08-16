@@ -154,10 +154,11 @@ end
 
 
 __doc.send_message = [[function(message) Sends string message using
-a tmp file and the OS mail command configured in cfg.mail_cmd.
+the OS mail command configured in cfg.mail_cmd.
 Returns or calls error
 ]]
 
+--[[
 -- os.popen may not be available
 function send_message(message)
   local tmpfile = os.tmpname()
@@ -173,6 +174,29 @@ function send_message(message)
     error('Could not open ' .. tmpfile .. ' to send message: ' .. err)
   end
 end
+--]]
+
+function send_message(message)
+  local cmd = cfg.mail_cmd:gsub('%s*<.*', '')
+  local h, err = io.popen(cmd, 'w')
+  if h then
+    local r
+    r, err = h:write(message)
+    h:close()
+    if not r then
+      log.lua('error', log.dt { 'msg.send_message',
+                                err = tostring(err)})
+      error(tostring(err))
+    end
+    return true
+  else
+    log.lua('error', log.dt { command = 'msg.send_message', cmd = cmd,
+                              err = 'Error cannot open pipe to write: ' .. err})
+    error(tostring(err))
+  end
+end
+
+
 
 __doc.send_cmd_message = [[function(subject_command, eol) Sends a command
 message with From: and To: set to cfg.command_address.

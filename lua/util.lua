@@ -812,6 +812,37 @@ function generate_pwd()
   return output.generate_hex_string(32)
 end
 
+
+__doc.tmpname = [[function(prefix) returns a unique file name.
+prefix = optional string. If not given, returns os.tmpname() else
+returns prefix appended with a random string with 32 hex chars.
+]]
+
+function tmpname(prefix)
+  if not prefix then
+    return os.tmpname()
+  end
+  if type(prefix) ~= 'string' then
+    error('Invalid arg to tmpname - expecting string')
+  end
+  local name
+  for i= 1, 1000 do
+    name = prefix .. output.generate_hex_string(32)
+    local h = io.open(name, 'r')
+    if not h then
+      h = io.open(name, 'w')
+      if h then
+        io.close(h)
+        return name
+      else
+        return nil, 'cannot create tmpfile: ' .. name
+      end
+    end
+    close(h)
+  end
+  return nil, 'max attempts to create tmpfile exceeded'
+end
+
 --------------------------------------------------------------------------
 __doc.file_contents = [[function(filename) returns string or calls error
 Returns the contents of the specified file or calls error().]]

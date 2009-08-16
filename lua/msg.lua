@@ -428,7 +428,7 @@ do
         end
       end
     end
-    if good then return 'M: ' .. good.__body else return m.__body end
+    if good then return 'M: ' .. good.__body or '' else return m.__body end
   end
         
 
