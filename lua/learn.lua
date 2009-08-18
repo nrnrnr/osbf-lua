@@ -574,9 +574,8 @@ function stats(full)
       rates[class] = total / classifications
       local total_with_errors = s.classifications + s.false_negatives
       if total_with_errors > 0 then
-        error_rates[class] =
-          (s.false_negatives + s.false_positives)  / total_with_errors
-          -- divide by 2 here to avoid double-counting
+        error_rates[class] = 1 - (s.classifications - s.false_positives) /
+                                 total
       end
     end
     global_error_rate = false_negatives / classifications
@@ -658,7 +657,7 @@ function write_stats(verbose)
     report('Extra learnings', 'extra_learnings')
   end
 
-  writef(p2fmt, 'Accuracy', classmap(function(c) return (1-error_rates[c])*100 end))
+  writef(p2fmt, 'Precision', classmap(function(c) return (1-error_rates[c])*100 end))
   writef(p2fmt, 'Fraction of mail stream',
                                       classmap(function(c) return rates[c]*100 end))
   hline()

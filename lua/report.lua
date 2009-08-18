@@ -100,7 +100,7 @@ local English = {
     false_negatives = "False negatives",
     false_positives = "False positives",
     learnings = "Learnings",
-    accuracy = "Accuracy",
+    accuracy = "Precision",
     total = "Total",
   },
 }
