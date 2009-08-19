@@ -212,7 +212,10 @@ void osbf_bayes_train(const unsigned char *p_text,      /* pointer to text */
   uint32_t window_idx;
   int32_t learn_error;
   int32_t i;
-  uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1];
+  uint32_t hashpipe[OSB_BAYES_WINDOW_LEN + 1]; 
+     // words in smaller positions are more recent in the text,
+     // i.e., hashpipe[0] appears to the *right* of hashpipe[1]
+   
 
   /* on 5000 msgs from trec06, average number of tokens (including
      sentinels at ends) is 150; 2/3 of msgs are under 150; 80% are
