@@ -4,7 +4,8 @@ echo -n "checking for 64-bit unsigned integer type... " 1>&2
 uint64=
 
 dir=`mktemp -d 2>/dev/null || ( mkdir /tmp/lc$$ && echo /tmp/lc$$ )`
-[ -n "$dir" ] || { echo "could not make temporary directory!" 1>&2; exit 1 ; }
+[ -n "$dir" -a -d "$dir" ] || 
+   { echo "could not make temporary directory!" 1>&2; exit 1 ; }
 c="$dir/test.c"
 exe="$dir/text"
 
