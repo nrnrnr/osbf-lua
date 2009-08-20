@@ -30,10 +30,13 @@ osbf_dump (const CLASS_STRUCT *class, const char *csvfile, OSBF_HANDLER *h)
     osbf_raise(h, "Can't open csv file %s", csvfile);
 
   fprintf(fp_csv,
-          "%" SCNu32 ";%" SCNu32 "\n%" SCNu32 ";%" SCNu32 "\n",
+          "%" SCNu32 ";%" SCNu32 "\n%" SCNu32 ";%" SCNu32 "\n"
+          "%" SCNu32 ";%" SCNu32 "\n"
+          "%" SCNu64 ";%" SCNu32 "\n",
           class->header->db_version, 0,
-          class->header->num_buckets, class->header->learnings);
-
+          class->header->num_buckets, class->header->learnings,
+          class->header->false_negatives, class->header->false_positives,
+          class->header->classifications, class->header->extra_learnings);
   
   num_buckets = class->header->num_buckets;
   buckets = class->buckets;
@@ -71,10 +74,14 @@ osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h)
   osbf_raise_unless(fp_csv != NULL, h, "Cannot open csv file %s", csvfile);
   /* read header */
   UNLESS_CLEANUP_RAISE(
-     4 == fscanf (fp_csv,
-		  "%" SCNu32 ";%" SCNu32 "\n%" SCNu32 ";%" SCNu32 "\n",
+     8 == fscanf (fp_csv,
+		  "%" SCNu32 ";%" SCNu32 "\n%" SCNu32 ";%" SCNu32 "\n"
+                  "%" SCNu32 ";%" SCNu32 "\n"
+                  "%" SCNu64 ";%" SCNu32 "\n",
                   &uheader.db_version, &garbage,
-		  &uheader.num_buckets, &uheader.learnings),
+		  &uheader.num_buckets, &uheader.learnings,
+                  &uheader.false_negatives, &uheader.false_positives,
+                  &uheader.classifications, &uheader.extra_learnings),
      fclose (fp_csv),
      (h, "csv file %s doesn't have a valid header", csvfile));
 

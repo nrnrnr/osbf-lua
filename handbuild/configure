@@ -41,11 +41,15 @@ INCSEARCH="/usr/include /usr/include/lua5.1 /usr/local/include /usr/local/includ
 MKTEMP="`which mktemp 2>/dev/null`"
 TEMPFILE="`which tempfile 2>/dev/null`"
 
+SCRIPT=
 if [ -x "$MKTEMP" ]; then
-  SCRIPT="`mktemp`"
+  SCRIPT="`mktemp 2>/dev/null`"
+  [ -z "$SCRIPT" ] && SCRIPT="`mktemp -t 2>/dev/null`"  # Darwin
 elif [ -x "$TEMPFILE" ]; then
   SCRIPT="`tempfile`"
-else
+fi
+
+if [ -z "$SCRIPT" ]; then
   SCRIPT=/tmp/lua$$ # unsafe but portable
 fi
 

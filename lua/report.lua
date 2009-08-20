@@ -100,7 +100,7 @@ local English = {
     false_negatives = "False negatives",
     false_positives = "False positives",
     learnings = "Learnings",
-    accuracy = "Accuracy",
+    accuracy = "Precision",
     total = "Total",
   },
 }
@@ -214,8 +214,10 @@ Content-Type: multipart/mixed;
 This is a multi-part message in MIME format.
 
 ----=-=-=-train-report-boundary-=-=-=
-Content-Type: text/html
+Content-Type: text/html;
+        name="osbf_lua_training_form.html"
 Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment
 
 $body
 ----=-=-=-train-report-boundary-=-=-=--
