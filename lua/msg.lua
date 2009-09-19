@@ -440,7 +440,7 @@ do
     local s = despace(m.subject or '')
     s = s .. '>>'
     if string.len(s) < w then
-      local body = despace(choose_body_part(m))
+      local body = despace(choose_body_part(m) or '')
       return s .. string.sub(body, 1, w-string.len(s))
     else
       return string.sub(s, 1, w)
