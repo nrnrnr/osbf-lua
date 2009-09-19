@@ -113,6 +113,8 @@ syntax of an option may be any of the following:
 
 Whether a value is expected depends on the type of the option.
 
+The function reads --multi-part-name as --multi_part_name.
+
 The end of options may be forced with -- or -.  
 
 XXX   Things that are bogus   XXX
@@ -134,6 +136,7 @@ function parse(args, options)
     if not key or args[1] == '-' then
       break -- no more options
     else
+      key = key:gsub('-', '_')
       table.remove(args, 1)
       found[key] = (options[key] or no_such_option)(key, value, args) or true
     end
