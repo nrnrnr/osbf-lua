@@ -91,8 +91,10 @@ email is the address for subject-line commands.
 rightid (optional) is the right part of the Spam Filter ID;
   it defaults to $rightid
 lang (optional) is a string with the language for cfg.cache.report_locale 
-use_subdirs (optional) divides the cache into subdirectories DD/HH, if true;
-  it defaults to false 
+use_subdirs (optional) constrols division of the cache into subdirectories
+  if 'daily',          subdirs are YYYY/MM-DD
+  if nil or false,     there are no subdirs
+  otherwise,           subdirs are DD/HH
 ]]) : gsub('%$rightid', default_rightid)
 
 do
@@ -113,9 +115,6 @@ do
 
     local ds = { dirs.user, dirs.database, dirs.lists, dirs.cache, dirs.log }
     util.tablemap(util.mkdir, ds)
-    if use_subdirs or cfg.cache.use_subdirs then
-      cache.make_cache_subdirs(dirs.cache)
-    end
 
     if divide[units] then size = math.floor(size / #cfg.classlist()) end
     local buckets = to_buckets(size)
@@ -145,7 +144,9 @@ do
       if lang then
         x = x:gsub('(report_locale%s*=%s*)[^\r\n]*', string.format('%%1%q,', lang))
       end
-      if use_subdirs then
+      if use_subdirs == 'daily' then
+        x = x:gsub('(use_subdirs%s*=%s*)false', '%1"daily"')
+      elseif use_subdirs then
         x = x:gsub('(use_subdirs%s*=%s*)false', '%1true')
       end
       u:write(x)

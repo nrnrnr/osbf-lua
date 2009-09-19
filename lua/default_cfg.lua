@@ -63,16 +63,18 @@ return {
   -- cache field may be omitted if cache is not used
   cache = {
     use          = true,     -- defaults to true if omitted
-    use_subdirs  = false,    -- divide the cache into subdirectories DD/HH
+    use_subdirs  = false,    -- divide the cache into subdirectories
            -- If use_subdirs is true, messages cached for later training
            -- are saved under a subdir under cache_dir, formed by the day of
-           -- the month and the time the message arrived.  This technique
+           -- the month and the time the message arrived: DD/HH.  This technique
            -- avoids having a single cache directory containing thousands
            -- of files.
-           -- This option should be set before intialization; otherwise
-           -- you can call cache.mk_subdirs to make the subdirectories,
-           -- but at present there is no mechanism by which to move
-           -- the old messages into the proper subdir (but there should be XXX).
+           -- If use_subdirs is 'daily', the message cache subdirectories
+           -- have the form YYYY/MM-DD and are intended to be kept forever.
+           -- Subdirectories are created lazily on demand, but if this option
+           -- is changed after initialization, there is no mechanism by which 
+           -- to move old messages into the proper subdir (but there should be XXX).
+
     keep_learned = 100,    -- When expiring the cache, keep the last N
                            -- learned messages, no matter how old they are.
 

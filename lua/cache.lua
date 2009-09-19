@@ -240,36 +240,75 @@ function is_sfid(sfid)
   return (pcall(table_of_sfid, sfid))
 end
 
-__doc.subdir = [[function(sfid) returns string
-Returns the subdirectory of the cache in which that sfid should be stored,
-or if subdirectories are not used, returns the empty string.]]
+__doc.slashify = [[function(string) returns string
+Replace the ASCII forward slash '/' with the platform-specific
+directory-separator character config.slash
+]]
 
-function subdir(sfid)
-  local t = table_of_sfid(sfid) -- guarantees we have a sfid even if t not used
-  if cfg.cache.use_subdirs then
-    return table.concat { ('%02d'):format(t.time.day), slash,
-                          ('%02d'):format(t.time.hour), slash }
+local function slashify(s)
+  return (s:gsub('/', slash))
+end
+
+
+__doc.subdir = [[function(sfid) returns string
+Returns a pathname prefix containing the subdirectory of the cache in
+which that sfid should be stored, followed by a slash;
+if subdirectories are not used, returns the empty string.]]
+
+local function subdir_of_time(t)
+  t = os.date('*t', t)
+  if cfg.cache.use_subdirs == 'daily' then
+    return slashify(string.format('%04d/%02d-%02d/', t.year, t.month, t.day))
+  elseif cfg.cache.use_subdirs then
+    return slashify(string.format('%02d/%02d/', t.day, t.hour))
   else
     return ''
   end
 end
 
+function subdir(sfid)
+  return subdir_of_time(table_of_sfid(sfid).time)
+             -- table_of_sfid guarantees we have a sfid even if result not used
+end
+
 ----------------------------------------------------------------
 
-__doc.make_cache_subdirs = [[function ([dir]) returns nothing
-Make subdirectories of the cache directory, or of 'dir' 
-if dir is given.
+__doc.make_cache_subdir = [[function (relpath) returns nothing
+Make all subdirectories needed to establish 'relpath' as a 
+subdirectory of the cache directory.
 ]]
 
-function make_cache_subdirs(dir)
-  dir = dir or cfg.dirs.cache
-  for day = 1, 31 do
-    local subdir = table.concat { dir, slash, ('%02d'):format(day) }
-    util.mkdir(subdir)
-    for hour = 0, 23 do
-      subdir = table.concat { subdir, slash, ('%02d'):format(hour) }
-      util.mkdir(subdir)
+function make_cache_subdir(relpath)
+  local cache = assert(cfg.dirs.cache)
+  assert(util.isdir(cache), 'Making subdirectory of nondirectory cache ' .. cache)
+  local path = { cache }
+  local slashpat = slash:gsub('%A', '%%%1')
+  for d in util.string_splits(relpath, slashpat) do
+    if d ~= '' then
+      table.insert(path, slash)
+      table.insert(path, d)
+      local dir = table.concat(path)
+      if not core.isdir(dir) then
+        util.mkdir(dir)
+      end
     end
+  end
+end
+
+__doc.lazy_cache_directory = [[
+function(abspath) returns string
+Takes an absolute path that refers to the cache directory or a subdirectory
+thereof, creates subdirectories lazily as needed, and returns its argument.
+]]
+
+function lazy_cache_directory(path)
+  local cache = assert(cfg.dirs.cache)
+  local p1 = path:sub(1, cache:len())
+  local p2 = path:sub(cache:len() + slash:len())
+  if p2:len() > 0 then
+    assert(p1 == cache, string.format("Cache directory prefix %q is not cache (%q)",
+                                      p1, cache))
+    make_cache_subdir(p2)
   end
 end
 
@@ -277,7 +316,8 @@ end
 __doc.filename = [[function(sfid, status) returns string
 Given a message's sfid and status, returns the pathname of that
 message in the cache.  The caller is trusted; there's no guarantee
-that the message is actually present with that status.]]
+that the message is actually present with that status, and there's
+no guarantee that the directory exists.]]
 
 function filename(sfid, status)
   return cfg.dirfilename('cache', subdir(sfid) .. sfid, assert(suffixes[status]))
@@ -340,11 +380,26 @@ function generate_sfid(sfid_tag, confidence)
   error('could not generate sfid')
 end
 
+__doc.dirname = [[function(pathname) returns pathname
+returns the directory part of an absolute pathname
+]]
+
+local function dirname(s)
+  local function quote(s) return (s:gsub('%A', '%%%1')) end
+  local slashpat = quote(slash)
+  s = s:gsub(slashpat .. '$', '')
+  local s, n = s:gsub(slashpat .. '[^' .. slashpat .. ']*$', '')
+  assert(n == 1)
+  return s == '' and slash or s
+end
+
+
 __doc.store = [[function(sfid, msg) returns string or calls error
 msg is a string containing the message to which the unique sfid
 has been assigned.  This function writes the message into the cache,
 returning the sfid if successful, and if unsuccessful (because
-of a collision), returning nil, error.
+of a collision), returning nil, error.  If need be, this function
+creates a cache subdirectory lazily.
 
 XXX this function should be combined with generate_sfid so
 the two could be made atomic XXX]]
@@ -357,7 +412,9 @@ function store(sfid, msg)
     f:close()
     error('sfid ' .. sfid .. ' is already in the cache!')
   end
-  local f = assert(io.open(filename(sfid, 'unlearned'), 'w'))
+  local file = filename(sfid, 'unlearned')
+  lazy_cache_directory(dirname(file))
+  local f = assert(io.open(file, 'w'))
   f:write(msg)
   f:close()
   return sfid
@@ -477,9 +534,10 @@ local function yield_two_days_sfids()
   if cfg.cache.use_subdirs then
     local end_time = os.time()
     local start_time = end_time - 48*3600
+    local step_hours = cfg.cache.use_subdirs == 'daily' and 24 or 1
     -- yesterday and today
-    for t = start_time, end_time, 3600 do
-      table.insert(sfid_subdirs, os.date('%d/%H/', t))
+    for t = start_time, end_time, step_hours * 3600 do
+      table.insert(sfid_subdirs, subdir_of_time(t))
     end
   else
     sfid_subdirs = {""}
@@ -488,10 +546,13 @@ local function yield_two_days_sfids()
   --- shouldn't sfids be sorted by time or something?
   local sfids = {}
   for _, subdir in ipairs(sfid_subdirs) do
-    for f in core.dir(cfg.dirs.cache .. subdir) do
-      --if string.find(f, "^sfid%-") then
-      if is_sfid(f) then
-        table.insert(sfids, f)
+    local dir = cfg.dirs.cache .. subdir
+    if core.isdir(dir) then
+      for f in core.dir(dir) do
+        --if string.find(f, "^sfid%-") then
+        if is_sfid(f) then
+          table.insert(sfids, f)
+        end
       end
     end
   end
@@ -540,7 +601,23 @@ function expiry_candidates(seconds)
   end
 
   local cache = cfg.dirs.cache
-  if cfg.cache.use_subdirs then
+  if cfg.cache.use_subdirs == 'daily' then
+    for year in core.dir(cache) do
+      if year:find '^%d%d%d%d$' then
+        local ypath = table.concat {cache, slash, year}
+        if core.isdir(ypath) then
+          for mmdd in core.dir(ypath) do
+            if mmdd:find '^%d%d%-%d%d$' then
+              local path = table.concat {ypath, slash, mmdd}
+              if core.isdir(path) then
+                add_dir(path)
+              end
+            end
+          end
+        end
+      end
+    end
+  elseif cfg.cache.use_subdirs then
     for day = 1, 31 do
       for hour = 0, 23 do
         add_dir(table.concat {cache, slash, ('%02d'):format(day),

@@ -104,7 +104,9 @@ If omitted, no cache is used; if true, use a cache with default properties.
 Properties include:
   use              Boolean indicating whether to use the cache (default $use)
   use_subdirs      Put messages in subdirectories, reducing the number of
-                   files per directory (default $use_subdirs)
+                   files per directory (default $use_subdirs).  For a long-lived
+                   cache with one directory per day, use 'daily'; otherwise
+                   the cache will be designed to be expired roughly once a month.
   keep_learned     When expiring the cache, keep at least this many
                    messages trained for each class (default $keep_learned)
   report_limit     Maxmimum number of messages in one cache report
