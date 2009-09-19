@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -23,6 +24,8 @@
 
 #include "lauxlib.h"
 #include "lualib.h"
+
+#include "coreutil.h"
 
 #define osbf_error_handler lua_State
 
@@ -754,353 +757,6 @@ set_info (lua_State * L, int idx)
 
 /**********************************************************/
 
-/* auxiliary functions */
-
-#define MAX_DIR_SIZE 256
-
-static int
-lua_osbf_changedir (lua_State * L)
-{
-  const char *newdir = luaL_checkstring (L, 1);
-
-  if (chdir (newdir) != 0)
-    {
-      return 0;
-    }
-  else
-    {
-      return luaL_error (L, "can't change dir to '%s'\n", newdir);
-    }
-}
-
-/**********************************************************/
-/* Test to see if path is a directory */
-static int
-l_is_dir(lua_State *L)
-{
-	struct stat s;
-	const char *path=luaL_checkstring(L, 1);
-	if (stat(path,&s)==-1)
-          lua_pushboolean(L, 0);
-        else
-          lua_pushboolean(L, S_ISDIR(s.st_mode));
-        return 1;
-}
-
-
-/**********************************************************/
-
-static int
-lua_osbf_getdir (lua_State * L)
-{
-  char cur_dir[MAX_DIR_SIZE + 1];
-
-  if (getcwd (cur_dir, MAX_DIR_SIZE) != NULL)
-    {
-      lua_pushstring (L, cur_dir);
-      return 1;
-    }
-  else
-    {
-      return luaL_error(L, "%s","can't get current dir");
-    }
-}
-
-/**********************************************************/
-/* Directory Iterator - from the PIL book */
-
-/* forward declaration for the iterator function */
-static int dir_iter (lua_State * L);
-
-static int
-l_dir (lua_State * L)
-{
-  const char *path = luaL_checkstring (L, 1);
-
-  /* create a userdatum to store a DIR address */
-  DIR **d = (DIR **) lua_newuserdata (L, sizeof (DIR *));
-
-  /* set its metatable */
-  luaL_getmetatable (L, DIR_METANAME);
-  lua_setmetatable (L, -2);
-
-  /* try to open the given directory */
-  *d = opendir (path);
-  if (*d == NULL)		/* error opening the directory? */
-    luaL_error (L, "cannot open %s: %s", path, strerror (errno));
-
-  /* creates and returns the iterator function
-     (its sole upvalue, the directory userdatum,
-     is already on the stack top */
-  lua_pushcclosure (L, dir_iter, 1);
-  return 1;
-}
-
-static int
-dir_iter (lua_State * L)
-{
-  DIR *d = *(DIR **) lua_touserdata (L, lua_upvalueindex (1));
-  struct dirent *entry;
-  if ((entry = readdir (d)) != NULL)
-    {
-      lua_pushstring (L, entry->d_name);
-      return 1;
-    }
-  else
-    return 0;			/* no more values to return */
-}
-
-static int
-dir_gc (lua_State * L)
-{
-  DIR *d = *(DIR **) lua_touserdata (L, 1);
-  if (d)
-    closedir (d);
-  return 0;
-}
-/**********************************************************/
-
-/* 32-bit Cyclic Redundancy Code  implemented by A. Appel 1986  
- 
-   this works only if POLY is a prime polynomial in the field
-   of integers modulo 2, of order 32.  Since the representation of this
-   won't fit in a 32-bit word, the high-order bit is implicit.
-   IT MUST ALSO BE THE CASE that the coefficients of orders 31 down to 25
-   are zero.  Fortunately, we have a candidate, from
-	E. J. Watson, "Primitive Polynomials (Mod 2)", Math. Comp 16 (1962).
-   It is:  x^32 + x^7 + x^5 + x^3 + x^2 + x^1 + x^0
-
-   Now we reverse the bits to get:
-	111101010000000000000000000000001  in binary  (but drop the last 1)
-           f   5   0   0   0   0   0   0  in hex
-*/
-
-#define POLY 0xf5000000
-
-static uint32_t crc_table[256];
-
-static void init_crc(void) {
-  int i, j, sum;
-  for (i=0; i<256; i++) {
-    sum=0;
-    for(j = 8-1; j>=0; j=j-1)
-      if (i&(1<<j)) sum ^= ((uint32_t)POLY)>>j;
-    crc_table[i]=sum;
-  }
-}
-
-static int lua_crc32(lua_State *L) {
-  size_t n;
-  const unsigned char *s = (const unsigned char *)luaL_checklstring(L, 1, &n);
-  uint32_t sum = 0;
-  while (n-- > 0) {
-    sum = (sum>>8) ^ crc_table[(sum^(*s++))&0xff];
-  }
-  lua_pushnumber(L, (lua_Number) sum);
-  return 1;
-}
-
-
-/**********************************************************/
-/*
-* lbase64.c
-* base64 encoding and decoding for Lua 5.1
-* Luiz Henrique de Figueiredo <lhf@tecgraf.puc-rio.br>
-* 27 Jun 2007 19:04:40
-* Code in the public domain.
-*/
-
-static const char b64code[]=
-"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-static void b64encode(luaL_Buffer *b, unsigned char c1, unsigned char c2, unsigned char c3, int n)
-{
- uint32_t tuple=c3+256UL*(c2+256UL*c1);
- int i;
- char s[4];
- for (i=0; i<4; i++) {
-  s[3-i] = b64code[tuple % 64];
-  tuple /= 64;
- }
- for (i=n+1; i<4; i++) s[i]='=';
- luaL_addlstring(b,s,4);
-}
-
-static int lua_b64encode(lua_State *L)		/** encode(s) */
-{
- size_t l;
- const unsigned char *s=(const unsigned char*)luaL_checklstring(L,1,&l);
- luaL_Buffer b;
- int n;
- luaL_buffinit(L,&b);
- for (n=l/3; n--; s+=3) b64encode(&b,s[0],s[1],s[2],3);
- switch (l%3)
- {
-  case 1: b64encode(&b,s[0],0,0,1);		break;
-  case 2: b64encode(&b,s[0],s[1],0,2);		break;
- }
- luaL_pushresult(&b);
- return 1;
-}
-
-static void b64decode(luaL_Buffer *b, int c1, int c2, int c3, int c4, int n)
-{
- uint32_t tuple=c4+64L*(c3+64L*(c2+64L*c1));
- char s[3];
- switch (--n)
- {
-  case 3: s[2]=tuple;
-  case 2: s[1]=tuple >> 8;
-  case 1: s[0]=tuple >> 16;
- }
- luaL_addlstring(b,s,n);
-}
-
-static int lua_b64decode(lua_State *L)		/** b64decode(s) */
-{
- size_t l;
- const char *s=luaL_checklstring(L,1,&l);
- luaL_Buffer b;
- int n=0;
- char t[4];
- luaL_buffinit(L,&b);
- for (;;)
- {
-  int c=*s++;
-  switch (c)
-  {
-   const char *p;
-   default:
-    p=strchr(b64code,c);
-    if (p==NULL)
-      luaL_error(L, "Invalid character '%c' in base64-encoded string", c);
-    t[n++]= p-b64code;
-    if (n==4)
-    {
-     b64decode(&b,t[0],t[1],t[2],t[3],4);
-     n=0;
-    }
-    break;
-   case '=':
-    switch (n)
-    {
-     case 1: b64decode(&b,t[0],0,0,0,1);		break;
-     case 2: b64decode(&b,t[0],t[1],0,0,2);	break;
-     case 3: b64decode(&b,t[0],t[1],t[2],0,3);	break;
-    }
-   case 0:
-    luaL_pushresult(&b);
-    return 1;
-   case '\n': case '\r': case '\t': case ' ': case '\f': case '\b':
-    break;
-  }
- }
- return luaL_error(L, "This statement can't be reached");
-}
-
-/**********************************************************/
-
-/* RFC3629 - UTF-8, a transformation format of ISO 10646
- * 
- *   Char. number range  |        UTF-8 octet sequence
- *      (hexadecimal)    |              (binary)
- *   --------------------+-------------------------------------
- *   0000 0000-0000 007F | 0xxxxxxx
- *   0000 0080-0000 07FF | 110xxxxx 10xxxxxx
- *   0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
- *   0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
- */
-
-#define HTML_BUFFER_SIZE 2048
-static int lua_utf8tohtml(lua_State *L)
-{
- size_t l;
- const char *s=luaL_checklstring(L,1,&l);
- const char *max_s = s + l;
- luaL_Buffer b;
- char buffer[HTML_BUFFER_SIZE+20] = {'\0'};
- char *p = buffer;
- char *max_p = p + HTML_BUFFER_SIZE;
- uint32_t c;
- unsigned len, i;
- uint32_t min_values[] = {0x00, 0x100, 0x080, 0x0800, 0x010000};
- uint32_t max_value = 0x10FFFF;
-
- luaL_buffinit(L,&b);
- while ((c=*s)) {
-   for (len=0; c & 0x80; len++)
-     c = c << 1;
-   if (len == 1 || len > 4) { /* max bytes of UTF-8 encoded char */
-     sprintf(buffer, "%02X", (unsigned char)*s);
-     luaL_error(L, "Invalid first byte '0x%s' in UTF-8 char", buffer);
-   } else if (s+len > max_s) {
-     sprintf(buffer, "%02X", (unsigned char)*s);
-     luaL_error(L, "Incomplete UTF-8 char: '0x%s'", buffer);
-   }
-   c = (c & 0xFF) >> len; /* valid bits back to original position */
-   for (s++, i=len; i>1; i--, s++) {
-     if ((*s & 0xC0) == 0x80)
-       c = (c<<6) | (*s & 0x3F);
-     else {
-       sprintf(buffer, "%02X", (unsigned char)*s);
-       luaL_error(L, "Invalid byte '0x%s' in UTF-8 char", buffer);
-     }
-   }
-   if (c < min_values[len])
-     luaL_error(L, "Overlong UTF-8 form: value %d in %d bytes", c, len);
-   else if (c > max_value)
-     luaL_error(L, "Code point out of UTF-8 range: %f", c);
-   /* reserved for surrogate pairs in UTF-16 */
-   if (c >= 0xD800 && c <= 0xDFFF) {
-     sprintf(buffer, "%4X", c);
-     luaL_error(L, "Surrogate pairs are not allowed in UTF-8: U+%s", buffer);
-   }
-
-   if (c < 0x7F && c >= ' ') {
-     switch (c) {
-       case '<':
-         strcpy(p, "&lt;");
-         break;
-       case '>':
-         strcpy(p, "&gt;");
-         break;
-       case '"':
-         strcpy(p, "&quot;");
-         break;
-       case '&':
-         strcpy(p, "&amp;");
-         break;
-       default:
-         *p = c;
-         break;
-     }
-   } else
-     sprintf(p, "&#%d;", c);
-   while (*++p);
-   if (p >= max_p) {
-     luaL_addstring(&b, buffer);
-     buffer[0] = '\0';
-     p = buffer;
-   }
- }
- luaL_addstring(&b, buffer);
- luaL_pushresult(&b);
- return 1;
-}
-
-/**********************************************************/
-
-static int lua_unsigned2string(lua_State *L) {
-  uint32_t n = luaL_checkint(L, 1);
-  unsigned char buf[4];
-  int i;
-  for (i = 0; i < 4; i++) buf[i] = (n >> 8*i) & 0xff;
-  lua_pushlstring(L, (const char *) buf, 4);
-  return 1;
-}
-
-/**********************************************************/
-
 static const struct luaL_reg classmeta[] = {
   {"__tostring", lua_osbf_class_tostring},
   {"__gc", lua_osbf_class_gc},
@@ -1259,15 +915,6 @@ static const struct luaL_reg osbf[] = {
   {"restore", lua_osbf_restore},
   {"import", lua_osbf_import},
   {"stats", lua_osbf_stats},
-  {"getdir", lua_osbf_getdir},
-  {"chdir", lua_osbf_changedir},
-  {"dir", l_dir},
-  {"isdir", l_is_dir},
-  {"crc32", lua_crc32},
-  {"b64encode", lua_b64encode},
-  {"b64decode", lua_b64decode},
-  {"unsigned2string", lua_unsigned2string},
-  {"utf8tohtml", lua_utf8tohtml},
   {"hash", lua_hash},
   {NULL, NULL}
 };
@@ -1281,7 +928,7 @@ OPENFUN (lua_State * L)
 {
   const char *libname = luaL_checkstring(L, -1);
 
-  init_crc();
+  init_core_util(L);
   
   /* push os.exit onto the stack */
   lua_getfield(L, LUA_GLOBALSINDEX, "os");
@@ -1317,11 +964,21 @@ OPENFUN (lua_State * L)
   lua_pop(L, 1); /* goodbye metatable */
 
                                                 /* s: libname */
-  /* Open dir function */
-  luaL_newmetatable (L, DIR_METANAME);
-  lua_pushcfunction (L, dir_gc);
-  lua_setfield (L, -2, "__gc");
   luaL_register (L, libname, osbf);
+  // check to be sure osbf_lua_utils has no duplicates, then register
+  bool duplicates = 0;
+  for (const struct luaL_Reg *p = &osbf_lua_utils[0]; p->name != NULL; p++) {
+    lua_getfield(L, -1, p->name);
+    if (!lua_isnil(L, -1)) {
+      fprintf(stderr,
+              "Field '%s' is duplicated in losbflib.c and coreutil.c\n", p->name);
+      duplicates = 1;
+    }
+    lua_pop(L, 1);
+  }
+  if (duplicates)
+    luaL_error(L, "Cannot continue with duplicate core functions");
+  luaL_register (L, NULL, osbf_lua_utils);
   set_info (L, lua_gettop(L));
   return 1;
 }

@@ -35,7 +35,7 @@ MAILFILE=$(shell ../mailfile)
 # list of the sources and their locations
 
 HBASES= oarray.h osbf_disk.h osbfcvt.h osbferr.h osbflib.h
-SRCBASES= losbflib.c osbferrl.c oarray.c \
+SRCBASES= losbflib.c coreutil.c osbferrl.c oarray.c \
           osbf_bayes.c osbf_aux.c osbf_disk.c osbf_csv.c osbf_stats.c \
           osbf_fmt_5.c osbf_fmt_6.c osbf_fmt_7.c fastmime.c
 
@@ -101,7 +101,7 @@ $B/mem-test: $B/small.o $B/lua.o $B/main.o
 install: install-c install-lua install-bin
 install-c: $B/$(LIBNAME) $B/fastmime.$(DLEXT)
 	mkdir -p $(LUA_INSTALL_CMOD)/$(MODNAME)
-	cp $B/$(LIBNAME) $(LUA_INSTALL_CMOD)/$(MODNAME)/core.$(DLEXT)
+	cp $B/$(LIBNAME)        $(LUA_INSTALL_CMOD)/$(MODNAME)/core.$(DLEXT)
 	cp $B/fastmime.$(DLEXT) $(LUA_INSTALL_CMOD)/fastmime.$(DLEXT)
 install-lua:
 	mkdir -p $(LUA_INSTALL_LMOD)/$(MODNAME)
