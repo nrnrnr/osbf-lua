@@ -27,6 +27,10 @@ Adjust module names and installation directories by making a file mk.config:
   cp mk.config.defaults mk.config 
   emacs mk.config # edit to tast
 
+You may also put a host-specific file in
+
+  mk.config.`hostname`
+
 Then as above either
 
   ./configure
