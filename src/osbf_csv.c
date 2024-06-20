@@ -89,14 +89,14 @@ osbf_restore (const char *cfcfile, const char *csvfile, OSBF_HANDLER *h)
     osbf_malloc(uheader.num_buckets * sizeof(*class.buckets), h, "buckets");
   for (i = 0; i < uheader.num_buckets; i++) {
     UNLESS_CLEANUP_RAISE(read_bucket(buckets+i, fp_csv), 
-          (fclose(fp_csv), free(class.buckets), 1),
+          (fclose(fp_csv), free(class.buckets)),
           (h, "Problem reading csv file %s", csvfile));
   }
   class.header = osbf_calloc(1, sizeof(*class.header), h, "header");
   osbf_native_header_of_universal(class.header, &uheader);
 
   UNLESS_CLEANUP_RAISE(feof(fp_csv),
-        (fclose(fp_csv), free(class.header), free(class.buckets), 1),
+        (fclose(fp_csv), free(class.header), free(class.buckets)),
         (h, "Leftover text at end of csv file %s", csvfile));
   osbf_close_class(&class, h);
 }

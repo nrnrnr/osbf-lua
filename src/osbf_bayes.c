@@ -245,6 +245,7 @@ void osbf_bayes_train(const unsigned char *p_text,      /* pointer to text */
                class->classname);
 
   microgroom = (flags & NO_MICROGROOM) == 0;
+  (void) microgroom; // not sure why unused
   memset(class->bflags, 0,
          class->header->num_buckets * sizeof(unsigned char));
 
@@ -291,6 +292,7 @@ void osbf_bayes_train(const unsigned char *p_text,      /* pointer to text */
         h2 = hashpipe[0] * hctable2[0] +
             hashpipe[window_idx] * hctable2[H2_COMPAT_INDEX(window_idx)];
         hindex = h1 % class->header->num_buckets;
+        (void) hindex; // not sure why this is unused
 
         if (DEBUG > 2)
           fprintf(stderr,
@@ -598,6 +600,7 @@ void osbf_bayes_classify(const unsigned char *p_text,   /* pointer to text */
 
           lh = HASH_INDEX(class, hindex);
           lh0 = lh;
+          (void) lh0; // not sure why unused
           class->hits = 0;
 
           /* look for feature with hashes h1 and h2 */

@@ -18,7 +18,7 @@ __doc.__order = {
   'create_db', 'header_size', 'bucket_size',
   'classify', 'learn', 'unlearn', 'train', 'pR', 'stats', 'config', 'dump',
   'restore', 'import', 'chdir', 'getdir', 'dir', 'isdir',
-  'crc32', 'b64encode', 'b64decode', 'unsigned2string',
+  'crc32', 'md5sum', 'b64encode', 'b64decode', 'unsigned2string',
 }
 
 
@@ -379,6 +379,10 @@ Closes all open classes.
 
 __doc.crc32 = [[function(string) returns number
 Returns the standard CRC-32 checksum of the given string.
+]]
+
+__doc.md5sum = [[function(string) returns string
+Returns the (binary) MD5 message digest of the given string.
 ]]
 
 __doc.b64encode = [[function(string) returns string

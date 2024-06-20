@@ -102,6 +102,7 @@ return {
   log_incoming      = true,  -- log all incoming messages
   log_learned       = true,  -- log learned messages
   log_dir           = "log", -- relative to the user osbf-lua dir
+  log_md5           = true,  -- put MD5 checksums in logs
 
 
   -- Count classifications? To turn off, set to false.

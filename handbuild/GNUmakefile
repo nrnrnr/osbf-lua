@@ -53,7 +53,7 @@ LUASRCDIR=../lua
 CFLAGS1 = -DOPENFUN=luaopen_$(MODNAME)_core
 
 # -I. below is for config.h
-CFLAGS= -Wall -Wextra -Werror -std=c99 -pedantic -fPIC \
+CFLAGS= -Wall -Wextra -Werror -Wno-cast-function-type -std=c99 -pedantic -fPIC \
         -I$(CSRCDIR) -I. $(CFLAGS1) $(LUA_CFLAGS) $(LUA_DEFINES) \
 	-DOSBF_MODNAME=$(MODNAME) -DVERSION='"'$(MOD_VERSION)'"'
 

@@ -241,6 +241,7 @@ function run(m, options, sfid)
   local bc = learn.classify(m, probs, conf)
   local orig = msg.to_orig_string(m)
   local crc32, size = core.crc32(orig), orig:len()
+  local md5sum = cfg.log_md5 and util.md5sumx(orig)
   orig = nil --it's garbage collectable now
   if not options.nosfid and cfg.use_sfid then
     sfid = sfid or cache.generate_sfid(bc.sfid_tag, bc.pR)
@@ -248,7 +249,9 @@ function run(m, options, sfid)
   end
   log.lua('filter', log.dt { probs = probs, conf = conf, train = bc.train,
                              synopsis = msg.synopsis(m), size = size,
-                             class = bc.class, sfid = sfid, crc32 = crc32 })
+                             class = bc.class, sfid = sfid, crc32 = crc32,
+                             md5sum = md5sum,
+                           })
   if not options.notag and cfg.tag_subject then
     tag_subject(m, bc.subj_tag)
   end

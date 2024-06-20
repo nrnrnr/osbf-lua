@@ -20,7 +20,7 @@ static off_t expected_size(void *image);
 static void *find_header (void *image, CLASS_STRUCT *class, OSBF_HANDLER *h);
 static void *find_buckets(void *image, CLASS_STRUCT *class, OSBF_HANDLER *h);
 
-#define DEBUG 1
+#define DEBUG 0
 
 #define MY_FORMAT osbf_format_7
 
@@ -41,6 +41,9 @@ struct osbf_format MY_FORMAT = {
    big-endian.  At present we punt files of the wrong endianness, but there's no
    reason we couldn't provide a non-native format to convert them.
 */
+
+struct ints_containing_struct { uint32_t n1; uint32_t n2; uint64_t n3; uint32_t n4; };
+
 
 typedef OSBF_HEADER_STRUCT_2008_01 MY_DISK_IMAGE;
 typedef OSBF_BUCKET_STRUCT MY_BUCKET_STRUCT;
@@ -65,12 +68,23 @@ static int i_recognize_image(void *p) {
   return image->magic == OSBF_LITTLE || image->magic == OSBF_BIG;
 }
 
-static off_t expected_size(void *p) {
+static inline size_t legacy_disk_image_size(void) {
+  MY_DISK_IMAGE *image = NULL;
+  size_t mysize = sizeof(*image);
+  if (sizeof(struct ints_containing_struct) == 5 * sizeof(uint32_t) + 4)
+    return mysize - 4;
+  else {
+    assert(sizeof(struct ints_containing_struct) == 5 * sizeof(uint32_t));
+    return mysize;
+  }
+}
+
+static off_t expected_size(void *p) { // from 32-bit era
   MY_DISK_IMAGE *image = p;
   assert(i_recognize_image(p));
   uint32_t num_buckets =
     image->magic == OSBF_LITTLE ? image->num_buckets : swap(image->num_buckets);
-  return sizeof(*image) + sizeof(MY_BUCKET_STRUCT) * num_buckets;
+  return legacy_disk_image_size() + sizeof(MY_BUCKET_STRUCT) * num_buckets;
 }
 
 off_t osbf_native_image_size  (CLASS_STRUCT *class) {
@@ -96,9 +110,9 @@ static void *find_header (void *p, CLASS_STRUCT *class, OSBF_HANDLER *h) {
 }
 
 static void *find_buckets (void *p, CLASS_STRUCT *class, OSBF_HANDLER *h) {
-  MY_DISK_IMAGE *image = p;
+  char *image = p;
   (void)class; (void)h; /* not used */
-  return image+1;
+  return image+legacy_disk_image_size();
 }
 
 void osbf_native_write_class(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
@@ -121,7 +135,7 @@ void osbf_native_write_class(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
     fprintf(stderr, "\n");
   }
 
-  if (fwrite(class->header, sizeof(*class->header), 1, fp) != 1) {
+  if (fwrite(class->header, 1, legacy_disk_image_size(), fp) != legacy_disk_image_size()) {
     cleanup_partial_class(class->header, class, 1);
     osbf_raise(h, "%s", "Could not write header to class file %s", classname);
   }
@@ -155,7 +169,7 @@ void osbf_native_write_header(CLASS_STRUCT *class, FILE *fp, OSBF_HANDLER *h) {
     fprintf(stderr, "\n");
   }
 
-  if (fwrite(class->header, sizeof(*class->header), 1, fp) != 1) {
+  if (fwrite(class->header, 1, legacy_disk_image_size(), fp) != legacy_disk_image_size()) {
     char classname[200];
     strncpy(classname, class->classname, sizeof(classname));
     classname[sizeof(classname)-1] = '\0';
@@ -187,7 +201,7 @@ osbf_create_cfcfile (const char *cfcfile, uint32_t num_buckets, OSBF_HANDLER *h)
   image.num_buckets = num_buckets;
 
   /* Write header */
-  osbf_raise_unless (fwrite (&image, sizeof (image), 1, f) == 1, h,
+  osbf_raise_unless (fwrite (&image, 1, legacy_disk_image_size(), f) == legacy_disk_image_size(), h,
                      "Couldn't write the file header: '%s'", cfcfile);
 
   /*  Initialize CFC hashes - zero all buckets */

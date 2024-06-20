@@ -73,6 +73,7 @@ Defauts to true.]],
 Defaults to true.]],
   log_dir           = [[Name of the log dir, relative to the user
 osbf-lua dir. Defaults to "log".]],
+  log_md5           = [[Put MD5 checksums in logs.  Defaults to true.]],
 
   count_classifications = [[Flag to turn on or off classification
 counting.]],

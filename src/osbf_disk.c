@@ -109,6 +109,7 @@ osbf_open_class(const char *classname, osbf_class_usage usage,
 
   prot  = (usage == OSBF_READ_ONLY) ? PROT_READ : PROT_READ + PROT_WRITE;
   mmap_flags = prot & PROT_WRITE ? MAP_PRIVATE : MAP_SHARED;
+  (void) mmap_flags; // not sure why unused
   image = mmap (NULL, class->fsize, prot, MAP_PRIVATE, class->fd, 0);
   UNLESS_CLEANUP_RAISE(image != MAP_FAILED, (close(class->fd), free(class->classname)),
                        (h, "Couldn't mmap %s: %s.", classname, strerror(errno)));
@@ -126,7 +127,8 @@ osbf_open_class(const char *classname, osbf_class_usage usage,
       OSBF_FORMAT *format = *pformat;
       if (format->i_recognize_image(image)) {
         if (DEBUG)
-          fprintf(stderr, "Recognized file %s as %s\n", classname, format->longname);
+          fprintf(stderr, "Recognized file %s as %s (uid %d: %s)\n",
+                  classname, format->name, format->unique_id, format->longname);
         if (format->expected_size(image) != class->fsize)
           osbf_raise(h, "This can't happen: "
                      "expected %d-byte image but size of file %s is %d bytes", 

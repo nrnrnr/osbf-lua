@@ -334,7 +334,7 @@ local function learner(command_name)
             table.concat(cfg.classlist(), ', '))
     else
       for m, sfid in has_class and msgs(...) or msgs(classification, ... ) do
-        local cfn_info, crc32
+        local cfn_info, crc32, md5sum
         local added_to_cache = false
         if not cache.is_sfid(sfid) then
           if m:_has_sfid() then
@@ -349,6 +349,9 @@ local function learner(command_name)
             local bc = commands.classify(m, probs, conftab)
             local orig = m:_to_orig_string()
             crc32 = core.crc32(orig)
+            if cfg.log_md5 then
+              md5sum = util.md5sumx(orig)
+            end
             cfn_info = { probs = probs, conf = conftab, train = bc.train,
                          class = bc.class }
             sfid = cache.generate_sfid(bc.sfid_tag, bc.pR)
@@ -363,6 +366,8 @@ local function learner(command_name)
                     { class = classification, sfid = sfid,
                       synopsis = msg.synopsis(m),
                       crc32 = crc32 or core.crc32(msg.to_orig_string(m)),
+                      md5sum = md5sum or
+                        cfg.log_md5 and util.md5sumx(msg.to_orig_string(m)),
                       classification = cfn_info,
                       added_to_cache = added_to_cache,  -- for debugging
                     })
@@ -493,10 +498,13 @@ function classify(...)
       sfid = cache.generate_sfid(tag, confidence)
       cache.store(sfid, msg.to_orig_string(m))
     end
-    local crc32 = core.crc32(msg.to_orig_string(m))
+    local orig = msg.to_orig_string(m)
+    local crc32 = core.crc32(orig)
+    local md5sum = cfg.log_md5 and util.md5sumx(orig)
     log.lua('classify', log.dt { probs = probs, conf = conf, train = bc.train,
                                  synopsis = msg.synopsis(m),
-                                 class = bc.class, sfid = sfid, crc32 = crc32 })
+                                 class = bc.class, sfid = sfid,
+                                 crc32 = crc32, md5sum = md5sum })
     output.write(what, ' is ', show(bc.pR, bc.sfid_tag, bc.class),
                bc.train and ' [needs training]' or '', m.__eol)
   end

@@ -857,3 +857,16 @@ function file_contents(filename)
     return contents
   end
 end
+
+--------------------------------------------------------------------------
+__doc.md5sumx = [[function(string) returns string
+Returns the MD5 message digest of the argument as
+a string of hexadecimal digits.
+]]
+
+function md5sumx(s)
+  s = core.md5sum(s):gsub('.', function(c)
+                                 return string.format('%02x', string.byte(c))
+                               end)
+  return s
+end

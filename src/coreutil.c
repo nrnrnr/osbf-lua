@@ -224,9 +224,9 @@ static void b64decode(luaL_Buffer *b, int c1, int c2, int c3, int c4, int n)
  char s[3];
  switch (--n)
  {
-  case 3: s[2]=tuple;
-  case 2: s[1]=tuple >> 8;
-  case 1: s[0]=tuple >> 16;
+  case 3:     s[2]=tuple;          goto c2;
+  case 2: c2: s[1]=tuple >> 8;     goto c1;
+  case 1: c1: s[0]=tuple >> 16;
  }
  luaL_addlstring(b,s,n);
 }
@@ -263,7 +263,8 @@ static int lua_b64decode(lua_State *L)		/** b64decode(s) */
      case 2: b64decode(&b,t[0],t[1],0,0,2);	break;
      case 3: b64decode(&b,t[0],t[1],t[2],0,3);	break;
     }
-   case 0:
+    goto c0;
+   case 0: c0:
     luaL_pushresult(&b);
     return 1;
    case '\n': case '\r': case '\t': case ' ': case '\f': case '\b':
